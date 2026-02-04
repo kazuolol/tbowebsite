@@ -15,7 +15,6 @@ export class Clouds3D {
   private material: THREE.ShaderMaterial;
 
   constructor() {
-    // Generate cloud cluster positions
     const clusters = this.generateClusters();
     const totalPuffs = clusters.reduce((sum, c) => sum + c.puffCount, 0);
 
@@ -28,7 +27,7 @@ export class Clouds3D {
       uniforms: {
         uTime: { value: 0 },
         uCloudColor: { value: new THREE.Color(0xffffff) },
-        uCloudShadow: { value: new THREE.Color(0xb8c6d4) },
+        uCloudShadow: { value: new THREE.Color(0xd0d8e0) },
         uSkyColor: { value: new THREE.Color(0x7ec0ee) }
       },
       transparent: true,
@@ -40,40 +39,52 @@ export class Clouds3D {
     this.mesh = new THREE.InstancedMesh(geometry, this.material, totalPuffs);
     this.mesh.frustumCulled = false;
 
-    // Generate puff instances
     this.generatePuffs(clusters, totalPuffs);
   }
 
   private generateClusters(): CloudCluster[] {
     const clusters: CloudCluster[] = [];
-    const clusterCount = 25;
 
-    for (let i = 0; i < clusterCount; i++) {
-      // Distribute clouds in a dome pattern
+    // Large fluffy cloud formations
+    for (let i = 0; i < 20; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const distance = 80 + Math.random() * 200;
-      const height = 30 + Math.random() * 80;
+      const distance = 50 + Math.random() * 200;
+      const height = 30 + Math.random() * 60;
 
       clusters.push({
         x: Math.cos(angle) * distance,
         y: height,
-        z: Math.sin(angle) * distance - 100, // Bias towards front
-        puffCount: Math.floor(15 + Math.random() * 25),
+        z: Math.sin(angle) * distance - 100,
+        puffCount: Math.floor(40 + Math.random() * 60), // More puffs per cloud
+        radius: 25 + Math.random() * 35
+      });
+    }
+
+    // Medium clouds
+    for (let i = 0; i < 15; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = 40 + Math.random() * 150;
+
+      clusters.push({
+        x: Math.cos(angle) * distance,
+        y: 20 + Math.random() * 50,
+        z: Math.sin(angle) * distance - 60,
+        puffCount: Math.floor(25 + Math.random() * 35),
         radius: 15 + Math.random() * 25
       });
     }
 
-    // Add some closer, larger clouds
-    for (let i = 0; i < 8; i++) {
+    // Small wisps
+    for (let i = 0; i < 25; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const distance = 40 + Math.random() * 60;
+      const distance = 30 + Math.random() * 180;
 
       clusters.push({
         x: Math.cos(angle) * distance,
-        y: 20 + Math.random() * 40,
+        y: 15 + Math.random() * 70,
         z: Math.sin(angle) * distance - 50,
-        puffCount: Math.floor(25 + Math.random() * 35),
-        radius: 20 + Math.random() * 30
+        puffCount: Math.floor(10 + Math.random() * 20),
+        radius: 10 + Math.random() * 15
       });
     }
 
@@ -90,36 +101,31 @@ export class Clouds3D {
 
     for (const cluster of clusters) {
       for (let i = 0; i < cluster.puffCount; i++) {
-        // Distribute puffs within cluster using spherical distribution
-        // but flattened vertically for cloud-like shape
+        // Spherical distribution but flattened
         const theta = Math.random() * Math.PI * 2;
         const phi = Math.acos(2 * Math.random() - 1);
-        const r = Math.pow(Math.random(), 0.5) * cluster.radius;
+        const r = Math.pow(Math.random(), 0.3) * cluster.radius;
 
         const localX = r * Math.sin(phi) * Math.cos(theta);
         const localY = r * Math.sin(phi) * Math.sin(theta) * 0.4; // Flatten
-        const localZ = r * Math.cos(phi);
+        const localZ = r * Math.cos(phi) * 0.6;
 
         offsets[puffIndex * 3] = cluster.x + localX;
         offsets[puffIndex * 3 + 1] = cluster.y + localY;
         offsets[puffIndex * 3 + 2] = cluster.z + localZ;
 
-        // Larger puffs at center, smaller at edges
-        const distFromCenter = Math.sqrt(localX * localX + localY * localY + localZ * localZ) / cluster.radius;
-        scales[puffIndex] = (8 + Math.random() * 12) * (1.2 - distFromCenter * 0.5);
+        // Varied scales - many small, some large
+        scales[puffIndex] = 8 + Math.random() * 20;
 
-        // Brighter on top, darker on bottom
-        const heightInCluster = (localY + cluster.radius * 0.4) / (cluster.radius * 0.8);
-        brightnesses[puffIndex] = 0.6 + Math.min(1.0, heightInCluster) * 0.4 + Math.random() * 0.1;
+        // Brighter on top
+        const heightFactor = (localY + cluster.radius * 0.4) / (cluster.radius * 0.8);
+        brightnesses[puffIndex] = 0.7 + Math.min(1.0, heightFactor) * 0.3;
 
-        // Set dummy matrix (required by InstancedMesh)
         this.mesh.setMatrixAt(puffIndex, dummy);
-
         puffIndex++;
       }
     }
 
-    // Add instance attributes
     this.mesh.geometry.setAttribute(
       'offset',
       new THREE.InstancedBufferAttribute(offsets, 3)

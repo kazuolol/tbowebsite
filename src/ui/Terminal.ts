@@ -2,6 +2,15 @@ import { Typewriter } from './Typewriter';
 
 type TerminalState = 'intro' | 'email' | 'otp' | 'success' | 'error';
 
+const ASCII_LOGO = `
+  _____ _            ____  _        ___
+ |_   _| |__   ___  | __ )(_) __ _ / _ \\ _ __   ___
+   | | | '_ \\ / _ \\ |  _ \\| |/ _\` | | | | '_ \\ / _ \\
+   | | | | | |  __/ | |_) | | (_| | |_| | | | |  __/
+   |_| |_| |_|\\___| |____/|_|\\__, |\\___/|_| |_|\\___|
+                             |___/
+`;
+
 export class Terminal {
   private container: HTMLElement;
   private contentElement: HTMLElement | null = null;
@@ -35,6 +44,14 @@ export class Terminal {
 
   private async startIntro(): Promise<void> {
     if (!this.contentElement) return;
+
+    // ASCII Logo
+    const logoElement = document.createElement('pre');
+    logoElement.className = 'ascii-logo';
+    logoElement.textContent = ASCII_LOGO;
+    this.contentElement.appendChild(logoElement);
+
+    await this.delay(800);
 
     // First line
     const line1 = document.createElement('div');

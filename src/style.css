@@ -4,11 +4,33 @@
   box-sizing: border-box;
 }
 
+:root {
+  --size-small: 24px;
+  --size-medium: 48px;
+  --size-large: 60px;
+  --spacing-half: 3px;
+  --spacing-default: 6px;
+  --spacing-medium: 12px;
+  --spacing-large: 32px;
+  --border-radius-default: 16px;
+  --border-radius-medium: 8px;
+  --border-radius-small: 4px;
+  --slot-border-radius: 6px;
+  --text-shadow-default: 1px 1px 0 rgb(0, 0, 0);
+  --slot-bg-default: rgba(255, 255, 255, 0.02);
+  --hover-bg: rgba(255, 255, 255, 0.15);
+  --border-color-default: rgba(255, 255, 255, 0.4);
+  --border-color-hover: rgba(255, 255, 255, 0.8);
+  --background-color-visual-element: rgba(51, 51, 51, 0.3);
+  --transition-default: all 0.3s ease;
+}
+
 html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  font-family: 'Rajdhani', 'Segoe UI', sans-serif;
+  font-family: 'Jost', sans-serif;
+  color: rgb(255, 255, 255);
 }
 
 #scene {
@@ -33,119 +55,117 @@ html, body {
   pointer-events: none;
 }
 
-/* Terminal - Clean Glass Pane */
+/* Terminal - USS Style */
 .terminal {
   width: 90%;
   max-width: 480px;
-  background: rgba(20, 25, 30, 0.65);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-radius: 4px;
+  background-color: var(--slot-bg-default);
+  border-radius: var(--border-radius-default);
+  border: none;
   position: relative;
   pointer-events: auto;
-  box-shadow:
-    0 25px 50px -12px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-/* Subtle top highlight */
-.terminal::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 20px;
-  right: 20px;
-  height: 1px;
-  background: linear-gradient(90deg,
-    transparent,
-    rgba(255, 255, 255, 0.15) 20%,
-    rgba(255, 255, 255, 0.15) 80%,
-    transparent
-  );
+  transition: var(--transition-default);
 }
 
 /* Title Bar */
 .terminal-titlebar {
-  height: 36px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .terminal-title {
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 3px;
+  color: rgb(255, 255, 255);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 2px;
   text-transform: uppercase;
+  text-shadow: var(--text-shadow-default);
 }
 
 /* Status dots */
 .terminal-dots {
   position: absolute;
-  right: 14px;
+  right: 16px;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
-  gap: 6px;
+  gap: 8px;
 }
 
 .terminal-dot {
   width: 8px;
   height: 8px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--slot-bg-default);
+  border: 1px solid var(--border-color-default);
   border-radius: 50%;
 }
 
 .terminal-dot.active {
-  background: rgba(120, 200, 120, 0.8);
-  box-shadow: 0 0 8px rgba(120, 200, 120, 0.5);
+  background: rgba(77, 255, 77, 0.8);
+  border-color: rgba(77, 255, 77, 0.6);
 }
 
 /* Terminal Content */
 .terminal-content {
-  padding: 24px 28px;
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 15px;
-  line-height: 1.8;
+  padding: var(--spacing-large);
+  color: rgb(255, 255, 255);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.7;
   min-height: 180px;
 }
 
 .terminal-line {
-  margin-bottom: 4px;
+  margin-bottom: var(--spacing-default);
   white-space: pre-wrap;
   word-wrap: break-word;
+  text-shadow: var(--text-shadow-default);
 }
 
 .terminal-line.prompt {
-  color: rgba(120, 200, 120, 0.9);
+  color: rgb(229, 229, 229);
 }
 
 .terminal-line.info {
-  color: rgba(140, 180, 220, 0.9);
+  color: rgb(200, 200, 200);
 }
 
 .terminal-line.success {
-  color: rgba(120, 200, 120, 1);
+  color: rgb(77, 255, 77);
 }
 
 .terminal-line.error {
-  color: rgba(220, 100, 100, 0.9);
+  color: rgb(255, 94, 94);
 }
 
 .terminal-line.dim {
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+}
+
+/* ASCII Logo */
+.ascii-logo {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 10px;
+  line-height: 1.1;
+  color: rgba(255, 255, 255, 0.9);
+  text-align: center;
+  margin: 0 0 var(--spacing-large);
+  text-shadow: var(--text-shadow-default);
+  white-space: pre;
+  letter-spacing: 0;
 }
 
 /* Cursor */
 .cursor {
   display: inline-block;
   width: 2px;
-  height: 16px;
-  background: rgba(255, 255, 255, 0.8);
+  height: 18px;
+  background: rgb(255, 255, 255);
   margin-left: 2px;
   animation: blink 1s step-end infinite;
   vertical-align: text-bottom;
@@ -156,21 +176,29 @@ html, body {
   51%, 100% { opacity: 0; }
 }
 
-/* Input Field */
+/* Input Field - USS text-field style */
 .terminal-input-wrapper {
   display: flex;
   align-items: center;
-  margin-top: 20px;
-  background: rgba(0, 0, 0, 0.2);
-  padding: 12px 16px;
-  border-radius: 2px;
+  margin-top: var(--spacing-medium);
+  background-color: var(--background-color-visual-element);
+  padding: var(--spacing-medium) var(--spacing-default);
+  border: 1px solid var(--border-color-default);
+  border-radius: var(--border-radius-default);
+  transition: var(--transition-default);
+}
+
+.terminal-input-wrapper:hover,
+.terminal-input-wrapper:focus-within {
+  background-color: var(--hover-bg);
+  border-color: var(--border-color-hover);
 }
 
 .terminal-prompt-symbol {
-  color: rgba(120, 200, 120, 0.7);
-  margin-right: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-right: var(--spacing-medium);
   user-select: none;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 16px;
 }
 
@@ -179,59 +207,65 @@ html, body {
   background: transparent;
   border: none;
   outline: none;
-  color: rgba(255, 255, 255, 0.95);
+  color: rgb(255, 255, 255);
   font-family: inherit;
-  font-size: 15px;
-  caret-color: rgba(120, 200, 120, 0.8);
+  font-size: 16px;
+  caret-color: rgb(255, 255, 255);
 }
 
 .terminal-input::placeholder {
-  color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.4);
+  text-shadow: var(--text-shadow-default);
 }
 
-/* OTP Input */
+/* OTP Input - USS basic-button style */
 .otp-container {
   display: flex;
-  gap: 10px;
-  margin-top: 20px;
+  gap: var(--spacing-medium);
+  margin-top: var(--spacing-medium);
   justify-content: center;
 }
 
 .otp-input {
-  width: 46px;
-  height: 54px;
-  background: rgba(0, 0, 0, 0.2);
-  border: none;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
-  border-radius: 2px;
-  color: rgba(255, 255, 255, 0.95);
+  width: var(--size-medium);
+  height: var(--size-large);
+  background-color: var(--slot-bg-default);
+  border: 1px solid var(--border-color-default);
+  border-radius: var(--slot-border-radius);
+  color: rgb(255, 255, 255);
   font-family: inherit;
   font-size: 24px;
   font-weight: 500;
   text-align: center;
   outline: none;
-  transition: border-color 0.2s, background 0.2s;
+  transition: var(--transition-default);
+}
+
+.otp-input:hover {
+  background-color: var(--hover-bg);
+  border-color: var(--border-color-hover);
 }
 
 .otp-input:focus {
-  border-bottom-color: rgba(120, 200, 120, 0.7);
-  background: rgba(120, 200, 120, 0.05);
+  background-color: var(--hover-bg);
+  border-color: var(--border-color-hover);
 }
 
 /* Status Bar */
 .status-bar {
-  margin-top: 16px;
-  background: rgba(0, 0, 0, 0.2);
-  height: 4px;
-  border-radius: 2px;
+  margin-top: var(--spacing-medium);
+  background-color: var(--slot-bg-default);
+  height: 6px;
+  border-radius: var(--border-radius-small);
   overflow: hidden;
+  border: 1px solid var(--border-color-default);
 }
 
 .status-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, rgba(120, 200, 120, 0.5), rgba(120, 200, 120, 0.8));
-  border-radius: 2px;
-  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(90deg, rgba(77, 255, 77, 0.5), rgba(77, 255, 77, 0.9));
+  border-radius: var(--border-radius-small);
+  transition: width 0.8s ease;
 }
 
 /* Scan line overlay - very subtle */
@@ -245,11 +279,11 @@ html, body {
     0deg,
     transparent,
     transparent 2px,
-    rgba(0, 0, 0, 0.015) 2px,
-    rgba(0, 0, 0, 0.015) 4px
+    rgba(0, 0, 0, 0.02) 2px,
+    rgba(0, 0, 0, 0.02) 4px
   );
   pointer-events: none;
-  border-radius: 4px;
+  border-radius: var(--border-radius-default);
 }
 
 /* Responsive */
@@ -260,13 +294,13 @@ html, body {
   }
 
   .terminal-content {
-    padding: 20px 22px;
+    padding: var(--spacing-medium);
     font-size: 14px;
   }
 
   .otp-input {
     width: 40px;
-    height: 48px;
+    height: 50px;
     font-size: 20px;
   }
 }

@@ -58,7 +58,7 @@ html, body {
 /* Terminal - USS Style */
 .terminal {
   width: 90%;
-  max-width: 480px;
+  max-width: 750px;
   background-color: var(--slot-bg-default);
   border-radius: var(--border-radius-default);
   border: none;
@@ -158,6 +158,14 @@ html, body {
   text-shadow: var(--text-shadow-default);
   white-space: pre;
   letter-spacing: 0;
+}
+
+/* Pixel Art Logo */
+.pixel-logo {
+  margin: 0 0 var(--spacing-large);
+  text-align: center;
+  white-space: pre;
+  overflow: visible;
 }
 
 /* Cursor */

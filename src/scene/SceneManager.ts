@@ -32,7 +32,7 @@ export class SceneManager {
     });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.setClearColor(0x87ceeb);
+    this.renderer.setClearColor(0xd8e8f0);  // Ethereal pale blue
 
     // Clock for animations
     this.clock = new THREE.Clock();
@@ -71,10 +71,18 @@ export class SceneManager {
     // Update clouds
     this.clouds.update(elapsed);
 
-    // Gentle camera sway
-    this.camera.position.x = Math.sin(elapsed * 0.05) * 3;
-    this.camera.position.y = 10 + Math.sin(elapsed * 0.03) * 2;
-    this.camera.rotation.z = Math.sin(elapsed * 0.02) * 0.01;
+    // Flight-like camera motion - gentle banking and sway
+    const swayX = Math.sin(elapsed * 0.08) * 5;
+    const swayY = Math.sin(elapsed * 0.05) * 3;
+    this.camera.position.x = swayX;
+    this.camera.position.y = 12 + swayY;
+
+    // Subtle banking when moving sideways
+    this.camera.rotation.z = Math.sin(elapsed * 0.08) * 0.02;
+
+    // Slight pitch variation for turbulence feel
+    this.camera.rotation.x = -0.2 + Math.sin(elapsed * 0.06) * 0.015;
+
 
     this.renderer.render(this.scene, this.camera);
   }

@@ -14,11 +14,12 @@ export class SkyDome {
       vertexShader: skyVertexShader,
       fragmentShader: skyFragmentShader,
       uniforms: {
-        uSkyTop: { value: new THREE.Color(0x1e5799) },       // Deep blue
-        uSkyHorizon: { value: new THREE.Color(0x7ec0ee) },   // Light sky blue
-        uSkyBottom: { value: new THREE.Color(0x9dc4d4) },    // Pale blue-gray
-        uSunIntensity: { value: 0.6 },
-        uSunDirection: { value: new THREE.Vector3(0.5, 0.3, -0.8).normalize() }
+        // Dreamcast BIOS ethereal palette - soft pastels
+        uSkyTop: { value: new THREE.Color(0xd8e8f0) },       // Very pale blue-white
+        uSkyHorizon: { value: new THREE.Color(0xa8d4e8) },   // Soft sky blue
+        uSkyBottom: { value: new THREE.Color(0xc0d8e8) },    // Pale misty blue
+        uSunIntensity: { value: 0.3 },
+        uSunDirection: { value: new THREE.Vector3(0.2, 0.5, -0.6).normalize() }
       },
       side: THREE.BackSide,
       depthWrite: false

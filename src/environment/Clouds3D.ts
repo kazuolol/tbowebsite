@@ -26,9 +26,10 @@ export class Clouds3D {
       fragmentShader: cloudFragmentShader,
       uniforms: {
         uTime: { value: 0 },
+        // Ethereal Dreamcast-style cloud colors
         uCloudColor: { value: new THREE.Color(0xffffff) },
-        uCloudShadow: { value: new THREE.Color(0xd0d8e0) },
-        uSkyColor: { value: new THREE.Color(0x7ec0ee) }
+        uCloudShadow: { value: new THREE.Color(0xc8dce8) },  // Soft blue shadow
+        uSkyColor: { value: new THREE.Color(0xd0e4f0) }      // Pale misty blend
       },
       transparent: true,
       depthWrite: false,
@@ -45,45 +46,49 @@ export class Clouds3D {
   private generateClusters(): CloudCluster[] {
     const clusters: CloudCluster[] = [];
 
-    // Large fluffy cloud formations
-    for (let i = 0; i < 20; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const distance = 50 + Math.random() * 200;
-      const height = 30 + Math.random() * 60;
+    // Fly-through corridor: clouds spread in front of camera along Z axis
+    // Camera looks toward -Z, so clouds spawn at negative Z values
 
+    // Close-pass clouds - fly right through these
+    for (let i = 0; i < 8; i++) {
       clusters.push({
-        x: Math.cos(angle) * distance,
-        y: height,
-        z: Math.sin(angle) * distance - 100,
-        puffCount: Math.floor(40 + Math.random() * 60), // More puffs per cloud
-        radius: 25 + Math.random() * 35
+        x: (Math.random() - 0.5) * 60,  // Spread across view
+        y: 5 + Math.random() * 30,
+        z: -50 - Math.random() * 400,   // Spread along flight path
+        puffCount: Math.floor(30 + Math.random() * 40),
+        radius: 20 + Math.random() * 25
       });
     }
 
-    // Medium clouds
-    for (let i = 0; i < 15; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const distance = 40 + Math.random() * 150;
-
-      clusters.push({
-        x: Math.cos(angle) * distance,
-        y: 20 + Math.random() * 50,
-        z: Math.sin(angle) * distance - 60,
-        puffCount: Math.floor(25 + Math.random() * 35),
-        radius: 15 + Math.random() * 25
-      });
-    }
-
-    // Small wisps
+    // Large fluffy cloud formations - scattered throughout corridor
     for (let i = 0; i < 25; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const distance = 30 + Math.random() * 180;
-
       clusters.push({
-        x: Math.cos(angle) * distance,
-        y: 15 + Math.random() * 70,
-        z: Math.sin(angle) * distance - 50,
-        puffCount: Math.floor(10 + Math.random() * 20),
+        x: (Math.random() - 0.5) * 200,
+        y: 20 + Math.random() * 60,
+        z: -Math.random() * 450,
+        puffCount: Math.floor(45 + Math.random() * 55),
+        radius: 30 + Math.random() * 40
+      });
+    }
+
+    // Medium clouds - fill in gaps
+    for (let i = 0; i < 20; i++) {
+      clusters.push({
+        x: (Math.random() - 0.5) * 150,
+        y: 15 + Math.random() * 45,
+        z: -Math.random() * 450,
+        puffCount: Math.floor(25 + Math.random() * 35),
+        radius: 18 + Math.random() * 22
+      });
+    }
+
+    // Small wisps - add detail
+    for (let i = 0; i < 30; i++) {
+      clusters.push({
+        x: (Math.random() - 0.5) * 180,
+        y: 10 + Math.random() * 50,
+        z: -Math.random() * 450,
+        puffCount: Math.floor(12 + Math.random() * 18),
         radius: 10 + Math.random() * 15
       });
     }

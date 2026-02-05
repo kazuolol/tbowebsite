@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { FallingCharacter } from '../environment/FallingCharacter';
+import { CharacterPool } from '../environment/CharacterPool';
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -31,7 +31,7 @@ export class FallingScene {
   private renderer: THREE.WebGLRenderer;
   private clock: THREE.Clock;
 
-  private character: FallingCharacter;
+  private characterPool: CharacterPool;
   private cubeMaterial: THREE.MeshStandardMaterial;
 
   private cubes: FloatingCube[] = [];
@@ -63,6 +63,7 @@ export class FallingScene {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
+    this.renderer.localClippingEnabled = true;
 
     this.cubeMaterial = new THREE.MeshStandardMaterial({
       color: 0xddeeff,
@@ -110,7 +111,7 @@ export class FallingScene {
     glowSprite.renderOrder = -1;
     this.scene.add(glowSprite);
 
-    this.character = new FallingCharacter(this.scene);
+    this.characterPool = new CharacterPool(this.scene);
     this.loadCharacter();
 
     this.createInitialCubes();
@@ -122,13 +123,15 @@ export class FallingScene {
 
   private async loadCharacter(): Promise<void> {
     try {
-      await this.character.load(
+      await this.characterPool.preload(
         '/models/YoughFemale_Rig.fbx',
         '/models/YoughFemale_Jump_Loop.fbx',
+        '/models/YoughMale_Rig.fbx',
+        '/models/YoughMale_Jump_Loop.fbx',
         0.02
       );
     } catch (error) {
-      console.error('Failed to load character:', error);
+      console.error('Failed to load character pool:', error);
     }
   }
 
@@ -246,7 +249,7 @@ export class FallingScene {
     this.camera.fov = 75 + Math.sin(elapsed * 0.15) * 2;
     this.camera.updateProjectionMatrix();
 
-    this.character.update(delta);
+    this.characterPool.update(delta);
 
     this.updateCubes(delta);
 
@@ -278,16 +281,17 @@ export class FallingScene {
       // Recycle
       if (cube.mesh.position.z > RECYCLE_Z) {
         cube.mesh.geometry.dispose();
-        (cube.mesh.material as THREE.Material).dispose();
 
         const cubeSize = this.randomCubeSize();
         cube.mesh.geometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
-        cube.mesh.material = this.createCubeMaterial();
+        const mat = cube.mesh.material as THREE.MeshStandardMaterial;
+        mat.opacity = 0.7 + Math.random() * 0.3;
+        mat.emissiveIntensity = 0.8 + Math.random() * 0.6;
 
         cube.mesh.position.set(
           (Math.random() - 0.5) * XY_SPREAD * 2,
           (Math.random() - 0.5) * XY_SPREAD * 2,
-          RESET_Z - Math.random() * 40
+          -100 - Math.random() * (Math.abs(RESET_Z) - 100)
         );
 
         cube.mesh.rotation.set(
@@ -340,7 +344,7 @@ export class FallingScene {
   // ── Cleanup ───────────────────────────────────────────────────────
 
   dispose(): void {
-    this.character.dispose();
+    this.characterPool.dispose();
 
     for (const cube of this.cubes) {
       this.scene.remove(cube.mesh);

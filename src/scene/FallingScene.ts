@@ -1,26 +1,29 @@
 import * as THREE from 'three';
 import { FallingCharacter } from '../environment/FallingCharacter';
 
-interface WorldFragment {
-  mesh: THREE.LineSegments;
+// ── Types ──────────────────────────────────────────────────────────
+
+interface FloatingCube {
+  mesh: THREE.Mesh;
+  rotationSpeed: THREE.Vector3;
+}
+
+interface CubeFragment {
+  mesh: THREE.Mesh;
   velocity: THREE.Vector3;
   rotationSpeed: THREE.Vector3;
   life: number;
   maxLife: number;
 }
 
-interface GrassClump {
-  mesh: THREE.LineSegments;
-  baseZ: number;
-}
+// ── Constants ──────────────────────────────────────────────────────
 
-interface Building {
-  mesh: THREE.LineSegments;
-  baseZ: number;
-  width: number;
-  height: number;
-  depth: number;
-}
+const CUBE_COUNT = 150;
+const RECYCLE_Z = 25;
+const RESET_Z = -500;
+const XY_SPREAD = 35;
+
+// ── Scene ──────────────────────────────────────────────────────────
 
 export class FallingScene {
   private scene: THREE.Scene;
@@ -29,53 +32,48 @@ export class FallingScene {
   private clock: THREE.Clock;
 
   private character: FallingCharacter;
-  private wireframeMaterial: THREE.LineBasicMaterial;
+  private cubeMaterial: THREE.MeshStandardMaterial;
 
-  // World elements that rush toward us (on Z axis)
-  private grassClumps: GrassClump[] = [];
-  private buildings: Building[] = [];
-  private worldSpeed: number = 40; // How fast world rushes toward us
+  private cubes: FloatingCube[] = [];
+  private worldSpeed: number = 12;
 
-  // Fragments breaking off
-  private fragments: WorldFragment[] = [];
-  private maxFragments: number = 100;
-
-  // Camera shake for falling sensation
-  private cameraShake: THREE.Vector3 = new THREE.Vector3();
+  private fragments: CubeFragment[] = [];
+  private maxFragments: number = 80;
 
   constructor(canvas: HTMLCanvasElement) {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0xf5f5f5);
-    this.scene.fog = new THREE.FogExp2(0xf5f5f5, 0.012);
+    this.scene.background = new THREE.Color(0xcccccc);
+    this.scene.fog = new THREE.FogExp2(0xcccccc, 0.005);
     this.clock = new THREE.Clock();
 
-    // Camera behind character, looking forward into the void
     this.camera = new THREE.PerspectiveCamera(
       75,
       window.innerWidth / window.innerHeight,
       0.1,
-      500
+      600
     );
-    // Position camera behind and slightly above character
     this.camera.position.set(0, 3, 8);
     this.camera.lookAt(0, 0, -50);
 
-    // Renderer
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: true,
     });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.0;
 
-    // Wireframe material
-    this.wireframeMaterial = new THREE.LineBasicMaterial({
-      color: 0x1a1a1a,
+    this.cubeMaterial = new THREE.MeshStandardMaterial({
+      color: 0xddeeff,
+      emissive: 0xddeeff,
+      emissiveIntensity: 1.2,
+      roughness: 0.15,
+      metalness: 0.0,
       transparent: true,
-      opacity: 0.6,
+      opacity: 0.9,
     });
 
-    // Lighting for the character
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     this.scene.add(ambientLight);
 
@@ -87,17 +85,38 @@ export class FallingScene {
     fillLight.position.set(-5, 5, -5);
     this.scene.add(fillLight);
 
-    // Create character (positioned in front of camera)
+    // White glow at center — peeks through fog
+    const glowCanvas = document.createElement('canvas');
+    glowCanvas.width = 128;
+    glowCanvas.height = 128;
+    const ctx = glowCanvas.getContext('2d')!;
+    const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gradient.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
+    gradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.15)');
+    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 128, 128);
+
+    const glowTexture = new THREE.CanvasTexture(glowCanvas);
+    const glowMaterial = new THREE.SpriteMaterial({
+      map: glowTexture,
+      transparent: true,
+      depthWrite: false,
+      fog: false,
+    });
+    const glowSprite = new THREE.Sprite(glowMaterial);
+    glowSprite.position.set(0, 3, -40);
+    glowSprite.scale.set(60, 60, 1);
+    glowSprite.renderOrder = -1;
+    this.scene.add(glowSprite);
+
     this.character = new FallingCharacter(this.scene);
     this.loadCharacter();
 
-    // Create initial world elements (ahead of us)
-    this.createInitialWorld();
+    this.createInitialCubes();
 
-    // Events
     window.addEventListener('resize', this.onResize.bind(this));
 
-    // Start
     this.animate();
   }
 
@@ -113,170 +132,101 @@ export class FallingScene {
     }
   }
 
-  private createInitialWorld(): void {
-    // Spawn grass and buildings ahead (they'll rush toward us)
-    for (let i = 0; i < 20; i++) {
-      this.spawnGrassClump(-50 - i * 30);
-    }
+  // ── Cube helpers ──────────────────────────────────────────────────
 
-    for (let i = 0; i < 12; i++) {
-      this.spawnBuilding(-80 - i * 50);
-    }
+  private randomCubeSize(): number {
+    const r = Math.random();
+    if (r < 0.5) return 0.3 + Math.random() * 2;     // small: 0.3-2.3
+    if (r < 0.85) return 2 + Math.random() * 6;       // medium: 2-8
+    return 8 + Math.random() * 20;                     // large: 8-28
   }
 
-  private spawnGrassClump(z: number): void {
-    const positions: number[] = [];
-    const clumpWidth = 80;
-    const bladesCount = 300;
+  private createCubeMaterial(): THREE.MeshStandardMaterial {
+    const mat = this.cubeMaterial.clone();
+    mat.opacity = 0.7 + Math.random() * 0.3; // 0.7-1.0
+    mat.emissiveIntensity = 0.8 + Math.random() * 0.6; // 0.8-1.4
+    return mat;
+  }
 
-    for (let i = 0; i < bladesCount; i++) {
-      const x = (Math.random() - 0.5) * clumpWidth;
-      const y = (Math.random() - 0.5) * clumpWidth; // Spread vertically too (we're floating through)
-      const height = 0.5 + Math.random() * 1.5;
-      const lean = (Math.random() - 0.5) * 0.4;
+  // ── Spawn Cube ────────────────────────────────────────────────────
 
-      // Grass blade pointing in random directions
-      const angle = Math.random() * Math.PI * 2;
-      const dx = Math.cos(angle) * lean;
-      const dy = Math.sin(angle) * lean;
+  private spawnCube(z: number): void {
+    const cubeSize = this.randomCubeSize();
+    const geometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+    const material = this.createCubeMaterial();
 
-      positions.push(x, y, 0, x + dx, y + dy + height * 0.5, height * 0.3);
-      positions.push(x, y, 0, x - dx * 0.5, y - dy * 0.5 + height * 0.3, height * 0.2);
-    }
+    const mesh = new THREE.Mesh(geometry, material);
 
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    mesh.position.set(
+      (Math.random() - 0.5) * XY_SPREAD * 2,
+      (Math.random() - 0.5) * XY_SPREAD * 2,
+      z
+    );
 
-    const material = this.wireframeMaterial.clone();
-    material.opacity = 0.4;
-
-    const mesh = new THREE.LineSegments(geometry, material);
-    mesh.position.z = z;
+    mesh.rotation.set(
+      Math.random() * Math.PI * 2,
+      Math.random() * Math.PI * 2,
+      Math.random() * Math.PI * 2
+    );
 
     this.scene.add(mesh);
-    this.grassClumps.push({ mesh, baseZ: z });
+
+    const speedScale = Math.max(0.05, 1 - cubeSize / 30);
+
+    this.cubes.push({
+      mesh,
+      rotationSpeed: new THREE.Vector3(
+        (Math.random() - 0.5) * 0.6 * speedScale,
+        (Math.random() - 0.5) * 0.6 * speedScale,
+        (Math.random() - 0.5) * 0.3 * speedScale
+      ),
+    });
   }
 
-  private spawnBuilding(z: number): void {
-    const x = (Math.random() - 0.5) * 100;
-    const y = (Math.random() - 0.5) * 60;
-    const width = 5 + Math.random() * 10;
-    const height = 20 + Math.random() * 50;
-    const depth = 5 + Math.random() * 10;
+  // ── Initial scene ─────────────────────────────────────────────────
 
-    const positions: number[] = [];
-    const hw = width / 2;
-    const hh = height / 2;
-    const hd = depth / 2;
-
-    // Building wireframe (centered, floating in space)
-    // Front face
-    positions.push(-hw, -hh, hd, hw, -hh, hd);
-    positions.push(hw, -hh, hd, hw, hh, hd);
-    positions.push(hw, hh, hd, -hw, hh, hd);
-    positions.push(-hw, hh, hd, -hw, -hh, hd);
-
-    // Back face
-    positions.push(-hw, -hh, -hd, hw, -hh, -hd);
-    positions.push(hw, -hh, -hd, hw, hh, -hd);
-    positions.push(hw, hh, -hd, -hw, hh, -hd);
-    positions.push(-hw, hh, -hd, -hw, -hh, -hd);
-
-    // Connecting edges
-    positions.push(-hw, -hh, -hd, -hw, -hh, hd);
-    positions.push(hw, -hh, -hd, hw, -hh, hd);
-    positions.push(hw, hh, -hd, hw, hh, hd);
-    positions.push(-hw, hh, -hd, -hw, hh, hd);
-
-    // Floor lines
-    const floors = Math.floor(height / 5);
-    for (let f = 1; f < floors; f++) {
-      const fy = -hh + (f / floors) * height;
-      positions.push(-hw, fy, hd, hw, fy, hd);
-      positions.push(-hw, fy, -hd, hw, fy, -hd);
+  private createInitialCubes(): void {
+    for (let i = 0; i < CUBE_COUNT; i++) {
+      const z = -10 - i * (Math.abs(RESET_Z) / CUBE_COUNT);
+      this.spawnCube(z);
     }
-
-    // Vertical divisions on front
-    const divs = Math.floor(width / 3);
-    for (let d = 1; d < divs; d++) {
-      const dx = -hw + (d / divs) * width;
-      positions.push(dx, -hh, hd, dx, hh, hd);
-    }
-
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-
-    const material = this.wireframeMaterial.clone();
-    material.opacity = 0.35;
-
-    const mesh = new THREE.LineSegments(geometry, material);
-    mesh.position.set(x, y, z);
-
-    this.scene.add(mesh);
-    this.buildings.push({ mesh, baseZ: z, width, height, depth });
   }
 
-  private spawnFragment(sourcePos: THREE.Vector3, type: 'grass' | 'building'): void {
+  // ── Fragment spawning ─────────────────────────────────────────────
+
+  private spawnFragment(sourcePos: THREE.Vector3): void {
     if (this.fragments.length >= this.maxFragments) return;
 
-    const positions: number[] = [];
+    const shardSize = 0.2 + Math.random() * 1.5;
+    const geometry = new THREE.BoxGeometry(shardSize, shardSize, shardSize);
+    const material = this.createCubeMaterial();
+    material.opacity = 0.5;
 
-    if (type === 'grass') {
-      // Small grass fragment
-      const size = 0.5 + Math.random() * 1;
-      for (let i = 0; i < 3; i++) {
-        const x = (Math.random() - 0.5) * size;
-        const y = (Math.random() - 0.5) * size;
-        const h = 0.3 + Math.random() * 0.5;
-        positions.push(x, y, 0, x + (Math.random() - 0.5) * 0.3, y + h, (Math.random() - 0.5) * 0.2);
-      }
-    } else {
-      // Building fragment - rectangular shard
-      const w = 1 + Math.random() * 4;
-      const h = 2 + Math.random() * 6;
-      const d = 0.5 + Math.random() * 2;
-
-      // Simple box outline
-      positions.push(-w/2, -h/2, -d/2, w/2, -h/2, -d/2);
-      positions.push(w/2, -h/2, -d/2, w/2, h/2, -d/2);
-      positions.push(w/2, h/2, -d/2, -w/2, h/2, -d/2);
-      positions.push(-w/2, h/2, -d/2, -w/2, -h/2, -d/2);
-
-      positions.push(-w/2, -h/2, d/2, w/2, -h/2, d/2);
-      positions.push(w/2, -h/2, d/2, w/2, h/2, d/2);
-      positions.push(-w/2, -h/2, -d/2, -w/2, -h/2, d/2);
-      positions.push(w/2, h/2, -d/2, w/2, h/2, d/2);
-    }
-
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-
-    const material = this.wireframeMaterial.clone();
-    material.opacity = 0.6;
-
-    const mesh = new THREE.LineSegments(geometry, material);
+    const mesh = new THREE.Mesh(geometry, material);
     mesh.position.copy(sourcePos);
-    mesh.position.x += (Math.random() - 0.5) * 15;
-    mesh.position.y += (Math.random() - 0.5) * 15;
+    mesh.position.x += (Math.random() - 0.5) * 10;
+    mesh.position.y += (Math.random() - 0.5) * 10;
 
     this.scene.add(mesh);
 
     this.fragments.push({
       mesh,
       velocity: new THREE.Vector3(
-        (Math.random() - 0.5) * 10,
-        (Math.random() - 0.5) * 10,
-        this.worldSpeed * 0.6 + Math.random() * 8 // Slower than world = drifts back relative
+        (Math.random() - 0.5) * 4,
+        (Math.random() - 0.5) * 4,
+        this.worldSpeed * 0.5 + Math.random() * 3
       ),
       rotationSpeed: new THREE.Vector3(
-        (Math.random() - 0.5) * 3,
-        (Math.random() - 0.5) * 3,
-        (Math.random() - 0.5) * 3
+        (Math.random() - 0.5) * 4,
+        (Math.random() - 0.5) * 4,
+        (Math.random() - 0.5) * 4
       ),
       life: 0,
-      maxLife: 3 + Math.random() * 2,
+      maxLife: 2 + Math.random() * 2,
     });
   }
+
+  // ── Resize ────────────────────────────────────────────────────────
 
   private onResize(): void {
     this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -284,103 +234,100 @@ export class FallingScene {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
 
+  // ── Animate ───────────────────────────────────────────────────────
+
   private animate(): void {
     requestAnimationFrame(this.animate.bind(this));
 
     const delta = this.clock.getDelta();
     const elapsed = this.clock.getElapsedTime();
 
-    // Update character (animation + tumble)
+    // FOV breathing
+    this.camera.fov = 75 + Math.sin(elapsed * 0.15) * 2;
+    this.camera.updateProjectionMatrix();
+
     this.character.update(delta);
 
-    // Move world toward us (creates falling-through sensation)
-    this.updateWorld(delta, elapsed);
+    this.updateCubes(delta);
 
-    // Update fragments
     this.updateFragments(delta);
 
-    // Camera shake for falling sensation
-    this.cameraShake.set(
-      Math.sin(elapsed * 13) * 0.08,
-      Math.sin(elapsed * 11) * 0.06,
-      Math.sin(elapsed * 9) * 0.03
-    );
-
-    this.camera.position.set(
-      0 + this.cameraShake.x,
-      3 + this.cameraShake.y + Math.sin(elapsed * 0.7) * 0.3,
-      8 + this.cameraShake.z
-    );
+    this.camera.position.set(0, 3, 8);
     this.camera.lookAt(0, 0, -50);
 
     this.renderer.render(this.scene, this.camera);
   }
 
-  private updateWorld(delta: number, elapsed: number): void {
+  // ── Cube update ───────────────────────────────────────────────────
+
+  private updateCubes(delta: number): void {
     const moveAmount = this.worldSpeed * delta;
 
-    // Move grass clumps toward camera and recycle
-    for (const clump of this.grassClumps) {
-      clump.mesh.position.z += moveAmount;
+    for (const cube of this.cubes) {
+      cube.mesh.position.z += moveAmount;
 
-      // Spawn fragments as grass passes through
-      if (clump.mesh.position.z > -20 && clump.mesh.position.z < 5 && Math.random() < 0.03) {
-        this.spawnFragment(clump.mesh.position.clone(), 'grass');
+      cube.mesh.rotation.x += cube.rotationSpeed.x * delta;
+      cube.mesh.rotation.y += cube.rotationSpeed.y * delta;
+      cube.mesh.rotation.z += cube.rotationSpeed.z * delta;
+
+      // Spawn fragments near camera
+      if (cube.mesh.position.z > -5 && cube.mesh.position.z < 15 && Math.random() < 0.02) {
+        this.spawnFragment(cube.mesh.position.clone());
       }
 
-      // Recycle when past camera
-      if (clump.mesh.position.z > 20) {
-        clump.mesh.position.z = -580;
-        clump.mesh.position.x = (Math.random() - 0.5) * 40;
-        clump.mesh.position.y = (Math.random() - 0.5) * 40;
-      }
-    }
+      // Recycle
+      if (cube.mesh.position.z > RECYCLE_Z) {
+        cube.mesh.geometry.dispose();
+        (cube.mesh.material as THREE.Material).dispose();
 
-    // Move buildings toward camera and recycle
-    for (const building of this.buildings) {
-      building.mesh.position.z += moveAmount;
+        const cubeSize = this.randomCubeSize();
+        cube.mesh.geometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+        cube.mesh.material = this.createCubeMaterial();
 
-      // Spawn fragments as buildings pass through
-      if (building.mesh.position.z > -40 && building.mesh.position.z < 10 && Math.random() < 0.04) {
-        const fragmentPos = building.mesh.position.clone();
-        fragmentPos.x += (Math.random() - 0.5) * building.width;
-        fragmentPos.y += (Math.random() - 0.5) * building.height;
-        this.spawnFragment(fragmentPos, 'building');
-      }
+        cube.mesh.position.set(
+          (Math.random() - 0.5) * XY_SPREAD * 2,
+          (Math.random() - 0.5) * XY_SPREAD * 2,
+          RESET_Z - Math.random() * 40
+        );
 
-      // Recycle when past camera
-      if (building.mesh.position.z > 30) {
-        building.mesh.position.z = -550;
-        building.mesh.position.x = (Math.random() - 0.5) * 100;
-        building.mesh.position.y = (Math.random() - 0.5) * 60;
+        cube.mesh.rotation.set(
+          Math.random() * Math.PI * 2,
+          Math.random() * Math.PI * 2,
+          Math.random() * Math.PI * 2
+        );
+
+        const speedScale = Math.max(0.05, 1 - cubeSize / 30);
+        cube.rotationSpeed.set(
+          (Math.random() - 0.5) * 0.6 * speedScale,
+          (Math.random() - 0.5) * 0.6 * speedScale,
+          (Math.random() - 0.5) * 0.3 * speedScale
+        );
       }
     }
   }
+
+  // ── Fragment update ───────────────────────────────────────────────
 
   private updateFragments(delta: number): void {
     for (let i = this.fragments.length - 1; i >= 0; i--) {
       const frag = this.fragments[i];
 
-      // Move (world motion + individual velocity)
       frag.mesh.position.add(frag.velocity.clone().multiplyScalar(delta));
 
-      // Rotate tumbling
       frag.mesh.rotation.x += frag.rotationSpeed.x * delta;
       frag.mesh.rotation.y += frag.rotationSpeed.y * delta;
       frag.mesh.rotation.z += frag.rotationSpeed.z * delta;
 
-      // Age and fade
       frag.life += delta;
       const lifeRatio = frag.life / frag.maxLife;
 
-      const mat = frag.mesh.material as THREE.LineBasicMaterial;
+      const mat = frag.mesh.material as THREE.MeshStandardMaterial;
       if (lifeRatio < 0.1) {
-        mat.opacity = 0.6 * (lifeRatio / 0.1);
+        mat.opacity = 0.5 * (lifeRatio / 0.1);
       } else if (lifeRatio > 0.5) {
-        mat.opacity = 0.6 * (1 - (lifeRatio - 0.5) / 0.5);
+        mat.opacity = 0.5 * (1 - (lifeRatio - 0.5) / 0.5);
       }
 
-      // Remove when done
       if (frag.life > frag.maxLife || frag.mesh.position.z > 50) {
         this.scene.remove(frag.mesh);
         frag.mesh.geometry.dispose();
@@ -390,19 +337,15 @@ export class FallingScene {
     }
   }
 
+  // ── Cleanup ───────────────────────────────────────────────────────
+
   dispose(): void {
     this.character.dispose();
 
-    for (const clump of this.grassClumps) {
-      this.scene.remove(clump.mesh);
-      clump.mesh.geometry.dispose();
-      (clump.mesh.material as THREE.Material).dispose();
-    }
-
-    for (const building of this.buildings) {
-      this.scene.remove(building.mesh);
-      building.mesh.geometry.dispose();
-      (building.mesh.material as THREE.Material).dispose();
+    for (const cube of this.cubes) {
+      this.scene.remove(cube.mesh);
+      cube.mesh.geometry.dispose();
+      (cube.mesh.material as THREE.Material).dispose();
     }
 
     for (const frag of this.fragments) {
@@ -411,7 +354,7 @@ export class FallingScene {
       (frag.mesh.material as THREE.Material).dispose();
     }
 
-    this.wireframeMaterial.dispose();
+    this.cubeMaterial.dispose();
     window.removeEventListener('resize', this.onResize.bind(this));
   }
 }

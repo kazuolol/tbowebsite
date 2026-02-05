@@ -37,7 +37,7 @@ export class WireframeCharacter {
 
           // Randomly select one hair style (001-008) and one outfit (001-008)
           const selectedHair = String(Math.floor(Math.random() * 8) + 1).padStart(3, '0');
-          const selectedOutfit = String(Math.floor(Math.random() * 8) + 1).padStart(3, '0');
+          const selectedOutfit = String(Math.floor(Math.random() * 7) + 2).padStart(3, '0'); // outfits 2-8, skip 001 (underwear)
 
           // Apply wireframe material to all meshes, filter weapons and duplicate outfits/hair
           this.model.traverse((child) => {

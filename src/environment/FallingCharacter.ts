@@ -9,22 +9,7 @@ export class FallingCharacter {
   private materials: THREE.Material[] = [];
   private textures: THREE.Texture[] = [];
 
-  // Tumble physics
-  private tumblePhase = {
-    x: Math.random() * Math.PI * 2,
-    y: Math.random() * Math.PI * 2,
-    z: Math.random() * Math.PI * 2,
-  };
-  private tumbleFreq = {
-    x: 0.3 + Math.random() * 0.2,
-    y: 0.15 + Math.random() * 0.1,
-    z: 0.25 + Math.random() * 0.15,
-  };
-  private tumbleAmplitude = {
-    x: 0.4 + Math.random() * 0.3,
-    y: 0.2,
-    z: 0.3 + Math.random() * 0.2,
-  };
+  private spinSpeed: number = 1.2; // rad/s
 
   // Selected variants
   private selectedHair: string;
@@ -34,7 +19,7 @@ export class FallingCharacter {
   constructor(scene: THREE.Scene) {
     this.scene = scene;
     this.selectedHair = String(Math.floor(Math.random() * 5) + 1).padStart(3, '0');
-    this.selectedOutfit = String(Math.floor(Math.random() * 6) + 1).padStart(3, '0');
+    this.selectedOutfit = String(Math.floor(Math.random() * 5) + 2).padStart(3, '0'); // outfits 2-6, skip 001 (underwear)
 
     // Random hair color using full RGB spectrum with varied saturation
     this.hairColor = new THREE.Color();
@@ -330,20 +315,7 @@ export class FallingCharacter {
     }
 
     if (this.model) {
-      this.tumblePhase.x += delta * this.tumbleFreq.x;
-      this.tumblePhase.y += delta * this.tumbleFreq.y;
-      this.tumblePhase.z += delta * this.tumbleFreq.z;
-
-      this.model.rotation.x =
-        Math.sin(this.tumblePhase.x) * this.tumbleAmplitude.x +
-        Math.sin(this.tumblePhase.x * 0.7 + 1.3) * this.tumbleAmplitude.x * 0.3;
-
-      this.model.rotation.y =
-        Math.sin(this.tumblePhase.y) * this.tumbleAmplitude.y;
-
-      this.model.rotation.z =
-        Math.sin(this.tumblePhase.z) * this.tumbleAmplitude.z +
-        Math.cos(this.tumblePhase.z * 0.5 + 0.7) * this.tumbleAmplitude.z * 0.4;
+      this.model.rotation.y += this.spinSpeed * delta;
     }
   }
 

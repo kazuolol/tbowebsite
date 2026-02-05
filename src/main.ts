@@ -1,11 +1,11 @@
 import './style.css';
-import { SceneManager } from './scene/SceneManager';
-import { Terminal } from './ui/Terminal';
+import { FallingScene } from './scene/FallingScene';
+import { DreamcastMenu } from './ui/DreamcastMenu';
 
-// Initialize 3D scene
+// Initialize Three.js falling scene
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
-new SceneManager(canvas);
+new FallingScene(canvas);
 
-// Initialize terminal UI
+// Initialize Dreamcast BIOS-style menu (HTML overlay)
 const uiRoot = document.getElementById('ui-root') as HTMLElement;
-new Terminal(uiRoot);
+new DreamcastMenu(uiRoot);

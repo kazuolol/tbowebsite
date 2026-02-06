@@ -29,6 +29,10 @@
   --dc-header-text: #4a4a4a;
   --dc-header-height: 144px;
   --dc-header-padding-x: 48px;
+  --dc-header-extension-height: 68px;
+  --dc-header-extension-left: clamp(120px, 46vw, 760px);
+  --dc-header-extension-slope-start: 14%;
+  --dc-header-extension-slope-end: 34%;
   --dc-menu-width: min(36vw, 460px);
   --dc-menu-side-padding: 32px;
   --dc-menu-icon-outset: 6px;
@@ -36,6 +40,11 @@
   --dc-menu-gap: 12px;
   --dc-menu-font-size: 16px;
   --dc-menu-icon-size: 108px;
+  --dc-floating-key-size: 108px;
+  --dc-floating-key-x: 56vw;
+  --dc-floating-key-y: clamp(196px, 34vh, 360px);
+  --dc-floating-key-flyout-offset-x: 10px;
+  --dc-floating-key-flyout-offset-y: 8px;
   --dc-date-font-size: 20px;
   --dc-weather-size: 34px;
 }
@@ -363,10 +372,28 @@ html, body {
   padding-bottom: 0;
   padding-left: calc(var(--dc-header-padding-x) + env(safe-area-inset-left));
   z-index: 100;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.3);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
   pointer-events: auto;
-  overflow: hidden;
+  overflow: visible;
+}
+
+.dc-header::after {
+  content: '';
+  position: absolute;
+  top: calc(100% - 2px);
+  left: var(--dc-header-extension-left);
+  right: 0;
+  height: var(--dc-header-extension-height);
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  clip-path: polygon(
+    0 -2px,
+    var(--dc-header-extension-slope-start) -2px,
+    var(--dc-header-extension-slope-end) 100%,
+    100% 100%,
+    100% -2px
+  );
+  pointer-events: none;
 }
 
 .dc-title {
@@ -530,6 +557,61 @@ html, body {
   letter-spacing: 0;
 }
 
+.dc-floating-early-access {
+  position: fixed;
+  left: var(--dc-floating-key-x);
+  top: var(--dc-floating-key-y);
+  transform: translate(-50%, -50%);
+  z-index: 70;
+  pointer-events: auto;
+}
+
+.dc-floating-key-trigger {
+  width: var(--dc-floating-key-size);
+  height: var(--dc-floating-key-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.dc-floating-key-trigger:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.6);
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+
+.dc-floating-key-trigger canvas {
+  width: var(--dc-floating-key-size);
+  height: var(--dc-floating-key-size);
+  display: block;
+}
+
+.dc-floating-early-access-btn {
+  position: absolute;
+  top: calc(100% + var(--dc-floating-key-flyout-offset-y));
+  left: calc(100% + var(--dc-floating-key-flyout-offset-x));
+  width: var(--dc-menu-btn-width);
+  max-width: none;
+  opacity: 0;
+  transform: translate(-10px, -8px);
+  pointer-events: none;
+  white-space: nowrap;
+  animation: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.dc-floating-early-access.is-open .dc-floating-early-access-btn,
+.dc-floating-early-access:hover .dc-floating-early-access-btn,
+.dc-floating-early-access:focus-within .dc-floating-early-access-btn {
+  opacity: 1;
+  transform: translate(0, 0);
+  pointer-events: auto;
+}
+
 /* ========================================
    Entrance Animations
    ======================================== */
@@ -566,10 +648,16 @@ html, body {
 
 @media (max-width: 1024px) {
   :root {
+    --dc-header-extension-height: 60px;
+    --dc-header-extension-left: clamp(110px, 45vw, 540px);
+    --dc-header-extension-slope-start: 12%;
+    --dc-header-extension-slope-end: 30%;
     --dc-menu-width: min(58vw, 480px);
     --dc-header-padding-x: clamp(14px, 3.6vw, 36px);
     --dc-menu-icon-outset: 6px;
     --dc-menu-btn-width: 136px;
+    --dc-floating-key-size: 98px;
+    --dc-floating-key-x: 58vw;
   }
 }
 
@@ -615,6 +703,10 @@ html, body {
   :root {
     --dc-header-height: clamp(76px, 15vw, 102px);
     --dc-header-padding-x: clamp(12px, 5vw, 24px);
+    --dc-header-extension-height: clamp(44px, 10vw, 56px);
+    --dc-header-extension-left: clamp(96px, 43vw, 340px);
+    --dc-header-extension-slope-start: 12%;
+    --dc-header-extension-slope-end: 28%;
     --dc-menu-width: 100%;
     --dc-menu-side-padding: clamp(12px, 5vw, 24px);
     --dc-menu-icon-outset: 6px;
@@ -622,6 +714,11 @@ html, body {
     --dc-menu-gap: clamp(8px, 2vw, 12px);
     --dc-menu-font-size: 16px;
     --dc-menu-icon-size: clamp(66px, 21vw, 87px);
+    --dc-floating-key-size: clamp(72px, 24vw, 92px);
+    --dc-floating-key-x: 69vw;
+    --dc-floating-key-y: clamp(170px, 34vh, 296px);
+    --dc-floating-key-flyout-offset-x: 8px;
+    --dc-floating-key-flyout-offset-y: 6px;
     --dc-date-font-size: clamp(12px, 3.6vw, 16px);
     --dc-weather-size: clamp(22px, 6vw, 30px);
   }
@@ -671,12 +768,19 @@ html, body {
   :root {
     --dc-header-height: 76px;
     --dc-header-padding-x: 12px;
+    --dc-header-extension-height: 44px;
+    --dc-header-extension-left: clamp(86px, 40vw, 190px);
+    --dc-header-extension-slope-start: 10%;
+    --dc-header-extension-slope-end: 24%;
     --dc-menu-side-padding: 12px;
     --dc-menu-icon-outset: 6px;
     --dc-menu-btn-width: 136px;
     --dc-menu-gap: 8px;
     --dc-menu-font-size: 16px;
     --dc-menu-icon-size: 63px;
+    --dc-floating-key-size: 68px;
+    --dc-floating-key-x: 70vw;
+    --dc-floating-key-y: clamp(166px, 34vh, 274px);
     --dc-date-font-size: 12px;
     --dc-weather-size: 21px;
   }
@@ -729,6 +833,10 @@ html, body {
 @media (max-width: 320px) {
   :root {
     --dc-header-padding-x: 8px;
+    --dc-header-extension-height: 40px;
+    --dc-header-extension-left: clamp(78px, 38vw, 152px);
+    --dc-header-extension-slope-start: 8%;
+    --dc-header-extension-slope-end: 20%;
     --dc-menu-side-padding: 8px;
   }
 
@@ -756,10 +864,17 @@ html, body {
 @media (max-height: 540px) and (orientation: landscape) {
   :root {
     --dc-header-height: 68px;
+    --dc-header-extension-height: 34px;
+    --dc-header-extension-left: clamp(110px, 40vw, 340px);
+    --dc-header-extension-slope-start: 10%;
+    --dc-header-extension-slope-end: 24%;
     --dc-menu-width: min(52vw, 420px);
     --dc-menu-icon-outset: 6px;
     --dc-menu-btn-width: 136px;
     --dc-menu-icon-size: 63px;
+    --dc-floating-key-size: 64px;
+    --dc-floating-key-x: 62vw;
+    --dc-floating-key-y: clamp(120px, 33vh, 200px);
     --dc-menu-font-size: 16px;
     --dc-date-font-size: 12px;
     --dc-weather-size: 22px;

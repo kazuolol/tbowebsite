@@ -56,6 +56,7 @@ export class MainMenu {
   private weatherIsDay: boolean | null = null;
   private headerEl: HTMLElement | null = null;
   private menuEl: HTMLElement | null = null;
+  private floatingEarlyAccessEl: HTMLElement | null = null;
   private activeButton: HTMLButtonElement | null = null;
   private buttonCleanup: Array<() => void> = [];
   private destroyed = false;
@@ -88,6 +89,14 @@ export class MainMenu {
   private render(): void {
     this.headerEl = this.createHeader();
     this.container.appendChild(this.headerEl);
+
+    const earlyAccessButton: MenuButtonDefinition = {
+      label: 'Early Access',
+      iconType: 'rocket',
+      action: 'early-access',
+    };
+    this.floatingEarlyAccessEl = this.createFloatingEarlyAccess(earlyAccessButton);
+    this.container.appendChild(this.floatingEarlyAccessEl);
 
     this.menuEl = this.createMenu();
     this.container.appendChild(this.menuEl);
@@ -141,7 +150,6 @@ export class MainMenu {
     menu.className = 'dc-menu';
 
     const buttons: MenuButtonDefinition[] = [
-      { label: 'Early Access', iconType: 'rocket', action: 'early-access' },
       { label: 'Play', iconType: 'globe', action: 'play' },
       { label: 'About Us', iconType: 'info', action: 'about-us' },
     ];
@@ -186,6 +194,116 @@ export class MainMenu {
     });
 
     return menu;
+  }
+
+  private createFloatingEarlyAccess(buttonDef: MenuButtonDefinition): HTMLElement {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'dc-floating-early-access';
+
+    const keyButton = document.createElement('button');
+    keyButton.type = 'button';
+    keyButton.className = 'dc-floating-key-trigger';
+    keyButton.setAttribute('aria-label', 'Early Access key');
+    keyButton.setAttribute('aria-expanded', 'false');
+
+    const iconCanvas = document.createElement('canvas');
+    iconCanvas.width = ICON_RENDER_SIZE;
+    iconCanvas.height = ICON_RENDER_SIZE;
+    keyButton.appendChild(iconCanvas);
+
+    const keyIcon = new MenuIcon3D(iconCanvas, buttonDef.iconType);
+    this.icons.push(keyIcon);
+
+    const actionButton = document.createElement('button');
+    actionButton.type = 'button';
+    actionButton.className = 'dc-menu-btn dc-floating-early-access-btn';
+    actionButton.dataset.action = buttonDef.action;
+
+    const actionLabel = document.createElement('span');
+    actionLabel.className = 'dc-menu-btn-label';
+    actionLabel.textContent = buttonDef.label;
+    actionButton.appendChild(actionLabel);
+
+    const open = () => {
+      wrapper.classList.add('is-open');
+      keyButton.setAttribute('aria-expanded', 'true');
+    };
+    const close = () => {
+      wrapper.classList.remove('is-open');
+      keyButton.setAttribute('aria-expanded', 'false');
+    };
+    const toggle = () => {
+      if (wrapper.classList.contains('is-open')) {
+        close();
+        return;
+      }
+      open();
+    };
+
+    const keyClickHandler = (event: MouseEvent) => {
+      event.stopPropagation();
+      toggle();
+    };
+    keyButton.addEventListener('click', keyClickHandler);
+    this.buttonCleanup.push(() => {
+      keyButton.removeEventListener('click', keyClickHandler);
+    });
+
+    const actionClickHandler = () => {
+      this.handleMenuAction(buttonDef, actionButton);
+      close();
+    };
+    actionButton.addEventListener('click', actionClickHandler);
+    this.buttonCleanup.push(() => {
+      actionButton.removeEventListener('click', actionClickHandler);
+    });
+
+    const mouseEnterHandler = () => {
+      open();
+    };
+    const mouseLeaveHandler = () => {
+      close();
+    };
+    wrapper.addEventListener('mouseenter', mouseEnterHandler);
+    wrapper.addEventListener('mouseleave', mouseLeaveHandler);
+    this.buttonCleanup.push(() => {
+      wrapper.removeEventListener('mouseenter', mouseEnterHandler);
+      wrapper.removeEventListener('mouseleave', mouseLeaveHandler);
+    });
+
+    const focusInHandler = () => {
+      open();
+    };
+    const focusOutHandler = (event: FocusEvent) => {
+      const nextFocused = event.relatedTarget;
+      if (nextFocused instanceof Node && wrapper.contains(nextFocused)) {
+        return;
+      }
+      close();
+    };
+    wrapper.addEventListener('focusin', focusInHandler);
+    wrapper.addEventListener('focusout', focusOutHandler);
+    this.buttonCleanup.push(() => {
+      wrapper.removeEventListener('focusin', focusInHandler);
+      wrapper.removeEventListener('focusout', focusOutHandler);
+    });
+
+    const outsidePointerHandler = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && wrapper.contains(target)) {
+        return;
+      }
+      close();
+    };
+    document.addEventListener('pointerdown', outsidePointerHandler);
+    this.buttonCleanup.push(() => {
+      document.removeEventListener('pointerdown', outsidePointerHandler);
+    });
+
+    wrapper.appendChild(keyButton);
+    wrapper.appendChild(actionButton);
+
+    return wrapper;
   }
 
   private setActiveButton(button: HTMLButtonElement): void {
@@ -431,8 +549,10 @@ export class MainMenu {
     this.iconRenderer.dispose();
     this.headerEl?.remove();
     this.menuEl?.remove();
+    this.floatingEarlyAccessEl?.remove();
     this.headerEl = null;
     this.menuEl = null;
+    this.floatingEarlyAccessEl = null;
     this.dateTimeTextEl = null;
     this.weatherIconEl = null;
     this.weatherTextEl = null;

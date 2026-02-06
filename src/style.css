@@ -31,9 +31,11 @@
   --dc-header-padding-x: 48px;
   --dc-menu-width: min(36vw, 460px);
   --dc-menu-side-padding: 32px;
+  --dc-menu-icon-outset: 6px;
+  --dc-menu-btn-width: 136px;
   --dc-menu-gap: 12px;
-  --dc-menu-font-size: 20px;
-  --dc-menu-icon-size: 72px;
+  --dc-menu-font-size: 16px;
+  --dc-menu-icon-size: 108px;
   --dc-date-font-size: 20px;
   --dc-weather-size: 34px;
 }
@@ -41,25 +43,26 @@
 html, body {
   width: 100%;
   height: 100%;
+  min-height: 100%;
   overflow: hidden;
   font-family: 'Jost', sans-serif;
   color: rgb(255, 255, 255);
+  background: #cccccc;
 }
 
 #scene {
   position: fixed;
-  top: 0;
-  left: 0;
+  inset: 0;
   width: 100%;
   height: 100%;
+  display: block;
   z-index: 0;
 }
 
 
 #ui-root {
   position: fixed;
-  top: 0;
-  left: 0;
+  inset: 0;
   width: 100%;
   height: 100%;
   display: flex;
@@ -363,6 +366,7 @@ html, body {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.3);
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   pointer-events: auto;
+  overflow: hidden;
 }
 
 .dc-title {
@@ -378,6 +382,7 @@ html, body {
 .dc-datetime {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
   gap: clamp(4px, 0.7vw, 8px);
   font-size: var(--dc-date-font-size);
   font-weight: 400;
@@ -387,7 +392,9 @@ html, body {
   letter-spacing: 0;
   white-space: nowrap;
   min-width: 0;
-  flex-shrink: 0;
+  max-width: min(54vw, 420px);
+  flex-shrink: 1;
+  overflow: hidden;
 }
 
 .dc-time-icon,
@@ -408,14 +415,18 @@ html, body {
 }
 
 .dc-datetime-text {
+  flex: 1 1 auto;
+  min-width: 0;
   font-variant-numeric: tabular-nums;
-  max-width: clamp(110px, 36vw, 260px);
+  max-width: clamp(72px, 34vw, 260px);
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .dc-weather-text {
-  min-width: 3ch;
+  min-width: 2.75ch;
+  flex: 0 0 auto;
   text-align: right;
 }
 
@@ -437,8 +448,8 @@ html, body {
     clamp(12px, 3vh, 32px)
     calc(var(--dc-menu-side-padding) + env(safe-area-inset-right))
     calc(clamp(12px, 3vh, 32px) + env(safe-area-inset-bottom))
-    calc(var(--dc-menu-side-padding) + env(safe-area-inset-left));
-  gap: var(--dc-menu-gap);
+    calc(var(--dc-menu-side-padding) + var(--dc-menu-icon-size) + var(--dc-menu-icon-outset) + env(safe-area-inset-left));
+  gap: var(--dc-menu-icon-outset);
   z-index: 50;
   pointer-events: auto;
   overflow-y: auto;
@@ -451,11 +462,17 @@ html, body {
 
 .dc-menu-btn {
   display: flex;
+  position: relative;
+  justify-content: center;
   align-items: center;
-  gap: clamp(8px, 1vw, 12px);
-  width: 100%;
-  min-height: clamp(58px, 10vh, 92px);
-  padding: clamp(6px, 1.2vw, 10px) clamp(10px, 1.6vw, 14px);
+  gap: 0;
+  width: min(var(--dc-menu-btn-width), 100%);
+  max-width: var(--dc-menu-btn-width);
+  align-self: flex-start;
+  min-height: var(--size-medium);
+  height: var(--size-medium);
+  margin: 0;
+  padding: 0;
   background-color: var(--slot-bg-default);
   border: 1px solid var(--border-color-default);
   border-radius: var(--border-radius-default);
@@ -465,7 +482,7 @@ html, body {
   font-weight: 400;
   text-shadow: var(--text-shadow-default);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: background-color 0.5s ease 0s, border-color 0.5s ease 0s, transform 0.2s ease;
   opacity: 0;
   animation: dc-fade-in-up 0.5s ease-out forwards;
 }
@@ -478,16 +495,16 @@ html, body {
 .dc-menu-btn.is-active {
   background-color: var(--hover-bg);
   border-color: var(--border-color-hover);
-  transform: translateX(2px);
-}
-
-.dc-menu-btn:active {
-  transform: scale(0.98);
 }
 
 .dc-menu-btn-icon {
+  position: absolute;
+  top: 50%;
+  left: calc(-1 * (var(--dc-menu-icon-size) + var(--dc-menu-icon-outset)));
+  transform: translateY(-50%);
   width: var(--dc-menu-icon-size);
   height: var(--dc-menu-icon-size);
+  pointer-events: none;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -501,6 +518,15 @@ html, body {
 }
 
 .dc-menu-btn-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  text-align: center;
+  line-height: 1;
   letter-spacing: 0;
 }
 
@@ -542,6 +568,8 @@ html, body {
   :root {
     --dc-menu-width: min(58vw, 480px);
     --dc-header-padding-x: clamp(14px, 3.6vw, 36px);
+    --dc-menu-icon-outset: 6px;
+    --dc-menu-btn-width: 136px;
   }
 }
 
@@ -552,9 +580,11 @@ html, body {
     --dc-header-padding-x: 30px;
     --dc-menu-width: min(52vw, 500px);
     --dc-menu-side-padding: 28px;
+    --dc-menu-icon-outset: 6px;
+    --dc-menu-btn-width: 136px;
     --dc-menu-gap: 10px;
-    --dc-menu-font-size: 18px;
-    --dc-menu-icon-size: 62px;
+    --dc-menu-font-size: 16px;
+    --dc-menu-icon-size: 93px;
     --dc-date-font-size: 18px;
     --dc-weather-size: 32px;
   }
@@ -571,9 +601,11 @@ html, body {
     --dc-header-padding-x: 30px;
     --dc-menu-width: min(44vw, 520px);
     --dc-menu-side-padding: 26px;
+    --dc-menu-icon-outset: 6px;
+    --dc-menu-btn-width: 136px;
     --dc-menu-gap: 10px;
-    --dc-menu-font-size: 18px;
-    --dc-menu-icon-size: 58px;
+    --dc-menu-font-size: 16px;
+    --dc-menu-icon-size: 87px;
     --dc-date-font-size: 17px;
     --dc-weather-size: 30px;
   }
@@ -585,9 +617,11 @@ html, body {
     --dc-header-padding-x: clamp(12px, 5vw, 24px);
     --dc-menu-width: 100%;
     --dc-menu-side-padding: clamp(12px, 5vw, 24px);
+    --dc-menu-icon-outset: 6px;
+    --dc-menu-btn-width: 136px;
     --dc-menu-gap: clamp(8px, 2vw, 12px);
-    --dc-menu-font-size: clamp(15px, 4.2vw, 18px);
-    --dc-menu-icon-size: clamp(44px, 14vw, 58px);
+    --dc-menu-font-size: 16px;
+    --dc-menu-icon-size: clamp(66px, 21vw, 87px);
     --dc-date-font-size: clamp(12px, 3.6vw, 16px);
     --dc-weather-size: clamp(22px, 6vw, 30px);
   }
@@ -603,7 +637,8 @@ html, body {
   }
 
   .dc-menu-btn {
-    min-height: clamp(54px, 12vw, 78px);
+    min-height: var(--size-medium);
+    height: var(--size-medium);
   }
 }
 
@@ -613,9 +648,11 @@ html, body {
     --dc-header-height: 86px;
     --dc-header-padding-x: 18px;
     --dc-menu-side-padding: 16px;
+    --dc-menu-icon-outset: 6px;
+    --dc-menu-btn-width: 136px;
     --dc-menu-gap: 9px;
     --dc-menu-font-size: 16px;
-    --dc-menu-icon-size: 50px;
+    --dc-menu-icon-size: 75px;
     --dc-date-font-size: 14px;
     --dc-weather-size: 26px;
   }
@@ -625,7 +662,7 @@ html, body {
   }
 
   .dc-datetime-text {
-    max-width: 40vw;
+    max-width: 30vw;
   }
 }
 
@@ -635,9 +672,11 @@ html, body {
     --dc-header-height: 76px;
     --dc-header-padding-x: 12px;
     --dc-menu-side-padding: 12px;
+    --dc-menu-icon-outset: 6px;
+    --dc-menu-btn-width: 136px;
     --dc-menu-gap: 8px;
-    --dc-menu-font-size: 14px;
-    --dc-menu-icon-size: 42px;
+    --dc-menu-font-size: 16px;
+    --dc-menu-icon-size: 63px;
     --dc-date-font-size: 12px;
     --dc-weather-size: 21px;
   }
@@ -652,18 +691,32 @@ html, body {
   }
 
   .dc-datetime-text {
-    max-width: 32vw;
+    max-width: 40vw;
+  }
+
+  .dc-weather-icon {
+    display: none;
   }
 
   .dc-menu-btn {
-    min-height: 50px;
-    padding: 6px 8px;
+    min-height: var(--size-medium);
+    height: var(--size-medium);
+    padding: 0;
+  }
+
+  .dc-weather-text {
+    display: none;
   }
 }
 
 @media (max-width: 420px) {
+  .dc-datetime {
+    max-width: 56vw;
+    gap: 4px;
+  }
+
   .dc-datetime-text {
-    max-width: 34vw;
+    max-width: 30vw;
   }
 
   .dc-menu-btn-label {
@@ -673,12 +726,41 @@ html, body {
   }
 }
 
+@media (max-width: 320px) {
+  :root {
+    --dc-header-padding-x: 8px;
+    --dc-menu-side-padding: 8px;
+  }
+
+  .dc-header {
+    gap: 6px;
+  }
+
+  .dc-title {
+    max-width: 44vw;
+  }
+
+  .dc-datetime {
+    max-width: 50vw;
+  }
+
+  .dc-weather-icon {
+    display: none;
+  }
+
+  .dc-datetime-text {
+    max-width: 48vw;
+  }
+}
+
 @media (max-height: 540px) and (orientation: landscape) {
   :root {
     --dc-header-height: 68px;
     --dc-menu-width: min(52vw, 420px);
-    --dc-menu-icon-size: 42px;
-    --dc-menu-font-size: 14px;
+    --dc-menu-icon-outset: 6px;
+    --dc-menu-btn-width: 136px;
+    --dc-menu-icon-size: 63px;
+    --dc-menu-font-size: 16px;
     --dc-date-font-size: 12px;
     --dc-weather-size: 22px;
   }
@@ -690,11 +772,12 @@ html, body {
   .dc-menu {
     justify-content: flex-start;
     padding-top: 8px;
-    gap: 8px;
+    gap: var(--dc-menu-icon-outset);
   }
 
   .dc-menu-btn {
-    min-height: 48px;
-    padding: 6px 10px;
+    min-height: var(--size-medium);
+    height: var(--size-medium);
+    padding: 0;
   }
 }

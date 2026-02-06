@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { MenuIcon3D, type IconType } from './MenuIcon3D';
 import { drawWeatherIcon } from './WeatherIcons2D';
 
-const ICON_RENDER_SIZE = 144;
+const ICON_RENDER_SIZE = 216;
 const WEATHER_ICON_SIZE = 34;
 const WEATHER_REFRESH_MS = 15 * 60 * 1000;
 const MENU_ACTION_EVENT = 'tbo:menu-action';
@@ -60,6 +60,9 @@ export class MainMenu {
   private buttonCleanup: Array<() => void> = [];
   private destroyed = false;
   private onAction?: (detail: MenuActionDetail) => void;
+  private readonly onResizeHandler = (): void => {
+    this.updateDateTime();
+  };
 
   constructor(container: HTMLElement, onAction?: (detail: MenuActionDetail) => void) {
     this.container = container;
@@ -79,6 +82,7 @@ export class MainMenu {
 
     this.render();
     this.startIconLoop();
+    window.addEventListener('resize', this.onResizeHandler);
   }
 
   private render(): void {
@@ -237,20 +241,57 @@ export class MainMenu {
     }
 
     const now = new Date();
-    const options: Intl.DateTimeFormatOptions = {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    };
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+    const formatCandidates = this.getDateTimeFormatCandidates(viewportWidth);
 
     const isDay = this.weatherIsDay ?? this.isLocalDay(now);
     const weatherSize = this.weatherCanvas.clientWidth || WEATHER_ICON_SIZE;
-    this.dateTimeTextEl.textContent = now.toLocaleDateString('en-US', options);
+    let selectedText = now.toLocaleDateString('en-US', formatCandidates[formatCandidates.length - 1]);
+    if (this.dateTimeTextEl.clientWidth > 0) {
+      for (const format of formatCandidates) {
+        const candidate = now.toLocaleDateString('en-US', format);
+        this.dateTimeTextEl.textContent = candidate;
+        selectedText = candidate;
+        if (this.dateTimeTextEl.scrollWidth <= this.dateTimeTextEl.clientWidth + 1) {
+          break;
+        }
+      }
+    } else {
+      selectedText = now.toLocaleDateString('en-US', formatCandidates[0]);
+    }
+    this.dateTimeTextEl.textContent = selectedText;
     drawWeatherIcon(this.weatherCanvas, this.weatherCode, isDay, weatherSize);
     this.weatherTextEl.textContent = this.weatherTempF !== null ? `${Math.round(this.weatherTempF)}F` : '--F';
+  }
+
+  private getDateTimeFormatCandidates(viewportWidth: number): Intl.DateTimeFormatOptions[] {
+    if (viewportWidth <= 320) {
+      return [
+        { hour: '2-digit', minute: '2-digit', hour12: false },
+        { hour: 'numeric', minute: '2-digit', hour12: true },
+      ];
+    }
+
+    if (viewportWidth <= 390) {
+      return [
+        { hour: 'numeric', minute: '2-digit', hour12: true },
+        { hour: '2-digit', minute: '2-digit', hour12: false },
+      ];
+    }
+
+    if (viewportWidth <= 640) {
+      return [
+        { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true },
+        { hour: 'numeric', minute: '2-digit', hour12: true },
+        { hour: '2-digit', minute: '2-digit', hour12: false },
+      ];
+    }
+
+    return [
+      { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true },
+      { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true },
+      { hour: 'numeric', minute: '2-digit', hour12: true },
+    ];
   }
 
   private isLocalDay(now: Date): boolean {
@@ -377,6 +418,7 @@ export class MainMenu {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
     }
+    window.removeEventListener('resize', this.onResizeHandler);
     for (const cleanup of this.buttonCleanup) {
       cleanup();
     }

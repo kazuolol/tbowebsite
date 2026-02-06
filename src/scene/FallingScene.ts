@@ -31,6 +31,7 @@ export class FallingScene {
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
   private clock: THREE.Clock;
+  private canvas: HTMLCanvasElement;
 
   private characterPool: CharacterPool;
   private cubeMaterial: THREE.MeshStandardMaterial;
@@ -45,6 +46,8 @@ export class FallingScene {
   private glowTexture: THREE.CanvasTexture | null = null;
   private glowMaterial: THREE.SpriteMaterial | null = null;
   private glowSprite: THREE.Sprite | null = null;
+  private viewportWidth = 0;
+  private viewportHeight = 0;
   private readonly onResizeHandler = (): void => {
     this.onResize();
   };
@@ -53,6 +56,7 @@ export class FallingScene {
   };
 
   constructor(canvas: HTMLCanvasElement) {
+    this.canvas = canvas;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0xcccccc);
     this.scene.fog = new THREE.FogExp2(0xcccccc, 0.005);
@@ -71,11 +75,11 @@ export class FallingScene {
       canvas,
       antialias: true,
     });
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.localClippingEnabled = true;
+    this.onResize();
 
     this.cubeMaterial = new THREE.MeshStandardMaterial({
       color: 0xddeeff,
@@ -245,9 +249,16 @@ export class FallingScene {
 
   private onResize(): void {
     if (this.disposed) return;
-    this.camera.aspect = window.innerWidth / window.innerHeight;
+    const width = Math.max(1, Math.floor(this.canvas.clientWidth || window.innerWidth));
+    const height = Math.max(1, Math.floor(this.canvas.clientHeight || window.innerHeight));
+    if (width === this.viewportWidth && height === this.viewportHeight) {
+      return;
+    }
+    this.viewportWidth = width;
+    this.viewportHeight = height;
+    this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.setSize(width, height, false);
   }
 
   // ── Animate ───────────────────────────────────────────────────────
@@ -271,6 +282,7 @@ export class FallingScene {
 
     this.camera.position.set(0, 3, 8);
     this.camera.lookAt(0, 0, -50);
+    this.onResize();
 
     this.renderer.render(this.scene, this.camera);
   }

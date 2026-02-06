@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 export type IconType = 'rocket' | 'globe' | 'info';
 
-const ICON_SIZE = 144; // 72 CSS px * 2 DPR
+const ICON_SIZE = 216; // 108 CSS px * 2 DPR
 
 export class MenuIcon3D {
   private scene: THREE.Scene;

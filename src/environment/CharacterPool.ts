@@ -7,6 +7,7 @@ const POOL_SIZE = 10;
 const SPIN_SPEED = 0.45; // rad/s — must match FallingCharacter
 const MIN_ROTATIONS_BETWEEN_SWAPS = 1.5; // ~20.9s at 0.45 rad/s (2x faster swaps)
 const TRANSITION_DURATION = 0.8; // seconds
+const MAX_DISINTEGRATION_PARTICLES = 220;
 
 interface DisintegrationParticle {
   mesh: THREE.Mesh;
@@ -15,6 +16,7 @@ interface DisintegrationParticle {
   life: number;
   maxLife: number;
   initialOpacity: number;
+  active: boolean;
 }
 
 export class CharacterPool {
@@ -41,6 +43,7 @@ export class CharacterPool {
   private disintegrationParticles: DisintegrationParticle[] = [];
   private disintegrationMaterial: THREE.MeshStandardMaterial;
   private particleGeometry: THREE.BoxGeometry;
+  private disintegrationCursor = 0;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -56,6 +59,7 @@ export class CharacterPool {
     });
 
     this.particleGeometry = new THREE.BoxGeometry(1, 1, 1);
+    this.initializeDisintegrationPool();
   }
 
   async preload(
@@ -79,27 +83,32 @@ export class CharacterPool {
       this.loadBaseModel(maleModelPath),
     ]);
 
-    // Generate 10 unique configs from mixed-gender combos
-    const configs = this.generateConfigs();
+    try {
+      // Generate 10 unique configs from mixed-gender combos
+      const configs = this.generateConfigs();
 
-    // Create pool
-    for (let i = 0; i < POOL_SIZE; i++) {
-      const isMale = configs[i].gender === 'male';
-      const clonedModel = SkeletonUtils.clone(isMale ? maleBaseModel : femaleBaseModel) as THREE.Group;
-      const character = new FallingCharacter(this.scene, configs[i]);
-      character.initFromClone(
-        clonedModel,
-        isMale ? maleTextureMap : femaleTextureMap,
-        isMale ? maleAnimClip : femaleAnimClip,
-        scale
-      );
-      this.scene.add(clonedModel);
-      this.characters.push(character);
+      // Create pool
+      for (let i = 0; i < POOL_SIZE; i++) {
+        const isMale = configs[i].gender === 'male';
+        const clonedModel = SkeletonUtils.clone(isMale ? maleBaseModel : femaleBaseModel) as THREE.Group;
+        const character = new FallingCharacter(this.scene, configs[i]);
+        character.initFromClone(
+          clonedModel,
+          isMale ? maleTextureMap : femaleTextureMap,
+          isMale ? maleAnimClip : femaleAnimClip,
+          scale
+        );
+        this.scene.add(clonedModel);
+        this.characters.push(character);
+      }
+
+      // Show the first character
+      this.characters[0].setVisible(true);
+      this.loaded = true;
+    } finally {
+      this.disposeTextureMap(femaleTextureMap);
+      this.disposeTextureMap(maleTextureMap);
     }
-
-    // Show the first character
-    this.characters[0].setVisible(true);
-    this.loaded = true;
   }
 
   private async loadBaseModel(modelPath: string): Promise<THREE.Group> {
@@ -153,6 +162,15 @@ export class CharacterPool {
     });
   }
 
+  private disposeTextureMap(textureMap: { [matName: string]: THREE.Texture }): void {
+    const disposed = new Set<string>();
+    for (const texture of Object.values(textureMap)) {
+      if (disposed.has(texture.uuid)) continue;
+      texture.dispose();
+      disposed.add(texture.uuid);
+    }
+  }
+
   update(delta: number): void {
     if (!this.loaded || this.characters.length === 0) return;
 
@@ -194,16 +212,16 @@ export class CharacterPool {
 
     const outgoing = this.characters[this.outgoingCharacterIndex];
 
-    // Get bounding box for clip plane range
-    const bbox = outgoing.getBoundingBox();
-    if (!bbox) {
+    // Use cached clip bounds to avoid swap-time box traversal.
+    const clipBounds = outgoing.getClipBounds();
+    if (!clipBounds) {
       // Fallback: skip transition, do instant swap
       this.finishTransition();
       return;
     }
 
-    this.clipMinY = bbox.min.y;
-    this.clipMaxY = bbox.max.y;
+    this.clipMinY = clipBounds.minY;
+    this.clipMaxY = clipBounds.maxY;
 
     // Outgoing clip plane: normal (0,1,0), visible where y >= clipY
     // At start clipY = minY → nothing clipped. As clipY rises, feet dissolve upward.
@@ -272,15 +290,19 @@ export class CharacterPool {
   }
 
   private spawnDisintegrationParticle(yMin: number, yMax: number): void {
-    const size = 0.03 + Math.random() * 0.09; // 0.03–0.12
+    const particle = this.getNextFreeDisintegrationParticle();
+    if (!particle) return;
 
-    const mesh = new THREE.Mesh(
-      this.particleGeometry,
-      this.disintegrationMaterial.clone()
-    );
+    const size = 0.03 + Math.random() * 0.09;
+    const mesh = particle.mesh;
+    mesh.visible = true;
     mesh.scale.setScalar(size);
+    mesh.rotation.set(
+      Math.random() * Math.PI * 2,
+      Math.random() * Math.PI * 2,
+      Math.random() * Math.PI * 2
+    );
 
-    // Position: random angle on XZ, radius 0–0.5 from character center, Y in spawn band
     const angle = Math.random() * Math.PI * 2;
     const radius = Math.random() * 0.5;
     mesh.position.set(
@@ -289,37 +311,28 @@ export class CharacterPool {
       Math.sin(angle) * radius
     );
 
-    // Velocity: radial outward + upward drift
     const radialSpeed = 0.2 + Math.random() * 0.6;
-    const velocity = new THREE.Vector3(
+    particle.velocity.set(
       Math.cos(angle) * radialSpeed,
       0.2 + Math.random() * 0.6,
       Math.sin(angle) * radialSpeed
     );
 
-    const rotationSpeed = new THREE.Vector3(
+    particle.rotationSpeed.set(
       (Math.random() - 0.5) * 4,
       (Math.random() - 0.5) * 4,
       (Math.random() - 0.5) * 4
     );
 
-    const maxLife = 0.6 + Math.random() * 0.4;
-
-    this.scene.add(mesh);
-
-    this.disintegrationParticles.push({
-      mesh,
-      velocity,
-      rotationSpeed,
-      life: 0,
-      maxLife,
-      initialOpacity: 1.0,
-    });
+    particle.life = 0;
+    particle.maxLife = 0.6 + Math.random() * 0.4;
+    particle.initialOpacity = 1.0;
+    particle.active = true;
   }
 
   private updateDisintegrationParticles(delta: number): void {
-    for (let i = this.disintegrationParticles.length - 1; i >= 0; i--) {
-      const p = this.disintegrationParticles[i];
+    for (const p of this.disintegrationParticles) {
+      if (!p.active) continue;
 
       // Move
       p.mesh.position.x += p.velocity.x * delta;
@@ -349,11 +362,44 @@ export class CharacterPool {
 
       // Dispose when expired
       if (p.life > p.maxLife) {
-        this.scene.remove(p.mesh);
-        (p.mesh.material as THREE.Material).dispose();
-        this.disintegrationParticles.splice(i, 1);
+        p.active = false;
+        p.mesh.visible = false;
+        mat.opacity = 0;
       }
     }
+  }
+
+  private initializeDisintegrationPool(): void {
+    for (let i = 0; i < MAX_DISINTEGRATION_PARTICLES; i++) {
+      const material = this.disintegrationMaterial.clone();
+      material.opacity = 0;
+
+      const mesh = new THREE.Mesh(this.particleGeometry, material);
+      mesh.visible = false;
+      this.scene.add(mesh);
+
+      this.disintegrationParticles.push({
+        mesh,
+        velocity: new THREE.Vector3(),
+        rotationSpeed: new THREE.Vector3(),
+        life: 0,
+        maxLife: 0,
+        initialOpacity: 1.0,
+        active: false,
+      });
+    }
+  }
+
+  private getNextFreeDisintegrationParticle(): DisintegrationParticle | null {
+    for (let i = 0; i < this.disintegrationParticles.length; i++) {
+      const index = (this.disintegrationCursor + i) % this.disintegrationParticles.length;
+      const particle = this.disintegrationParticles[index];
+      if (!particle.active) {
+        this.disintegrationCursor = (index + 1) % this.disintegrationParticles.length;
+        return particle;
+      }
+    }
+    return null;
   }
 
   dispose(): void {

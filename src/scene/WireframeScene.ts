@@ -15,6 +15,14 @@ export class WireframeScene {
   private skyline: WireframeSkyline;
   private cameraPath: CameraPath;
   private characters: WireframeCharacter[] = [];
+  private animationFrameId: number | null = null;
+  private disposed = false;
+  private readonly onResizeHandler = (): void => {
+    this.onResize();
+  };
+  private readonly animateFrame = (): void => {
+    this.animate();
+  };
 
   constructor(canvas: HTMLCanvasElement) {
     this.scene = new THREE.Scene();
@@ -59,7 +67,7 @@ export class WireframeScene {
     this.loadCharacters();
 
     // Events
-    window.addEventListener('resize', this.onResize.bind(this));
+    window.addEventListener('resize', this.onResizeHandler);
 
     // Start
     this.animate();
@@ -86,6 +94,10 @@ export class WireframeScene {
         );
         // Face random direction
         character.setRotation(Math.random() * Math.PI * 2);
+        if (this.disposed) {
+          character.dispose();
+          return;
+        }
         this.characters.push(character);
       } catch (error) {
         console.warn('Failed to load character at', pos, error);
@@ -94,13 +106,15 @@ export class WireframeScene {
   }
 
   private onResize(): void {
+    if (this.disposed) return;
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
 
   private animate(): void {
-    requestAnimationFrame(this.animate.bind(this));
+    if (this.disposed) return;
+    this.animationFrameId = requestAnimationFrame(this.animateFrame);
 
     const delta = this.clock.getDelta();
     const elapsed = this.clock.getElapsedTime();
@@ -123,12 +137,23 @@ export class WireframeScene {
   }
 
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+
+    window.removeEventListener('resize', this.onResizeHandler);
+
     this.grass.dispose();
     this.skyline.dispose();
     this.wireframeMaterial.dispose();
     for (const character of this.characters) {
       character.dispose();
     }
-    window.removeEventListener('resize', this.onResize.bind(this));
+    this.characters = [];
+    this.renderer.dispose();
   }
 }

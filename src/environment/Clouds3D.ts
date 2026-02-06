@@ -148,4 +148,9 @@ export class Clouds3D {
   public update(time: number): void {
     this.material.uniforms.uTime.value = time;
   }
+
+  public dispose(): void {
+    this.mesh.geometry.dispose();
+    this.material.dispose();
+  }
 }

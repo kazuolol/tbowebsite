@@ -31,4 +31,9 @@ export class SkyDome {
   public setSunDirection(x: number, y: number, z: number): void {
     this.material.uniforms.uSunDirection.value.set(x, y, z).normalize();
   }
+
+  public dispose(): void {
+    this.mesh.geometry.dispose();
+    this.material.dispose();
+  }
 }

@@ -440,6 +440,12 @@ html, body {
   border-color: var(--border-color-hover);
 }
 
+.dc-menu-btn.is-active {
+  background-color: var(--hover-bg);
+  border-color: var(--border-color-hover);
+  transform: translateX(2px);
+}
+
 .dc-menu-btn:active {
   transform: scale(0.98);
 }

@@ -15,6 +15,10 @@ export class FallingCharacter {
   private loaded: boolean = false;
   private materials: THREE.Material[] = [];
   private textures: THREE.Texture[] = [];
+  private clipMinY = 0;
+  private clipMaxY = 0;
+  private clipBoundsReady = false;
+  private clipBoundsBox = new THREE.Box3();
 
   private spinSpeed: number = 0.45; // rad/s
 
@@ -294,16 +298,18 @@ export class FallingCharacter {
       console.warn('No texture for material:', matName);
     }
 
-    let materialTexture = texture;
-    if (texture && originalMat) {
+    let materialTexture: THREE.Texture | null = null;
+    if (texture) {
       materialTexture = texture.clone();
 
-      const origMat = originalMat as THREE.MeshStandardMaterial | THREE.MeshPhongMaterial | THREE.MeshBasicMaterial;
-      if (origMat.map) {
-        materialTexture.offset.copy(origMat.map.offset);
-        materialTexture.repeat.copy(origMat.map.repeat);
-        materialTexture.rotation = origMat.map.rotation;
-        materialTexture.center.copy(origMat.map.center);
+      if (originalMat) {
+        const origMat = originalMat as THREE.MeshStandardMaterial | THREE.MeshPhongMaterial | THREE.MeshBasicMaterial;
+        if (origMat.map) {
+          materialTexture.offset.copy(origMat.map.offset);
+          materialTexture.repeat.copy(origMat.map.repeat);
+          materialTexture.rotation = origMat.map.rotation;
+          materialTexture.center.copy(origMat.map.center);
+        }
       }
     }
 
@@ -415,7 +421,31 @@ export class FallingCharacter {
 
     if (this.model) {
       this.model.rotation.y += this.spinSpeed * delta;
+
+      // Populate clip bounds from an animated, visible pose.
+      if (this.model.visible && !this.clipBoundsReady) {
+        this.refreshClipBounds();
+      }
     }
+  }
+
+  private refreshClipBounds(): void {
+    if (!this.model) return;
+    const bbox = this.clipBoundsBox.setFromObject(this.model);
+    this.clipMinY = bbox.min.y;
+    this.clipMaxY = bbox.max.y;
+    this.clipBoundsReady = Number.isFinite(this.clipMinY) &&
+      Number.isFinite(this.clipMaxY) &&
+      this.clipMaxY > this.clipMinY;
+  }
+
+  getClipBounds(): { minY: number; maxY: number } | null {
+    if (!this.model) return null;
+    if (!this.clipBoundsReady) {
+      this.refreshClipBounds();
+    }
+    if (!this.clipBoundsReady) return null;
+    return { minY: this.clipMinY, maxY: this.clipMaxY };
   }
 
   getBoundingBox(): THREE.Box3 | null {
@@ -424,27 +454,15 @@ export class FallingCharacter {
   }
 
   applyClipPlane(plane: THREE.Plane): void {
-    if (!this.model) return;
-    this.model.traverse((child) => {
-      if (child instanceof THREE.Mesh || child instanceof THREE.SkinnedMesh) {
-        const materials = Array.isArray(child.material) ? child.material : [child.material];
-        for (const mat of materials) {
-          mat.clippingPlanes = [plane];
-        }
-      }
-    });
+    for (const material of this.materials) {
+      material.clippingPlanes = [plane];
+    }
   }
 
   removeClipPlane(): void {
-    if (!this.model) return;
-    this.model.traverse((child) => {
-      if (child instanceof THREE.Mesh || child instanceof THREE.SkinnedMesh) {
-        const materials = Array.isArray(child.material) ? child.material : [child.material];
-        for (const mat of materials) {
-          mat.clippingPlanes = null;
-        }
-      }
-    });
+    for (const material of this.materials) {
+      material.clippingPlanes = null;
+    }
   }
 
   getModel(): THREE.Group | null {
@@ -477,5 +495,8 @@ export class FallingCharacter {
     this.textures = [];
     this.mixer = null;
     this.model = null;
+    this.clipBoundsReady = false;
+    this.clipMinY = 0;
+    this.clipMaxY = 0;
   }
 }

@@ -40,6 +40,17 @@ export class FallingScene {
 
   private fragments: CubeFragment[] = [];
   private maxFragments: number = 80;
+  private animationFrameId: number | null = null;
+  private disposed = false;
+  private glowTexture: THREE.CanvasTexture | null = null;
+  private glowMaterial: THREE.SpriteMaterial | null = null;
+  private glowSprite: THREE.Sprite | null = null;
+  private readonly onResizeHandler = (): void => {
+    this.onResize();
+  };
+  private readonly animateFrame = (): void => {
+    this.animate();
+  };
 
   constructor(canvas: HTMLCanvasElement) {
     this.scene = new THREE.Scene();
@@ -99,25 +110,25 @@ export class FallingScene {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 128, 128);
 
-    const glowTexture = new THREE.CanvasTexture(glowCanvas);
-    const glowMaterial = new THREE.SpriteMaterial({
-      map: glowTexture,
+    this.glowTexture = new THREE.CanvasTexture(glowCanvas);
+    this.glowMaterial = new THREE.SpriteMaterial({
+      map: this.glowTexture,
       transparent: true,
       depthWrite: false,
       fog: false,
     });
-    const glowSprite = new THREE.Sprite(glowMaterial);
-    glowSprite.position.set(0, 3, -40);
-    glowSprite.scale.set(60, 60, 1);
-    glowSprite.renderOrder = -1;
-    this.scene.add(glowSprite);
+    this.glowSprite = new THREE.Sprite(this.glowMaterial);
+    this.glowSprite.position.set(0, 3, -40);
+    this.glowSprite.scale.set(60, 60, 1);
+    this.glowSprite.renderOrder = -1;
+    this.scene.add(this.glowSprite);
 
     this.characterPool = new CharacterPool(this.scene);
     this.loadCharacter();
 
     this.createInitialCubes();
 
-    window.addEventListener('resize', this.onResize.bind(this));
+    window.addEventListener('resize', this.onResizeHandler);
 
     this.animate();
   }
@@ -233,6 +244,7 @@ export class FallingScene {
   // ── Resize ────────────────────────────────────────────────────────
 
   private onResize(): void {
+    if (this.disposed) return;
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -241,7 +253,8 @@ export class FallingScene {
   // ── Animate ───────────────────────────────────────────────────────
 
   private animate(): void {
-    requestAnimationFrame(this.animate.bind(this));
+    if (this.disposed) return;
+    this.animationFrameId = requestAnimationFrame(this.animateFrame);
 
     const delta = this.clock.getDelta();
     const elapsed = this.clock.getElapsedTime();
@@ -345,6 +358,16 @@ export class FallingScene {
   // ── Cleanup ───────────────────────────────────────────────────────
 
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+
+    window.removeEventListener('resize', this.onResizeHandler);
+
     this.characterPool.dispose();
 
     for (const cube of this.cubes) {
@@ -358,8 +381,23 @@ export class FallingScene {
       frag.mesh.geometry.dispose();
       (frag.mesh.material as THREE.Material).dispose();
     }
+    this.cubes = [];
+    this.fragments = [];
+
+    if (this.glowSprite) {
+      this.scene.remove(this.glowSprite);
+      this.glowSprite = null;
+    }
+    if (this.glowMaterial) {
+      this.glowMaterial.dispose();
+      this.glowMaterial = null;
+    }
+    if (this.glowTexture) {
+      this.glowTexture.dispose();
+      this.glowTexture = null;
+    }
 
     this.cubeMaterial.dispose();
-    window.removeEventListener('resize', this.onResize.bind(this));
+    this.renderer.dispose();
   }
 }

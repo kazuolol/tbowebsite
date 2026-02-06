@@ -9,6 +9,14 @@ export class SceneManager {
   private skyDome: SkyDome;
   private clouds: Clouds3D;
   private clock: THREE.Clock;
+  private animationFrameId: number | null = null;
+  private disposed = false;
+  private readonly onResizeHandler = (): void => {
+    this.onResize();
+  };
+  private readonly animateFrame = (): void => {
+    this.animate();
+  };
 
   constructor(canvas: HTMLCanvasElement) {
     // Scene setup
@@ -46,13 +54,14 @@ export class SceneManager {
     this.scene.add(this.clouds.mesh);
 
     // Handle resize
-    window.addEventListener('resize', this.onResize.bind(this));
+    window.addEventListener('resize', this.onResizeHandler);
 
     // Start animation loop
     this.animate();
   }
 
   private onResize(): void {
+    if (this.disposed) return;
     const width = window.innerWidth;
     const height = window.innerHeight;
 
@@ -64,7 +73,8 @@ export class SceneManager {
   }
 
   private animate(): void {
-    requestAnimationFrame(this.animate.bind(this));
+    if (this.disposed) return;
+    this.animationFrameId = requestAnimationFrame(this.animateFrame);
 
     const elapsed = this.clock.getElapsedTime();
 
@@ -85,5 +95,22 @@ export class SceneManager {
 
 
     this.renderer.render(this.scene, this.camera);
+  }
+
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+
+    window.removeEventListener('resize', this.onResizeHandler);
+    this.scene.remove(this.skyDome.mesh);
+    this.scene.remove(this.clouds.mesh);
+    this.skyDome.dispose();
+    this.clouds.dispose();
+    this.renderer.dispose();
   }
 }

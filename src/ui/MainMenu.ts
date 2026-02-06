@@ -5,6 +5,20 @@ import { drawWeatherIcon } from './WeatherIcons2D';
 const ICON_RENDER_SIZE = 144;
 const WEATHER_ICON_SIZE = 34;
 const WEATHER_REFRESH_MS = 15 * 60 * 1000;
+const MENU_ACTION_EVENT = 'tbo:menu-action';
+
+export type MenuAction = 'early-access' | 'play' | 'about-us';
+
+export interface MenuActionDetail {
+  action: MenuAction;
+  label: string;
+}
+
+interface MenuButtonDefinition {
+  label: string;
+  iconType: IconType;
+  action: MenuAction;
+}
 
 interface WeatherApiResponse {
   current?: {
@@ -40,9 +54,16 @@ export class MainMenu {
   private weatherTempF: number | null = null;
   private weatherCode: number | null = null;
   private weatherIsDay: boolean | null = null;
+  private headerEl: HTMLElement | null = null;
+  private menuEl: HTMLElement | null = null;
+  private activeButton: HTMLButtonElement | null = null;
+  private buttonCleanup: Array<() => void> = [];
+  private destroyed = false;
+  private onAction?: (detail: MenuActionDetail) => void;
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, onAction?: (detail: MenuActionDetail) => void) {
     this.container = container;
+    this.onAction = onAction;
 
     // Single shared offscreen renderer for all 3D icons
     const offscreen = document.createElement('canvas');
@@ -61,11 +82,11 @@ export class MainMenu {
   }
 
   private render(): void {
-    const header = this.createHeader();
-    this.container.appendChild(header);
+    this.headerEl = this.createHeader();
+    this.container.appendChild(this.headerEl);
 
-    const menu = this.createMenu();
-    this.container.appendChild(menu);
+    this.menuEl = this.createMenu();
+    this.container.appendChild(this.menuEl);
   }
 
   private createHeader(): HTMLElement {
@@ -115,16 +136,18 @@ export class MainMenu {
     const menu = document.createElement('nav');
     menu.className = 'dc-menu';
 
-    const buttons: { label: string; iconType: IconType }[] = [
-      { label: 'Early Access', iconType: 'rocket' },
-      { label: 'Play', iconType: 'globe' },
-      { label: 'About Us', iconType: 'info' },
+    const buttons: MenuButtonDefinition[] = [
+      { label: 'Early Access', iconType: 'rocket', action: 'early-access' },
+      { label: 'Play', iconType: 'globe', action: 'play' },
+      { label: 'About Us', iconType: 'info', action: 'about-us' },
     ];
 
     buttons.forEach((btn, i) => {
       const button = document.createElement('button');
+      button.type = 'button';
       button.className = 'dc-menu-btn';
       button.style.animationDelay = `${0.2 + i * 0.15}s`;
+      button.dataset.action = btn.action;
 
       const iconEl = document.createElement('span');
       iconEl.className = 'dc-menu-btn-icon';
@@ -141,12 +164,47 @@ export class MainMenu {
       labelEl.className = 'dc-menu-btn-label';
       labelEl.textContent = btn.label;
 
+      const clickHandler = () => {
+        this.handleMenuAction(btn, button);
+      };
+      button.addEventListener('click', clickHandler);
+      this.buttonCleanup.push(() => {
+        button.removeEventListener('click', clickHandler);
+      });
+
       button.appendChild(iconEl);
       button.appendChild(labelEl);
       menu.appendChild(button);
+
+      if (i === 0) {
+        this.setActiveButton(button);
+      }
     });
 
     return menu;
+  }
+
+  private setActiveButton(button: HTMLButtonElement): void {
+    if (this.activeButton === button) return;
+    this.activeButton?.classList.remove('is-active');
+    button.classList.add('is-active');
+    this.activeButton = button;
+  }
+
+  private handleMenuAction(buttonDef: MenuButtonDefinition, button: HTMLButtonElement): void {
+    this.setActiveButton(button);
+
+    const detail: MenuActionDetail = {
+      action: buttonDef.action,
+      label: buttonDef.label,
+    };
+
+    if (this.onAction) {
+      this.onAction(detail);
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent<MenuActionDetail>(MENU_ACTION_EVENT, { detail }));
   }
 
   private createStatusIconCanvas(): HTMLCanvasElement {
@@ -304,23 +362,42 @@ export class MainMenu {
   }
 
   public destroy(): void {
-    if (this.clockInterval) {
+    if (this.destroyed) return;
+    this.destroyed = true;
+
+    if (this.clockInterval !== null) {
       window.clearInterval(this.clockInterval);
+      this.clockInterval = null;
     }
-    if (this.weatherInterval) {
+    if (this.weatherInterval !== null) {
       window.clearInterval(this.weatherInterval);
+      this.weatherInterval = null;
     }
     if (this.animationFrameId !== null) {
       cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
     }
+    for (const cleanup of this.buttonCleanup) {
+      cleanup();
+    }
+    this.buttonCleanup = [];
     for (const icon of this.icons) {
       icon.dispose();
     }
     this.icons = [];
+    this.activeButton = null;
     this.iconRenderer.dispose();
+    this.headerEl?.remove();
+    this.menuEl?.remove();
+    this.headerEl = null;
+    this.menuEl = null;
     this.dateTimeTextEl = null;
     this.weatherIconEl = null;
     this.weatherTextEl = null;
     this.weatherCanvas = null;
+    this.weatherCoords = null;
+    this.weatherTempF = null;
+    this.weatherCode = null;
+    this.weatherIsDay = null;
   }
 }

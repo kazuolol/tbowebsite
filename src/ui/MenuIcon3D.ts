@@ -2,31 +2,23 @@ import * as THREE from 'three';
 
 export type IconType = 'rocket' | 'globe' | 'info';
 
+const ICON_SIZE = 96; // 48 CSS px * 2 DPR
+
 export class MenuIcon3D {
-  private renderer: THREE.WebGLRenderer;
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private group: THREE.Group;
   private type: IconType;
+  private ctx: CanvasRenderingContext2D;
   private elapsed = 0;
 
   constructor(canvas: HTMLCanvasElement, type: IconType) {
     this.type = type;
-
-    const size = 96; // 48 CSS px * 2 DPR
-    this.renderer = new THREE.WebGLRenderer({
-      canvas,
-      alpha: true,
-      antialias: true,
-    });
-    this.renderer.setSize(size, size, false);
-    this.renderer.setPixelRatio(1); // we already account for DPR in canvas size
+    this.ctx = canvas.getContext('2d')!;
 
     this.scene = new THREE.Scene();
-
     this.camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
 
-    // Lighting
     const ambient = new THREE.AmbientLight(0xffffff, 0.8);
     this.scene.add(ambient);
     const dir = new THREE.DirectionalLight(0xffffff, 1.0);
@@ -52,11 +44,9 @@ export class MenuIcon3D {
     }
 
     this.camera.lookAt(0, 0, 0);
-    this.renderer.render(this.scene, this.camera);
   }
 
   private buildRocket(): void {
-    // Body - cone
     const bodyGeo = new THREE.ConeGeometry(0.4, 1.8, 16);
     const bodyMat = new THREE.MeshStandardMaterial({
       color: 0xddeeff,
@@ -67,7 +57,6 @@ export class MenuIcon3D {
     body.position.y = 0.2;
     this.group.add(body);
 
-    // Nose cone
     const noseGeo = new THREE.SphereGeometry(0.2, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
     const noseMat = new THREE.MeshStandardMaterial({
       color: 0xe0e8f0,
@@ -78,7 +67,6 @@ export class MenuIcon3D {
     nose.position.y = 1.1;
     this.group.add(nose);
 
-    // Fins (3 fins around the base)
     const finGeo = new THREE.BoxGeometry(0.5, 0.5, 0.08);
     const finMat = new THREE.MeshStandardMaterial({
       color: 0x3a6fd8,
@@ -94,7 +82,6 @@ export class MenuIcon3D {
       this.group.add(fin);
     }
 
-    // Flame at base
     const flameGeo = new THREE.ConeGeometry(0.25, 0.6, 8);
     const flameMat = new THREE.MeshStandardMaterial({
       color: 0xff8844,
@@ -105,10 +92,9 @@ export class MenuIcon3D {
     });
     const flame = new THREE.Mesh(flameGeo, flameMat);
     flame.position.y = -1.0;
-    flame.rotation.z = Math.PI; // point downward
+    flame.rotation.z = Math.PI;
     this.group.add(flame);
 
-    // Inner flame
     const innerFlameGeo = new THREE.ConeGeometry(0.15, 0.4, 8);
     const innerFlameMat = new THREE.MeshStandardMaterial({
       color: 0xffcc44,
@@ -122,7 +108,6 @@ export class MenuIcon3D {
     innerFlame.rotation.z = Math.PI;
     this.group.add(innerFlame);
 
-    // Window
     const windowGeo = new THREE.SphereGeometry(0.15, 12, 12);
     const windowMat = new THREE.MeshStandardMaterial({
       color: 0x6ea8fe,
@@ -137,7 +122,6 @@ export class MenuIcon3D {
   }
 
   private buildGlobe(): void {
-    // Solid sphere
     const sphereGeo = new THREE.SphereGeometry(1.2, 32, 24);
     const sphereMat = new THREE.MeshStandardMaterial({
       color: 0x4a9ade,
@@ -149,7 +133,6 @@ export class MenuIcon3D {
     const sphere = new THREE.Mesh(sphereGeo, sphereMat);
     this.group.add(sphere);
 
-    // Wireframe overlay for lat/lon lines
     const wireGeo = new THREE.SphereGeometry(1.22, 16, 12);
     const wireMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
@@ -160,7 +143,6 @@ export class MenuIcon3D {
     const wire = new THREE.Mesh(wireGeo, wireMat);
     this.group.add(wire);
 
-    // Specular highlight sphere (fake shine)
     const shineGeo = new THREE.SphereGeometry(1.23, 32, 24);
     const shineMat = new THREE.MeshStandardMaterial({
       color: 0x90d0ff,
@@ -174,7 +156,6 @@ export class MenuIcon3D {
   }
 
   private buildInfo(): void {
-    // Orb
     const orbGeo = new THREE.SphereGeometry(1.2, 32, 24);
     const orbMat = new THREE.MeshStandardMaterial({
       color: 0x9070d0,
@@ -186,7 +167,6 @@ export class MenuIcon3D {
     const orb = new THREE.Mesh(orbGeo, orbMat);
     this.group.add(orb);
 
-    // "i" stem
     const stemGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.7, 12);
     const whiteMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
@@ -197,25 +177,24 @@ export class MenuIcon3D {
     stem.position.set(0, -0.1, 1.0);
     this.group.add(stem);
 
-    // "i" dot
     const dotGeo = new THREE.SphereGeometry(0.16, 12, 12);
     const dot = new THREE.Mesh(dotGeo, whiteMat);
     dot.position.set(0, 0.45, 1.0);
     this.group.add(dot);
   }
 
-  update(delta: number): void {
+  /** Update animation state + render via shared renderer, then blit to display canvas. */
+  update(delta: number, renderer: THREE.WebGLRenderer): void {
     this.elapsed += delta;
-
-    // Y-rotation for all types
     this.group.rotation.y += delta * 0.8;
 
-    // Rocket-specific bob
     if (this.type === 'rocket') {
       this.group.position.y = Math.sin(this.elapsed * 2.0) * 0.15;
     }
 
-    this.renderer.render(this.scene, this.camera);
+    renderer.render(this.scene, this.camera);
+    this.ctx.clearRect(0, 0, ICON_SIZE, ICON_SIZE);
+    this.ctx.drawImage(renderer.domElement, 0, 0);
   }
 
   dispose(): void {
@@ -229,6 +208,5 @@ export class MenuIcon3D {
         }
       }
     });
-    this.renderer.dispose();
   }
 }

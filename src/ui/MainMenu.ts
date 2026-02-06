@@ -1,13 +1,28 @@
+import * as THREE from 'three';
 import { MenuIcon3D, type IconType } from './MenuIcon3D';
 
 export class MainMenu {
   private container: HTMLElement;
   private clockInterval: number | null = null;
   private icons: MenuIcon3D[] = [];
+  private iconRenderer: THREE.WebGLRenderer;
   private animationFrameId: number | null = null;
 
   constructor(container: HTMLElement) {
     this.container = container;
+
+    // Single shared offscreen renderer for all 3D icons
+    const offscreen = document.createElement('canvas');
+    offscreen.width = 96;
+    offscreen.height = 96;
+    this.iconRenderer = new THREE.WebGLRenderer({
+      canvas: offscreen,
+      alpha: true,
+      antialias: true,
+    });
+    this.iconRenderer.setSize(96, 96, false);
+    this.iconRenderer.setPixelRatio(1);
+
     this.render();
     this.startIconLoop();
   }
@@ -90,7 +105,7 @@ export class MainMenu {
       lastTime = now;
 
       for (const icon of this.icons) {
-        icon.update(delta);
+        icon.update(delta, this.iconRenderer);
       }
 
       this.animationFrameId = requestAnimationFrame(loop);
@@ -123,5 +138,6 @@ export class MainMenu {
       icon.dispose();
     }
     this.icons = [];
+    this.iconRenderer.dispose();
   }
 }

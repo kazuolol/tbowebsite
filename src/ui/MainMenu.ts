@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 import { MenuIcon3D, type IconType } from './MenuIcon3D';
 import { drawWeatherIcon } from './WeatherIcons2D';
-import { dispatchLocalWeatherUpdate } from '../utils/LocalWeather';
+import {
+  dispatchLocalWeatherUpdate,
+  OPEN_METEO_WEATHER_CODE_OPTIONS,
+} from '../utils/LocalWeather';
 
 const ICON_RENDER_SIZE = 216;
 const WEATHER_ICON_SIZE = 34;
@@ -55,6 +58,9 @@ export class MainMenu {
   private weatherTempF: number | null = null;
   private weatherCode: number | null = null;
   private weatherIsDay: boolean | null = null;
+  private weatherOverrideCode: number | null = null;
+  private weatherDebugEl: HTMLElement | null = null;
+  private weatherDebugSelectEl: HTMLSelectElement | null = null;
   private headerEl: HTMLElement | null = null;
   private menuEl: HTMLElement | null = null;
   private floatingEarlyAccessEl: HTMLElement | null = null;
@@ -101,6 +107,9 @@ export class MainMenu {
 
     this.menuEl = this.createMenu();
     this.container.appendChild(this.menuEl);
+
+    this.weatherDebugEl = this.createWeatherDebugControl();
+    this.container.appendChild(this.weatherDebugEl);
   }
 
   private createHeader(): HTMLElement {
@@ -144,6 +153,54 @@ export class MainMenu {
     header.appendChild(datetime);
 
     return header;
+  }
+
+  private createWeatherDebugControl(): HTMLElement {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'dc-weather-debug';
+
+    const label = document.createElement('span');
+    label.className = 'dc-weather-debug-label';
+    label.textContent = 'Weather Test';
+
+    const select = document.createElement('select');
+    select.className = 'dc-weather-debug-select';
+    select.setAttribute('aria-label', 'Weather test event selector');
+    select.title = 'Temporary weather event simulator';
+
+    const liveOption = document.createElement('option');
+    liveOption.value = 'live';
+    liveOption.textContent = 'Live local weather';
+    select.appendChild(liveOption);
+
+    for (const option of OPEN_METEO_WEATHER_CODE_OPTIONS) {
+      const item = document.createElement('option');
+      item.value = String(option.code);
+      item.textContent = `${option.code} - ${option.label}`;
+      select.appendChild(item);
+    }
+
+    const changeHandler = () => {
+      const value = select.value;
+      if (value === 'live') {
+        this.weatherOverrideCode = null;
+      } else {
+        const parsed = Number.parseInt(value, 10);
+        this.weatherOverrideCode = Number.isFinite(parsed) ? parsed : null;
+      }
+      this.publishSceneWeatherUpdate();
+      this.updateDateTime();
+    };
+    select.addEventListener('change', changeHandler);
+    this.buttonCleanup.push(() => {
+      select.removeEventListener('change', changeHandler);
+    });
+
+    wrapper.appendChild(label);
+    wrapper.appendChild(select);
+
+    this.weatherDebugSelectEl = select;
+    return wrapper;
   }
 
   private createMenu(): HTMLElement {
@@ -364,6 +421,7 @@ export class MainMenu {
     const formatCandidates = this.getDateTimeFormatCandidates(viewportWidth);
 
     const isDay = this.weatherIsDay ?? this.isLocalDay(now);
+    const activeWeatherCode = this.weatherOverrideCode ?? this.weatherCode;
     const weatherSize = this.weatherCanvas.clientWidth || WEATHER_ICON_SIZE;
     let selectedText = now.toLocaleDateString('en-US', formatCandidates[formatCandidates.length - 1]);
     if (this.dateTimeTextEl.clientWidth > 0) {
@@ -379,7 +437,7 @@ export class MainMenu {
       selectedText = now.toLocaleDateString('en-US', formatCandidates[0]);
     }
     this.dateTimeTextEl.textContent = selectedText;
-    drawWeatherIcon(this.weatherCanvas, this.weatherCode, isDay, weatherSize);
+    drawWeatherIcon(this.weatherCanvas, activeWeatherCode, isDay, weatherSize);
     this.weatherTextEl.textContent = this.weatherTempF !== null ? `${Math.round(this.weatherTempF)}F` : '--F';
   }
 
@@ -416,6 +474,18 @@ export class MainMenu {
   private isLocalDay(now: Date): boolean {
     const hour = now.getHours();
     return hour >= 6 && hour < 18;
+  }
+
+  private publishSceneWeatherUpdate(): void {
+    const now = new Date();
+    const weatherCode = this.weatherOverrideCode ?? this.weatherCode ?? 2;
+    const temperatureF = this.weatherTempF ?? 68;
+    const isDay = this.weatherIsDay ?? this.isLocalDay(now);
+    dispatchLocalWeatherUpdate({
+      temperatureF,
+      weatherCode,
+      isDay,
+    });
   }
 
   private async refreshWeather(): Promise<void> {
@@ -457,11 +527,7 @@ export class MainMenu {
       this.weatherTempF = current.temperature_2m;
       this.weatherCode = current.weather_code;
       this.weatherIsDay = current.is_day === 1;
-      dispatchLocalWeatherUpdate({
-        temperatureF: this.weatherTempF,
-        weatherCode: this.weatherCode,
-        isDay: this.weatherIsDay,
-      });
+      this.publishSceneWeatherUpdate();
     } catch (error) {
       console.warn('Failed to refresh local weather.', error);
     } finally {
@@ -556,9 +622,12 @@ export class MainMenu {
     this.headerEl?.remove();
     this.menuEl?.remove();
     this.floatingEarlyAccessEl?.remove();
+    this.weatherDebugEl?.remove();
     this.headerEl = null;
     this.menuEl = null;
     this.floatingEarlyAccessEl = null;
+    this.weatherDebugEl = null;
+    this.weatherDebugSelectEl = null;
     this.dateTimeTextEl = null;
     this.weatherIconEl = null;
     this.weatherTextEl = null;
@@ -567,5 +636,6 @@ export class MainMenu {
     this.weatherTempF = null;
     this.weatherCode = null;
     this.weatherIsDay = null;
+    this.weatherOverrideCode = null;
   }
 }

@@ -457,6 +457,61 @@ html, body {
   text-align: right;
 }
 
+/* Temporary weather event simulator */
+.dc-weather-debug {
+  position: fixed;
+  right: clamp(10px, 2vw, 24px);
+  bottom: calc(clamp(10px, 2vh, 24px) + env(safe-area-inset-bottom));
+  z-index: 140;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 10px;
+  background: rgba(10, 16, 24, 0.62);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.24);
+  pointer-events: auto;
+}
+
+.dc-weather-debug-label {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  text-shadow: var(--text-shadow-default);
+}
+
+.dc-weather-debug-select {
+  min-width: clamp(170px, 25vw, 280px);
+  max-width: min(56vw, 320px);
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 7px;
+  background: rgba(13, 23, 34, 0.86);
+  color: rgb(240, 247, 255);
+  font-family: 'Jost', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  outline: none;
+  color-scheme: dark;
+}
+
+.dc-weather-debug-select option,
+.dc-weather-debug-select optgroup {
+  color: rgb(23, 33, 46);
+  background-color: rgb(228, 236, 245);
+}
+
+.dc-weather-debug-select:focus-visible {
+  border-color: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.22);
+}
+
 /* ========================================
    Menu Buttons
    ======================================== */
@@ -737,6 +792,18 @@ html, body {
     min-height: var(--size-medium);
     height: var(--size-medium);
   }
+
+  .dc-weather-debug {
+    right: 50%;
+    transform: translateX(50%);
+    max-width: min(92vw, 420px);
+    gap: 6px;
+  }
+
+  .dc-weather-debug-select {
+    min-width: clamp(140px, 50vw, 260px);
+    max-width: min(60vw, 280px);
+  }
 }
 
 /* iPhone 14 Pro Max / Pixel 7 class portrait phones */
@@ -810,6 +877,15 @@ html, body {
 
   .dc-weather-text {
     display: none;
+  }
+
+  .dc-weather-debug {
+    width: min(92vw, 360px);
+    padding: 7px 8px;
+  }
+
+  .dc-weather-debug-label {
+    font-size: 11px;
   }
 }
 

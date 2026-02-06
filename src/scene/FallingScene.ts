@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CharacterPool } from '../environment/CharacterPool';
+import { WeatherParticles } from '../environment/WeatherParticles';
 import {
   LOCAL_WEATHER_UPDATE_EVENT,
   classifyOpenMeteoWeatherCode,
@@ -63,6 +64,7 @@ export class FallingScene {
   private canvas: HTMLCanvasElement;
 
   private characterPool: CharacterPool;
+  private weatherParticles: WeatherParticles;
   private cubeMaterial: THREE.MeshStandardMaterial;
 
   private ambientLight: THREE.AmbientLight;
@@ -202,6 +204,7 @@ export class FallingScene {
     this.scene.add(this.glowSprite);
 
     this.characterPool = new CharacterPool(this.scene);
+    this.weatherParticles = new WeatherParticles(this.scene);
     void this.loadCharacter();
 
     this.createInitialCubes();
@@ -375,6 +378,8 @@ export class FallingScene {
     this.camera.updateProjectionMatrix();
 
     this.updateWeatherTransition(delta);
+    this.weatherParticles.setWind(this.cubeDrift.x, this.cubeDrift.y, this.worldSpeed);
+    this.weatherParticles.update(delta);
     this.characterPool.update(delta);
     this.updateCubes(delta);
     this.updateFragments(delta);
@@ -382,7 +387,6 @@ export class FallingScene {
     this.camera.position.set(0, 3, 8);
     this.camera.lookAt(0, 0, -50);
     this.onResize();
-
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -595,7 +599,8 @@ export class FallingScene {
   }
 
   private applyWeatherSnapshot(snapshot: LocalWeatherSnapshot): void {
-    const profile = this.createWeatherProfile(snapshot);
+    const condition = classifyOpenMeteoWeatherCode(snapshot.weatherCode);
+    const profile = this.createWeatherProfile(snapshot, condition);
 
     this.targetWorldSpeed = THREE.MathUtils.clamp(profile.worldSpeed, 6, 24);
     this.targetFogDensity = THREE.MathUtils.clamp(profile.fogDensity, 0.002, 0.013);
@@ -631,10 +636,18 @@ export class FallingScene {
     this.targetCubeEmissiveColor.set(profile.cubeEmissiveColor);
 
     this.stormMode = profile.storm;
+    this.weatherParticles.setWeatherState({
+      condition,
+      weatherCode: snapshot.weatherCode,
+      isDay: snapshot.isDay,
+      temperatureF: snapshot.temperatureF,
+    });
   }
 
-  private createWeatherProfile(snapshot: LocalWeatherSnapshot): WeatherSceneProfile {
-    const condition = classifyOpenMeteoWeatherCode(snapshot.weatherCode);
+  private createWeatherProfile(
+    snapshot: LocalWeatherSnapshot,
+    condition: OpenMeteoWeatherCondition
+  ): WeatherSceneProfile {
     let profile = this.getConditionProfile(condition);
 
     if (!snapshot.isDay) {
@@ -877,6 +890,7 @@ export class FallingScene {
     );
 
     this.characterPool.dispose();
+    this.weatherParticles.dispose();
 
     for (const cube of this.cubes) {
       this.scene.remove(cube.mesh);

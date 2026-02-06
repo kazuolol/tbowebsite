@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { MenuIcon3D, type IconType } from './MenuIcon3D';
 
+const ICON_RENDER_SIZE = 144;
+
 export class MainMenu {
   private container: HTMLElement;
   private clockInterval: number | null = null;
@@ -13,14 +15,14 @@ export class MainMenu {
 
     // Single shared offscreen renderer for all 3D icons
     const offscreen = document.createElement('canvas');
-    offscreen.width = 96;
-    offscreen.height = 96;
+    offscreen.width = ICON_RENDER_SIZE;
+    offscreen.height = ICON_RENDER_SIZE;
     this.iconRenderer = new THREE.WebGLRenderer({
       canvas: offscreen,
       alpha: true,
       antialias: true,
     });
-    this.iconRenderer.setSize(96, 96, false);
+    this.iconRenderer.setSize(ICON_RENDER_SIZE, ICON_RENDER_SIZE, false);
     this.iconRenderer.setPixelRatio(1);
 
     this.render();
@@ -78,8 +80,8 @@ export class MainMenu {
       iconEl.className = 'dc-menu-btn-icon';
 
       const canvas = document.createElement('canvas');
-      canvas.width = 96;
-      canvas.height = 96;
+      canvas.width = ICON_RENDER_SIZE;
+      canvas.height = ICON_RENDER_SIZE;
       iconEl.appendChild(canvas);
 
       const icon = new MenuIcon3D(canvas, btn.iconType);

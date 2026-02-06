@@ -389,9 +389,9 @@ html, body {
 .dc-menu-btn {
   display: flex;
   align-items: center;
-  gap: 16px;
-  width: 100%;
-  padding: 16px 24px;
+  gap: 10px;
+  width: 92%;
+  padding: 8px 12px;
   background-color: var(--slot-bg-default);
   border: 1px solid var(--border-color-default);
   border-radius: var(--border-radius-default);
@@ -416,8 +416,8 @@ html, body {
 }
 
 .dc-menu-btn-icon {
-  width: 48px;
-  height: 48px;
+  width: 72px;
+  height: 72px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -425,8 +425,8 @@ html, body {
 }
 
 .dc-menu-btn-icon canvas {
-  width: 48px;
-  height: 48px;
+  width: 72px;
+  height: 72px;
   display: block;
 }
 
@@ -484,18 +484,19 @@ html, body {
   }
 
   .dc-menu-btn {
-    padding: 12px 16px;
+    width: 94%;
+    padding: 6px 10px;
     font-size: 16px;
-    gap: 12px;
+    gap: 8px;
   }
 
   .dc-menu-btn-icon {
-    width: 36px;
-    height: 36px;
+    width: 56px;
+    height: 56px;
   }
 
   .dc-menu-btn-icon canvas {
-    width: 36px;
-    height: 36px;
+    width: 56px;
+    height: 56px;
   }
 }

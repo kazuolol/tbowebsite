@@ -74,6 +74,14 @@ State machine flow:
 - SkyDome uses gradient shader
 - Clouds3D uses billboard cloud puff shader with noise
 
+## Deployment
+
+- **Hosting**: Cloudflare Pages
+- **Project name**: `tbowebsite`
+- **Production URL**: https://tbowebsite-7sj.pages.dev/
+- **Takedown command**: `npx wrangler pages project delete tbowebsite`
+- **Redeploy**: `npm run build && npx wrangler pages deploy dist --project-name tbowebsite`
+
 ## Notes
 
 - Terminal currently simulates OTP verification (no backend)

@@ -359,12 +359,41 @@ html, body {
 }
 
 .dc-datetime {
-  font-size: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 20px;
   font-weight: 400;
   color: rgb(255, 255, 255);
   font-variant-numeric: tabular-nums;
   text-shadow: var(--text-shadow-default);
   letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.dc-time-icon,
+.dc-weather-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+}
+
+.dc-time-icon canvas,
+.dc-weather-icon canvas {
+  width: 34px;
+  height: 34px;
+  display: block;
+}
+
+.dc-datetime-text {
+  font-variant-numeric: tabular-nums;
+}
+
+.dc-weather-text {
+  min-width: 3ch;
 }
 
 /* ========================================
@@ -474,7 +503,20 @@ html, body {
   }
 
   .dc-datetime {
-    font-size: 36px;
+    font-size: 16px;
+    gap: 6px;
+  }
+
+  .dc-time-icon,
+  .dc-weather-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .dc-time-icon canvas,
+  .dc-weather-icon canvas {
+    width: 28px;
+    height: 28px;
   }
 
   .dc-menu {

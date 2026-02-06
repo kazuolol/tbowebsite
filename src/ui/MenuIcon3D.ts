@@ -12,6 +12,7 @@ export class MenuIcon3D {
   private ctx: CanvasRenderingContext2D;
   private elapsed = 0;
   private globeGlowSprites: THREE.Sprite[] = [];
+  private globeOrbitalMeshes: THREE.Object3D[] = [];
 
   constructor(canvas: HTMLCanvasElement, type: IconType) {
     this.type = type;
@@ -36,7 +37,7 @@ export class MenuIcon3D {
         break;
       case 'globe':
         this.buildGlobe();
-        this.camera.position.set(0, 0, 4.9);
+        this.camera.position.set(0, 0, 5.2);
         break;
       case 'info':
         this.buildInfo();
@@ -175,110 +176,190 @@ export class MenuIcon3D {
   }
 
   private buildGlobe(): void {
-    const radius = 1.2;
-    const ringThickness = 0.013;
-    const meridianCount = 18;
-    const latitudeCount = 14;
+    // Base color matched to the provided blue swatch.
+    const baseBlue = new THREE.Color(0x0038e6);
+    const midBlue = new THREE.Color(0x2d63ff);
+    const brightBlue = new THREE.Color(0x9fbfff);
+    const deepBlue = new THREE.Color(0x001a82);
+    const portal = new THREE.Group();
+    portal.position.y = 0.04;
+    this.group.add(portal);
 
-    const core = new THREE.Mesh(
-      new THREE.SphereGeometry(radius * 0.96, 32, 24),
-      new THREE.MeshStandardMaterial({
-        color: 0x000000,
-        emissive: 0x0b3b1e,
-        emissiveIntensity: 0.16,
-        metalness: 0.0,
-        roughness: 1.0,
+    const backHalo = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: this.createRadialGlowTexture(
+          'rgba(200, 220, 255, 0.8)',
+          'rgba(0, 56, 230, 0.34)',
+          'rgba(0, 0, 0, 0)'
+        ),
+        color: 0x5d87ff,
+        transparent: true,
+        opacity: 0.38,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    backHalo.position.set(0, 0.02, -0.92);
+    backHalo.scale.set(3.9, 3.9, 1);
+    backHalo.userData.baseScale = new THREE.Vector2(3.9, 3.9);
+    portal.add(backHalo);
+    this.globeGlowSprites.push(backHalo);
+
+    const coreGlow = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: this.createRadialGlowTexture(
+          'rgba(255, 255, 255, 0.92)',
+          'rgba(56, 96, 242, 0.6)',
+          'rgba(0, 0, 0, 0)'
+        ),
+        color: 0xc9dbff,
         transparent: true,
         opacity: 0.52,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
       })
     );
-    this.group.add(core);
+    coreGlow.position.set(0, -0.01, 0.2);
+    coreGlow.scale.set(2.25, 2.5, 1);
+    coreGlow.userData.baseScale = new THREE.Vector2(2.25, 2.5);
+    portal.add(coreGlow);
+    this.globeGlowSprites.push(coreGlow);
 
-    const meridianMaterial = new THREE.MeshStandardMaterial({
-      color: 0x3fd970,
-      emissive: 0x2bb65f,
-      emissiveIntensity: 0.58,
-      metalness: 0.0,
-      roughness: 0.15,
-    });
+    const portalShell = new THREE.Mesh(
+      new THREE.SphereGeometry(1.28, 36, 28),
+      new THREE.MeshBasicMaterial({
+        color: deepBlue,
+        transparent: true,
+        opacity: 0.18,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+    );
+    portalShell.scale.set(1.0, 1.12, 1.0);
+    portal.add(portalShell);
 
-    for (let i = 0; i < meridianCount; i++) {
-      const meridian = new THREE.Mesh(
-        new THREE.TorusGeometry(radius, ringThickness, 8, 96),
-        meridianMaterial
-      );
-      meridian.rotation.y = (i / meridianCount) * Math.PI * 2;
-      this.group.add(meridian);
-    }
-
-    const lowColor = new THREE.Color(0x0f7e3b);
-    const highColor = new THREE.Color(0x4fd37a);
-    for (let i = 1; i <= latitudeCount; i++) {
-      const t = i / (latitudeCount + 1);
-      const latitude = (t - 0.5) * Math.PI;
-      const ringRadius = Math.cos(latitude) * radius;
-      const y = Math.sin(latitude) * radius;
-      const color = lowColor.clone().lerp(highColor, t);
-
-      const latitudeRing = new THREE.Mesh(
-        new THREE.TorusGeometry(ringRadius, ringThickness, 8, 96),
-        new THREE.MeshStandardMaterial({
-          color,
-          emissive: color,
-          emissiveIntensity: 0.54,
-          metalness: 0.0,
-          roughness: 0.2,
+    const vortexTexture = this.createPortalVortexTexture();
+    for (let i = 0; i < 5; i++) {
+      const size = 2.74 - i * 0.28;
+      const vortexLayer = new THREE.Mesh(
+        new THREE.PlaneGeometry(size, size),
+        new THREE.MeshBasicMaterial({
+          map: vortexTexture,
+          color: i % 2 === 0 ? midBlue : baseBlue,
+          transparent: true,
+          opacity: 0.36 - i * 0.05,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
         })
       );
-      latitudeRing.rotation.x = Math.PI / 2;
-      latitudeRing.position.y = y;
-      this.group.add(latitudeRing);
+      vortexLayer.position.z = -0.2 + i * 0.11;
+      vortexLayer.rotation.z = i * 0.62;
+      vortexLayer.userData.spinSpeed = (i % 2 === 0 ? 1 : -1) * (1.25 + i * 0.28);
+      vortexLayer.userData.phase = i * 0.7;
+      vortexLayer.userData.baseOpacity = 0.36 - i * 0.05;
+      vortexLayer.userData.baseScale = new THREE.Vector2(size, size);
+      portal.add(vortexLayer);
+      this.globeOrbitalMeshes.push(vortexLayer);
     }
 
-    const haloTexture = this.createRadialGlowTexture(
-      'rgba(70, 185, 100, 0.45)',
-      'rgba(20, 90, 45, 0.16)',
-      'rgba(0, 0, 0, 0)'
-    );
-    const lowerGlowTexture = this.createRadialGlowTexture(
-      'rgba(30, 130, 70, 0.40)',
-      'rgba(0, 70, 30, 0.18)',
-      'rgba(0, 0, 0, 0)'
-    );
+    const streakTexture = this.createPortalStreakTexture();
+    const streakGeo = new THREE.PlaneGeometry(1.04, 0.18);
 
-    const halo = new THREE.Sprite(
-      new THREE.SpriteMaterial({
-        map: haloTexture,
-        color: 0x46bf70,
+    for (let i = 0; i < 26; i++) {
+      const streakGroup = new THREE.Group();
+      const streak = new THREE.Mesh(
+        streakGeo,
+        new THREE.MeshBasicMaterial({
+          map: streakTexture,
+          color: i % 3 === 0 ? brightBlue : midBlue,
+          transparent: true,
+          opacity: 0.4 + (i % 4) * 0.06,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        })
+      );
+
+      const radius = 0.14 + (i % 7) * 0.07;
+      streak.position.set(radius, Math.sin(i * 1.2) * 0.06, (i % 4) * 0.04 - 0.08);
+      streak.rotation.z = (i % 2 === 0 ? 0.35 : -0.38);
+      streak.scale.set(0.64 + (i % 5) * 0.1, 0.58 + (i % 3) * 0.08, 1);
+
+      streakGroup.rotation.z = (i / 26) * Math.PI * 2;
+      streakGroup.rotation.x = Math.sin(i * 0.6) * 0.18;
+      streakGroup.userData.spinSpeed = 1.15 + (i % 5) * 0.22;
+      portal.add(streakGroup);
+      streakGroup.add(streak);
+      this.globeOrbitalMeshes.push(streakGroup);
+    }
+
+    const coreHole = new THREE.Mesh(
+      new THREE.CircleGeometry(0.24, 28),
+      new THREE.MeshBasicMaterial({
+        color: 0x1647c6,
         transparent: true,
-        opacity: 0.26,
+        opacity: 0.1,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       })
     );
-    halo.position.set(0, -0.08, -0.55);
-    halo.scale.set(4.0, 4.0, 1);
-    halo.userData.baseScale = new THREE.Vector2(4.0, 4.0);
-    this.group.add(halo);
-    this.globeGlowSprites.push(halo);
+    coreHole.position.z = 0.36;
+    portal.add(coreHole);
 
-    const lowerGlow = new THREE.Sprite(
-      new THREE.SpriteMaterial({
-        map: lowerGlowTexture,
-        color: 0x269955,
-        transparent: true,
-        opacity: 0.20,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      })
+    const ringSegments = 5;
+    for (let i = 0; i < ringSegments; i++) {
+      const segment = new THREE.Mesh(
+        new THREE.TorusGeometry(1.28, 0.046, 10, 72, Math.PI * 0.5),
+        new THREE.MeshBasicMaterial({
+          color: 0x6c96ff,
+          transparent: true,
+          opacity: 0.22,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        })
+      );
+      segment.rotation.z = (i / ringSegments) * Math.PI * 2 + (i % 2 === 0 ? 0.2 : -0.12);
+      segment.rotation.x = 0.12;
+      segment.position.z = -0.08;
+      segment.userData.spinSpeed = i % 2 === 0 ? 0.24 : -0.18;
+      portal.add(segment);
+      this.globeOrbitalMeshes.push(segment);
+    }
+
+    const sparkMap = this.createRadialGlowTexture(
+      'rgba(255, 255, 255, 0.95)',
+      'rgba(151, 190, 255, 0.35)',
+      'rgba(0, 0, 0, 0)'
     );
-    lowerGlow.position.set(0, -0.7, -0.7);
-    lowerGlow.scale.set(4.8, 3.2, 1);
-    lowerGlow.userData.baseScale = new THREE.Vector2(4.8, 3.2);
-    this.group.add(lowerGlow);
-    this.globeGlowSprites.push(lowerGlow);
+    for (let i = 0; i < 14; i++) {
+      const spark = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: sparkMap,
+          color: i % 4 === 0 ? 0xffffff : 0xd0e4ff,
+          transparent: true,
+          opacity: 0.52,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        })
+      );
+      const radius = 1.16 + (i % 4) * 0.08;
+      const angle = (i / 14) * Math.PI * 2;
+      spark.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius * 0.92, -0.15 + (i % 3) * 0.1);
+      const size = 0.1 + (i % 4) * 0.025;
+      spark.scale.set(size, size, 1);
+      spark.userData.baseScale = new THREE.Vector2(size, size);
+      spark.userData.baseOpacity = 0.38 + (i % 3) * 0.09;
+      spark.userData.orbitRadius = radius;
+      spark.userData.orbitAngle = angle;
+      spark.userData.orbitSpeed = (i % 2 === 0 ? 1 : -1) * (0.5 + (i % 6) * 0.1);
+      spark.userData.phase = i * 0.45;
+      portal.add(spark);
+      this.globeOrbitalMeshes.push(spark);
+    }
 
-    this.group.rotation.x = -0.18;
+    this.group.rotation.set(-0.05, 0.0, -0.015);
   }
 
   private createRadialGlowTexture(inner: string, mid: string, outer: string): THREE.CanvasTexture {
@@ -292,6 +373,89 @@ export class MenuIcon3D {
     gradient.addColorStop(1, outer);
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 128, 128);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  private createPortalStreakTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 96;
+    const ctx = canvas.getContext('2d')!;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const lineGradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+    lineGradient.addColorStop(0, 'rgba(44, 93, 255, 0)');
+    lineGradient.addColorStop(0.2, 'rgba(0, 56, 230, 0.56)');
+    lineGradient.addColorStop(0.5, 'rgba(212, 227, 255, 0.96)');
+    lineGradient.addColorStop(0.8, 'rgba(0, 48, 210, 0.58)');
+    lineGradient.addColorStop(1, 'rgba(44, 93, 255, 0)');
+
+    const verticalMask = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    verticalMask.addColorStop(0, 'rgba(255, 255, 255, 0)');
+    verticalMask.addColorStop(0.35, 'rgba(255, 255, 255, 0.95)');
+    verticalMask.addColorStop(0.65, 'rgba(255, 255, 255, 0.95)');
+    verticalMask.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+    ctx.fillStyle = lineGradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.fillStyle = verticalMask;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.globalCompositeOperation = 'source-over';
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  private createPortalVortexTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+    const cx = canvas.width * 0.5;
+    const cy = canvas.height * 0.5;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.globalCompositeOperation = 'lighter';
+
+    const arcCount = 180;
+    for (let i = 0; i < arcCount; i++) {
+      const t = i / arcCount;
+      const radius = 10 + Math.pow(t, 0.78) * 218;
+      const start = i * 0.31 + t * 3.2;
+      const sweep = 0.52 + (1 - t) * 1.34;
+      const r = Math.round(0 + (1 - t) * 95);
+      const g = Math.round(36 + (1 - t) * 112);
+      const alpha = 0.1 + (1 - t) * 0.52;
+
+      ctx.strokeStyle = `rgba(${r}, ${g}, 255, ${alpha})`;
+      ctx.lineWidth = 1.2 + (1 - t) * 7.8;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, start, start + sweep);
+      ctx.stroke();
+    }
+
+    const centerGlow = ctx.createRadialGradient(cx, cy, 8, cx, cy, 128);
+    centerGlow.addColorStop(0, 'rgba(227, 238, 255, 0.86)');
+    centerGlow.addColorStop(0.35, 'rgba(74, 118, 255, 0.6)');
+    centerGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = centerGlow;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 128, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(0, 18, 86, 0.42)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 24, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.globalCompositeOperation = 'source-over';
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
@@ -413,12 +577,66 @@ export class MenuIcon3D {
   update(delta: number, renderer: THREE.WebGLRenderer): void {
     this.elapsed += delta;
     if (this.type === 'globe') {
-      this.group.rotation.y += delta * 0.28;
-      const pulse = 1 + Math.sin(this.elapsed * 1.6) * 0.04;
+      this.group.rotation.x = -0.05 + Math.sin(this.elapsed * 0.78) * 0.015;
+      this.group.rotation.y = Math.sin(this.elapsed * 0.42) * 0.065;
+      this.group.rotation.z += delta * 0.1;
+
+      const pulse = 1 + Math.sin(this.elapsed * 0.95) * 0.015;
       for (const glow of this.globeGlowSprites) {
         const baseScale = glow.userData.baseScale as THREE.Vector2 | undefined;
         if (!baseScale) continue;
         glow.scale.set(baseScale.x * pulse, baseScale.y * pulse, 1);
+      }
+
+      for (const orbit of this.globeOrbitalMeshes) {
+        const phase = (orbit.userData.phase as number | undefined) ?? 0;
+        const spinSpeed = orbit.userData.spinSpeed as number | undefined;
+        if (spinSpeed !== undefined) {
+          orbit.rotation.z += delta * spinSpeed * 0.8;
+        }
+
+        const orbitRadius = orbit.userData.orbitRadius as number | undefined;
+        const orbitSpeed = orbit.userData.orbitSpeed as number | undefined;
+        if (orbitRadius !== undefined && orbitSpeed !== undefined) {
+          orbit.userData.orbitAngle =
+            ((orbit.userData.orbitAngle as number | undefined) ?? 0) + delta * orbitSpeed * 0.8;
+          const orbitAngle = orbit.userData.orbitAngle as number;
+          orbit.position.x = Math.cos(orbitAngle) * orbitRadius;
+          orbit.position.y = Math.sin(orbitAngle) * orbitRadius * 0.92;
+        }
+
+        const baseY = orbit.userData.baseY as number | undefined;
+        const bobAmplitude = orbit.userData.bobAmplitude as number | undefined;
+        if (baseY !== undefined && bobAmplitude !== undefined) {
+          orbit.position.y = baseY + Math.sin(this.elapsed * 1.24 + phase) * bobAmplitude;
+        }
+
+        const materialHolder = orbit as THREE.Object3D & {
+          material?: THREE.Material | THREE.Material[];
+        };
+        const baseOpacity = orbit.userData.baseOpacity as number | undefined;
+        if (baseOpacity !== undefined && materialHolder.material) {
+          const opacity = THREE.MathUtils.clamp(
+            baseOpacity + Math.sin(this.elapsed * 1.35 + phase) * 0.05,
+            0,
+            1
+          );
+          const mats = Array.isArray(materialHolder.material)
+            ? materialHolder.material
+            : [materialHolder.material];
+          for (const mat of mats) {
+            (mat as THREE.Material & { opacity?: number }).opacity = opacity;
+          }
+        }
+
+        const baseScale = orbit.userData.baseScale as THREE.Vector2 | undefined;
+        if (baseScale) {
+          const isSprite = orbit instanceof THREE.Sprite;
+          const freq = isSprite ? 1.6 : 0.8;
+          const amp = isSprite ? 0.08 : 0.015;
+          const flicker = 1 + Math.sin(this.elapsed * freq + phase) * amp;
+          orbit.scale.set(baseScale.x * flicker, baseScale.y * flicker, 1);
+        }
       }
     } else if (this.type === 'rocket') {
       this.group.rotation.y += delta * 1.05;
@@ -439,10 +657,39 @@ export class MenuIcon3D {
   }
 
   dispose(): void {
+    const disposedTextures = new Set<string>();
+    const disposedMaterials = new Set<string>();
+    const textureSlots = [
+      'map',
+      'alphaMap',
+      'emissiveMap',
+      'normalMap',
+      'roughnessMap',
+      'metalnessMap',
+      'bumpMap',
+      'aoMap',
+      'specularMap',
+      'envMap',
+      'lightMap',
+      'displacementMap',
+      'gradientMap',
+    ];
+
     const disposeMaterial = (material: THREE.Material): void => {
-      const texturedMaterial = material as THREE.Material & { map?: THREE.Texture | null };
-      texturedMaterial.map?.dispose();
+      if (disposedMaterials.has(material.uuid)) {
+        return;
+      }
+
+      const texturedMaterial = material as THREE.Material & Record<string, unknown>;
+      for (const slot of textureSlots) {
+        const texture = texturedMaterial[slot] as THREE.Texture | null | undefined;
+        if (!texture || disposedTextures.has(texture.uuid)) continue;
+        texture.dispose();
+        disposedTextures.add(texture.uuid);
+      }
+
       material.dispose();
+      disposedMaterials.add(material.uuid);
     };
 
     this.scene.traverse((obj) => {
@@ -462,5 +709,6 @@ export class MenuIcon3D {
       }
     });
     this.globeGlowSprites = [];
+    this.globeOrbitalMeshes = [];
   }
 }

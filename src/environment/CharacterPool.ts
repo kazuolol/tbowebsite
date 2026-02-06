@@ -4,8 +4,8 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { FallingCharacter, CharacterConfig } from './FallingCharacter';
 
 const POOL_SIZE = 10;
-const SPIN_SPEED = 1.2; // rad/s — must match FallingCharacter
-const MIN_ROTATIONS_BETWEEN_SWAPS = 3; // ~15.7s at 1.2 rad/s
+const SPIN_SPEED = 0.45; // rad/s — must match FallingCharacter
+const MIN_ROTATIONS_BETWEEN_SWAPS = 1.5; // ~20.9s at 0.45 rad/s (2x faster swaps)
 const TRANSITION_DURATION = 0.8; // seconds
 
 interface DisintegrationParticle {
@@ -24,7 +24,6 @@ export class CharacterPool {
 
   private cumulativeRotation: number = 0;
   private cumulativeAnimTime: number = 0;
-  private prevAngleMod: number = 0;
   private rotationsSinceSwap: number = 0;
 
   private loaded: boolean = false;
@@ -171,23 +170,16 @@ export class CharacterPool {
     this.cumulativeRotation += SPIN_SPEED * delta;
     this.cumulativeAnimTime += delta;
 
-    // Track full rotations for minimum-swap check
-    const currentAngleMod = this.cumulativeRotation % (Math.PI * 2);
-
     if (this.transitioning) {
       this.updateTransition(delta);
     } else {
-      // Detect crossing π (back facing camera)
-      if (this.prevAngleMod < Math.PI && currentAngleMod >= Math.PI) {
-        this.rotationsSinceSwap++;
+      // Accumulate exact spin distance so swap cadence maps directly to rotations.
+      this.rotationsSinceSwap += (SPIN_SPEED * delta) / (Math.PI * 2);
 
-        if (this.rotationsSinceSwap >= MIN_ROTATIONS_BETWEEN_SWAPS) {
-          this.cycleToNext();
-        }
+      if (this.rotationsSinceSwap >= MIN_ROTATIONS_BETWEEN_SWAPS) {
+        this.cycleToNext();
       }
     }
-
-    this.prevAngleMod = currentAngleMod;
 
     // Always update particles (they outlive the transition)
     this.updateDisintegrationParticles(delta);
@@ -381,3 +373,4 @@ export class CharacterPool {
     this.particleGeometry.dispose();
   }
 }
+

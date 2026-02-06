@@ -79,6 +79,7 @@ export class FallingCharacter {
     { matName: 'm_youghmale_hair_003', path: '/textures/T_YoughMale_Hair_003_Basecolor.png' },
     { matName: 'm_youghmale_hair_004', path: '/textures/T_YoughMale_Hair_004_Basecolor.png' },
     { matName: 'm_youghmale_hair_005', path: '/textures/T_YoughMale_Hair_005_Basecolor.png' },
+    { matName: 'm_youghmale_outfit_001', path: '/textures/T_YoughMale_Outfit_001_Basecolor.png' },
     { matName: 'm_youghmale_outfit_002', path: '/textures/T_YoughMale_Outfit_002_Basecolor.png' },
     { matName: 'm_youghmale_outfit_003', path: '/textures/T_YoughMale_Outfit_003_Basecolor.png' },
     { matName: 'm_youghmale_outfit_004', path: '/textures/T_YoughMale_Outfit_004_Basecolor.png' },

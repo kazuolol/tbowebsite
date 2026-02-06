@@ -27,14 +27,6 @@
   /* Dreamcast BIOS Color Palette */
   --dc-header-bg: #e8e4d8;
   --dc-header-text: #4a4a4a;
-  --dc-btn-signup: #e8a090;
-  --dc-btn-signup-hover: #d88a78;
-  --dc-btn-play: #7cc5b8;
-  --dc-btn-play-hover: #5cb5a5;
-  --dc-btn-early: #b8a0d0;
-  --dc-btn-early-hover: #a888c0;
-  --dc-modal-bg: rgba(255, 255, 255, 0.95);
-  --dc-modal-text: #333;
 }
 
 html, body {
@@ -346,390 +338,100 @@ html, body {
   top: 0;
   left: 0;
   right: 0;
-  height: 48px;
-  background: var(--dc-header-bg);
+  height: 144px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  padding: 0 72px;
   z-index: 100;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   pointer-events: auto;
 }
 
 .dc-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--dc-header-text);
-  letter-spacing: 1px;
+  height: 100%;
+  padding: 8px 0;
+  object-fit: contain;
 }
 
 .dc-datetime {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--dc-header-text);
+  font-size: 42px;
+  font-weight: 400;
+  color: rgb(255, 255, 255);
   font-variant-numeric: tabular-nums;
+  text-shadow: var(--text-shadow-default);
+  letter-spacing: 0;
 }
 
-/* Menu Container - positioned to float above the mist layer */
-.dc-menu-container {
-  display: flex;
-  gap: 64px;
-  align-items: flex-end;
-  justify-content: center;
-  padding-top: 100px;
-  pointer-events: auto;
-}
+/* ========================================
+   Menu Buttons
+   ======================================== */
 
-/* Menu Item */
-.dc-menu-item {
+.dc-menu {
+  position: fixed;
+  left: 0;
+  top: 144px;
+  bottom: 0;
+  width: 35%;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  cursor: pointer;
-  transition: transform 0.3s ease;
-}
-
-.dc-menu-item:hover {
-  transform: translateY(-4px);
-}
-
-.dc-menu-item:hover .dc-icon-float {
-  animation-play-state: paused;
-  transform: translateY(-12px) scale(1.08);
-  filter:
-    drop-shadow(0 12px 16px rgba(80, 80, 120, 0.3))
-    drop-shadow(0 4px 6px rgba(60, 60, 100, 0.2));
-}
-
-/* Floating Icon - Dreamcast BIOS style */
-.dc-icon-float {
-  width: 90px;
-  height: 90px;
-  display: flex;
-  align-items: center;
   justify-content: center;
-  animation: dc-float 4s ease-in-out infinite;
-  transition: transform 0.4s ease;
-  /* Soft shadow matching periwinkle background */
-  filter:
-    drop-shadow(0 8px 12px rgba(80, 80, 120, 0.25))
-    drop-shadow(0 2px 4px rgba(60, 60, 100, 0.15));
-  position: relative;
-}
-
-.dc-icon-float svg {
-  width: 100%;
-  height: 100%;
-}
-
-/* Subtle reflection beneath icon - like items touching water */
-.dc-icon-float::after {
-  content: '';
-  position: absolute;
-  bottom: -24px;
-  left: 50%;
-  transform: translateX(-50%) scaleY(0.2) scaleX(0.8);
-  width: 100%;
-  height: 40px;
-  background: radial-gradient(ellipse, rgba(80, 80, 140, 0.2) 0%, transparent 70%);
-  filter: blur(6px);
-  pointer-events: none;
-}
-
-@keyframes dc-float {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-16px);
-  }
-}
-
-/* Stagger float animations */
-.dc-menu-item:nth-child(1) .dc-icon-float { animation-delay: 0s; }
-.dc-menu-item:nth-child(2) .dc-icon-float { animation-delay: -1s; }
-.dc-menu-item:nth-child(3) .dc-icon-float { animation-delay: -2s; }
-
-/* Pill Buttons - Ethereal Dreamcast style */
-.dc-pill-btn {
-  padding: 14px 36px;
-  border-radius: 28px;
-  border: none;
-  font-family: 'Jost', sans-serif;
-  font-size: 15px;
-  font-weight: 500;
-  letter-spacing: 0.5px;
-  color: white;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  /* Soft ethereal shadows */
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.15),
-    0 8px 24px rgba(0, 0, 0, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
-  /* Subtle inner glow */
-  position: relative;
-  overflow: hidden;
-}
-
-.dc-pill-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 50%;
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.15), transparent);
-  pointer-events: none;
-}
-
-.dc-pill-btn:hover {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow:
-    0 6px 16px rgba(0, 0, 0, 0.18),
-    0 12px 32px rgba(0, 0, 0, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
-}
-
-.dc-pill-btn:active {
-  transform: translateY(0) scale(0.98);
-}
-
-.dc-pill-btn--signup {
-  background: linear-gradient(135deg, #ebb0a0 0%, var(--dc-btn-signup) 50%, #d89080 100%);
-}
-.dc-pill-btn--signup:hover {
-  background: linear-gradient(135deg, #f0b8a8 0%, var(--dc-btn-signup-hover) 50%, #d08070 100%);
-}
-
-.dc-pill-btn--play {
-  background: linear-gradient(135deg, #90d5c8 0%, var(--dc-btn-play) 50%, #60b5a0 100%);
-}
-.dc-pill-btn--play:hover {
-  background: linear-gradient(135deg, #98ddd0 0%, var(--dc-btn-play-hover) 50%, #50a590 100%);
-}
-
-.dc-pill-btn--early {
-  background: linear-gradient(135deg, #c8b0e0 0%, var(--dc-btn-early) 50%, #a090c0 100%);
-}
-.dc-pill-btn--early:hover {
-  background: linear-gradient(135deg, #d0b8e8 0%, var(--dc-btn-early-hover) 50%, #9080b0 100%);
-}
-
-/* ========================================
-   Modal Overlay
-   ======================================== */
-
-.dc-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s ease;
-}
-
-.dc-modal-overlay.active {
-  opacity: 1;
+  padding: 0 48px;
+  gap: 12px;
+  z-index: 50;
   pointer-events: auto;
 }
 
-.dc-modal {
-  background: var(--dc-modal-bg);
-  border-radius: 16px;
-  padding: 32px;
-  max-width: 420px;
-  width: 90%;
-  position: relative;
-  transform: scale(0.9) translateY(20px);
-  transition: transform 0.3s ease;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
-}
-
-.dc-modal-overlay.active .dc-modal {
-  transform: scale(1) translateY(0);
-}
-
-.dc-modal-close {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: 50%;
-  cursor: pointer;
+.dc-menu-btn {
   display: flex;
   align-items: center;
-  justify-content: center;
-  transition: background 0.2s ease;
-}
-
-.dc-modal-close:hover {
-  background: rgba(0, 0, 0, 0.2);
-}
-
-.dc-modal-close svg {
-  width: 16px;
-  height: 16px;
-  stroke: var(--dc-modal-text);
-  stroke-width: 2;
-}
-
-.dc-modal-title {
+  gap: 16px;
+  width: 100%;
+  padding: 16px 24px;
+  background-color: var(--slot-bg-default);
+  border: 1px solid var(--border-color-default);
+  border-radius: var(--border-radius-default);
+  color: rgb(255, 255, 255);
+  font-family: 'Jost', sans-serif;
   font-size: 20px;
-  font-weight: 600;
-  color: var(--dc-modal-text);
-  margin-bottom: 24px;
-  text-align: center;
+  font-weight: 400;
+  text-shadow: var(--text-shadow-default);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  opacity: 0;
+  animation: dc-fade-in-up 0.5s ease-out forwards;
 }
 
-.dc-modal-content {
-  color: var(--dc-modal-text);
+.dc-menu-btn:hover {
+  background-color: var(--hover-bg);
+  border-color: var(--border-color-hover);
 }
 
-/* ========================================
-   Signup Flow (Modal Content)
-   ======================================== */
-
-.dc-signup-line {
-  margin-bottom: 12px;
-  font-size: 15px;
-  color: var(--dc-modal-text);
+.dc-menu-btn:active {
+  transform: scale(0.98);
 }
 
-.dc-signup-line.dim {
-  color: #888;
-  font-size: 14px;
-}
-
-.dc-signup-line.success {
-  color: #2a9d5c;
-}
-
-.dc-signup-line.error {
-  color: #d64545;
-}
-
-.dc-signup-input-wrapper {
+.dc-menu-btn-icon {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  margin-top: 16px;
-  background: rgba(0, 0, 0, 0.05);
-  padding: 12px 16px;
-  border: 2px solid rgba(0, 0, 0, 0.1);
-  border-radius: 12px;
-  transition: all 0.2s ease;
-}
-
-.dc-signup-input-wrapper:focus-within {
-  border-color: var(--dc-btn-signup);
-  background: rgba(0, 0, 0, 0.02);
-}
-
-.dc-signup-input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  outline: none;
-  color: var(--dc-modal-text);
-  font-family: 'Jost', sans-serif;
-  font-size: 16px;
-}
-
-.dc-signup-input::placeholder {
-  color: #aaa;
-}
-
-.dc-signup-submit {
-  margin-left: 12px;
-  padding: 8px 20px;
-  border-radius: 16px;
-  border: none;
-  background: var(--dc-btn-signup);
-  color: white;
-  font-family: 'Jost', sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.dc-signup-submit:hover {
-  background: var(--dc-btn-signup-hover);
-}
-
-/* OTP Input for Modal */
-.dc-otp-container {
-  display: flex;
-  gap: 10px;
-  margin-top: 16px;
   justify-content: center;
 }
 
-.dc-otp-input {
-  width: 44px;
-  height: 56px;
-  background: rgba(0, 0, 0, 0.05);
-  border: 2px solid rgba(0, 0, 0, 0.1);
-  border-radius: 8px;
-  color: var(--dc-modal-text);
-  font-family: 'Jost', sans-serif;
-  font-size: 24px;
-  font-weight: 600;
-  text-align: center;
-  outline: none;
-  transition: all 0.2s ease;
+.dc-menu-btn-icon canvas {
+  width: 48px;
+  height: 48px;
+  display: block;
 }
 
-.dc-otp-input:focus {
-  border-color: var(--dc-btn-signup);
-  background: rgba(0, 0, 0, 0.02);
-}
-
-/* Status Bar in Modal */
-.dc-status-bar {
-  margin-top: 16px;
-  background: rgba(0, 0, 0, 0.1);
-  height: 8px;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.dc-status-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #7cc5b8, #5cb5a5);
-  border-radius: 4px;
-  transition: width 0.8s ease;
-}
-
-/* Coming Soon Message */
-.dc-coming-soon {
-  text-align: center;
-  padding: 20px 0;
-}
-
-.dc-coming-soon-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-}
-
-.dc-coming-soon-text {
-  font-size: 18px;
-  color: var(--dc-modal-text);
-  font-weight: 500;
+.dc-menu-btn-label {
+  letter-spacing: 0;
 }
 
 /* ========================================
@@ -762,56 +464,38 @@ html, body {
   animation: dc-slide-down 0.5s ease-out;
 }
 
-.dc-menu-item {
-  opacity: 0;
-  animation: dc-fade-in-up 0.5s ease-out forwards;
-}
-
-.dc-menu-item:nth-child(1) { animation-delay: 0.2s; }
-.dc-menu-item:nth-child(2) { animation-delay: 0.35s; }
-.dc-menu-item:nth-child(3) { animation-delay: 0.5s; }
-
 /* ========================================
    Dreamcast UI Responsive
    ======================================== */
 
 @media (max-width: 600px) {
   .dc-header {
-    padding: 0 16px;
-  }
-
-  .dc-title {
-    font-size: 16px;
+    padding: 0 48px;
   }
 
   .dc-datetime {
-    font-size: 12px;
+    font-size: 36px;
   }
 
-  .dc-menu-container {
-    gap: 32px;
-    padding-top: 120px;
-    flex-wrap: wrap;
+  .dc-menu {
+    width: 50%;
+    padding: 0 24px;
+    gap: 8px;
   }
 
-  .dc-icon-float {
-    width: 60px;
-    height: 60px;
+  .dc-menu-btn {
+    padding: 12px 16px;
+    font-size: 16px;
+    gap: 12px;
   }
 
-  .dc-pill-btn {
-    padding: 10px 24px;
-    font-size: 14px;
+  .dc-menu-btn-icon {
+    width: 36px;
+    height: 36px;
   }
 
-  .dc-modal {
-    padding: 24px;
-    margin: 16px;
-  }
-
-  .dc-otp-input {
-    width: 38px;
-    height: 48px;
-    font-size: 20px;
+  .dc-menu-btn-icon canvas {
+    width: 36px;
+    height: 36px;
   }
 }

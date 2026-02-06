@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build:*)",
+      "Bash(ls:*)",
+      "Bash(curl:*)",
+      "Bash(xxd:*)",
+      "Bash(git clone:*)",
+      "Bash(git sparse-checkout:*)",
+      "Bash(git lfs pull:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vite build)",
+      "Bash(npm run dev:*)",
+      "Bash(gh api:*)",
+      "Bash(xargs curl -sL -o SM_Tower.fbx)",
+      "Bash(xargs curl -sL -o SM_BankingInfra.fbx)",
+      "Bash(xargs curl -sL -o SM_Windmill.fbx)",
+      "Bash(xargs curl -sL -o SM_House_001.fbx)",
+      "Bash(xargs curl -sL -o SM_House_002.fbx)",
+      "Bash(xargs curl -sL -o SM_House_003.fbx)",
+      "Bash(xargs curl -sL -o SM_Church.fbx)",
+      "Bash(xargs curl -sL -o Collun.fbx)",
+      "Bash(xargs curl -sL -o Cross.fbx)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(gh auth status:*)"
+    ]
+  }
+}

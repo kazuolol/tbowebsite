@@ -124,9 +124,9 @@ export class CharacterPool {
       }
     }
 
-    // Male combos: 5 hairs × 4 outfits (2-5) = 20
+    // Male combos: 5 hairs × 4 outfits (1,2,4,5) = 20  (003 is underwear, skip it)
     for (let h = 1; h <= 5; h++) {
-      for (let o = 2; o <= 5; o++) {
+      for (const o of [1, 2, 4, 5]) {
         combos.push({
           gender: 'male',
           hair: String(h).padStart(3, '0'),

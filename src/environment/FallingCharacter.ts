@@ -16,7 +16,7 @@ export class FallingCharacter {
   private materials: THREE.Material[] = [];
   private textures: THREE.Texture[] = [];
 
-  private spinSpeed: number = 1.2; // rad/s
+  private spinSpeed: number = 0.45; // rad/s
 
   // Selected variants
   private gender: 'male' | 'female';

@@ -22,6 +22,7 @@ const CUBE_COUNT = 150;
 const RECYCLE_Z = 25;
 const RESET_Z = -500;
 const XY_SPREAD = 35;
+const CHARACTER_SCALE = 0.034;
 
 // ── Scene ──────────────────────────────────────────────────────────
 
@@ -128,7 +129,7 @@ export class FallingScene {
         '/models/YoughFemale_Jump_Loop.fbx',
         '/models/YoughMale_Rig.fbx',
         '/models/YoughMale_Jump_Loop.fbx',
-        0.02
+        CHARACTER_SCALE
       );
     } catch (error) {
       console.error('Failed to load character pool:', error);

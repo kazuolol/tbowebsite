@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { MenuIcon3D, type IconType } from './MenuIcon3D';
 import { drawWeatherIcon } from './WeatherIcons2D';
+import { dispatchLocalWeatherUpdate } from '../utils/LocalWeather';
 
 const ICON_RENDER_SIZE = 216;
 const WEATHER_ICON_SIZE = 34;
@@ -456,6 +457,11 @@ export class MainMenu {
       this.weatherTempF = current.temperature_2m;
       this.weatherCode = current.weather_code;
       this.weatherIsDay = current.is_day === 1;
+      dispatchLocalWeatherUpdate({
+        temperatureF: this.weatherTempF,
+        weatherCode: this.weatherCode,
+        isDay: this.weatherIsDay,
+      });
     } catch (error) {
       console.warn('Failed to refresh local weather.', error);
     } finally {

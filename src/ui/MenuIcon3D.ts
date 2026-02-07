@@ -763,47 +763,47 @@ export class MenuIcon3D {
 
     const bodyMaterial = new THREE.MeshStandardMaterial({
       map: texture,
-      color: 0xf2dfb3,
+      color: 0xf8f0df,
       metalness: 0.0,
       roughness: 0.95,
     });
     const faceMaterial = new THREE.MeshStandardMaterial({
       map: texture,
-      color: 0xe9d3a0,
+      color: 0xf4e8d2,
       metalness: 0.0,
       roughness: 0.96,
       side: THREE.DoubleSide,
     });
     const flapTopMaterial = new THREE.MeshStandardMaterial({
       map: texture,
-      color: 0xe9d3a0,
+      color: 0xf4e8d2,
       metalness: 0.0,
       roughness: 0.96,
       side: THREE.DoubleSide,
     });
     const flapEdgeMaterial = new THREE.MeshStandardMaterial({
-      color: 0xddbe86,
+      color: 0xe6cfaa,
       metalness: 0.0,
       roughness: 0.95,
     });
     const foldRidgeMaterial = new THREE.MeshStandardMaterial({
-      color: 0xc7a366,
+      color: 0xd6bb88,
       metalness: 0.0,
       roughness: 0.9,
     });
     const foldShadowMaterial = new THREE.MeshBasicMaterial({
-      color: 0xad854f,
+      color: 0xbf9f72,
       transparent: true,
-      opacity: 0.07,
+      opacity: 0.05,
       depthWrite: false,
       toneMapped: false,
       side: THREE.DoubleSide,
     });
 
-    const mailFillLight = new THREE.PointLight(0xfff5df, 0.36, 6.5, 2.0);
+    const mailFillLight = new THREE.PointLight(0xfff8ec, 0.4, 6.5, 2.0);
     mailFillLight.position.set(1.05, 0.92, 1.55);
     this.scene.add(mailFillLight);
-    const mailRimLight = new THREE.PointLight(0xffedcc, 0.18, 5.6, 2.0);
+    const mailRimLight = new THREE.PointLight(0xfff0d8, 0.14, 5.6, 2.0);
     mailRimLight.position.set(-1.0, -0.42, -0.95);
     this.scene.add(mailRimLight);
 
@@ -900,30 +900,30 @@ export class MenuIcon3D {
     };
 
     const base = ctx.createLinearGradient(0, 0, 0, height);
-    base.addColorStop(0, '#f7e9c8');
-    base.addColorStop(0.5, '#efdcae');
-    base.addColorStop(1, '#e3c98f');
+    base.addColorStop(0, '#fff9ec');
+    base.addColorStop(0.5, '#f8efdd');
+    base.addColorStop(1, '#ecdcc0');
     ctx.fillStyle = base;
     ctx.fillRect(0, 0, width, height);
 
     const highlight = ctx.createRadialGradient(width * 0.4, height * 0.17, 20, width * 0.54, height * 0.3, 320);
-    highlight.addColorStop(0, 'rgba(255, 249, 232, 0.54)');
-    highlight.addColorStop(0.6, 'rgba(255, 235, 182, 0.22)');
-    highlight.addColorStop(1, 'rgba(255, 235, 182, 0)');
+    highlight.addColorStop(0, 'rgba(255, 253, 245, 0.56)');
+    highlight.addColorStop(0.6, 'rgba(255, 243, 214, 0.2)');
+    highlight.addColorStop(1, 'rgba(255, 243, 214, 0)');
     ctx.fillStyle = highlight;
     ctx.fillRect(0, 0, width, height);
 
     const lowerShade = ctx.createLinearGradient(0, height * 0.36, 0, height);
     lowerShade.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    lowerShade.addColorStop(1, 'rgba(120, 89, 39, 0.05)');
+    lowerShade.addColorStop(1, 'rgba(116, 96, 66, 0.03)');
     ctx.fillStyle = lowerShade;
     ctx.fillRect(0, 0, width, height);
 
     const sideShade = ctx.createLinearGradient(0, 0, width, 0);
-    sideShade.addColorStop(0, 'rgba(126, 96, 50, 0.018)');
+    sideShade.addColorStop(0, 'rgba(116, 96, 66, 0.01)');
     sideShade.addColorStop(0.2, 'rgba(71, 55, 31, 0)');
     sideShade.addColorStop(0.78, 'rgba(71, 55, 31, 0)');
-    sideShade.addColorStop(1, 'rgba(126, 96, 50, 0.025)');
+    sideShade.addColorStop(1, 'rgba(116, 96, 66, 0.012)');
     ctx.fillStyle = sideShade;
     ctx.fillRect(0, 0, width, height);
 
@@ -932,7 +932,7 @@ export class MenuIcon3D {
       const y = hash(i + 31) * height;
       const size = 0.5 + hash(i + 53) * 0.9;
       const alpha = 0.00025 + hash(i + 79) * 0.0006;
-      ctx.fillStyle = `rgba(130, 99, 55, ${alpha})`;
+      ctx.fillStyle = `rgba(126, 106, 76, ${alpha})`;
       ctx.fillRect(x, y, size, size);
     }
 

@@ -1653,21 +1653,21 @@ export class MenuIcon3D {
     if (this.type === 'globe') {
       // Keep auxiliary terminal screens non-spinning; apply only a soft bob + wobble.
       this.group.rotation.set(-0.18, 0.46, 0.04);
-      this.group.position.set(0, Math.sin(this.elapsed * 1.1) * 0.024, 0);
+      this.group.position.set(0, Math.sin(this.elapsed * 1.1) * 0.042, 0);
       this.group.scale.set(1, 1, 1);
 
       if (this.globeCoreGroup) {
-        this.globeCoreGroup.position.x = Math.sin(this.elapsed * 0.5) * 0.012;
-        this.globeCoreGroup.position.y = Math.sin(this.elapsed * 0.82) * 0.018;
-        this.globeCoreGroup.position.z = Math.sin(this.elapsed * 0.42) * 0.008;
+        this.globeCoreGroup.position.x = Math.sin(this.elapsed * 0.5) * 0.02;
+        this.globeCoreGroup.position.y = Math.sin(this.elapsed * 0.82) * 0.032;
+        this.globeCoreGroup.position.z = Math.sin(this.elapsed * 0.42) * 0.014;
         this.globeCoreGroup.rotation.y = this.elapsed * 0.08;
-        this.globeCoreGroup.rotation.x = Math.sin(this.elapsed * 0.26) * 0.024;
-        this.globeCoreGroup.rotation.z = Math.sin(this.elapsed * 0.34) * 0.02;
+        this.globeCoreGroup.rotation.x = Math.sin(this.elapsed * 0.26) * 0.04;
+        this.globeCoreGroup.rotation.z = Math.sin(this.elapsed * 0.34) * 0.034;
       }
 
       if (this.globeOrbitalGroup) {
-        this.globeOrbitalGroup.rotation.y = Math.sin(this.elapsed * 0.22) * 0.05;
-        this.globeOrbitalGroup.rotation.z = -0.08 + Math.sin(this.elapsed * 0.28) * 0.03;
+        this.globeOrbitalGroup.rotation.y = Math.sin(this.elapsed * 0.22) * 0.08;
+        this.globeOrbitalGroup.rotation.z = -0.08 + Math.sin(this.elapsed * 0.28) * 0.05;
       }
 
       for (let i = 0; i < this.globePacketNodes.length; i++) {
@@ -1685,12 +1685,12 @@ export class MenuIcon3D {
       for (let i = 0; i < this.globeAuxPanels.length; i++) {
         const panel = this.globeAuxPanels[i];
         panel.group.position.set(
-          panel.baseX + Math.sin(this.elapsed * 0.68 + panel.phase) * 0.008,
-          panel.baseY + Math.sin(this.elapsed * 1.06 + panel.phase) * 0.014,
-          panel.baseZ + Math.sin(this.elapsed * 0.57 + panel.phase) * 0.005
+          panel.baseX + Math.sin(this.elapsed * 0.68 + panel.phase) * 0.014,
+          panel.baseY + Math.sin(this.elapsed * 1.06 + panel.phase) * 0.026,
+          panel.baseZ + Math.sin(this.elapsed * 0.57 + panel.phase) * 0.009
         );
-        panel.group.rotation.y = panel.baseRotY + Math.sin(this.elapsed * 0.42 + panel.phase) * 0.014;
-        panel.group.rotation.z = panel.baseRotZ + Math.sin(this.elapsed * 0.54 + panel.phase) * 0.007;
+        panel.group.rotation.y = panel.baseRotY + Math.sin(this.elapsed * 0.42 + panel.phase) * 0.024;
+        panel.group.rotation.z = panel.baseRotZ + Math.sin(this.elapsed * 0.54 + panel.phase) * 0.012;
       }
 
       for (let i = 0; i < this.globePulseMaterials.length; i++) {

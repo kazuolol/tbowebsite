@@ -1153,6 +1153,13 @@ export class MenuIcon3D {
       metalness: 0.06,
       roughness: 0.22,
     });
+    const dpadCenterIndicatorMaterial = new THREE.MeshStandardMaterial({
+      color: 0x9ec4ff,
+      emissive: 0x4b8dff,
+      emissiveIntensity: 2.2,
+      metalness: 0.04,
+      roughness: 0.18,
+    });
     const screwMaterial = new THREE.MeshStandardMaterial({
       color: 0x0b1227,
       metalness: 0.18,
@@ -1352,20 +1359,6 @@ export class MenuIcon3D {
     trackpadDivider.position.set(0.55, -0.73, 0.157);
     this.group.add(trackpadDivider);
 
-    const rollerMount = createRoundedPanel(0.18, 0.24, 0.03, 0.05, keyboardDeckMaterial);
-    rollerMount.position.set(0.98, -0.56, 0.126);
-    this.group.add(rollerMount);
-
-    const roller = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.11, 24), accentOrangeMaterial);
-    roller.rotation.z = Math.PI * 0.5;
-    roller.position.set(1.0, -0.56, 0.158);
-    this.group.add(roller);
-
-    const rollerCore = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.118, 18), keyFaceMaterial);
-    rollerCore.rotation.z = Math.PI * 0.5;
-    rollerCore.position.set(1.0, -0.56, 0.167);
-    this.group.add(rollerCore);
-
     const dpadNest = createRoundedPanel(0.32, 0.24, 0.024, 0.07, keyboardDeckMaterial);
     dpadNest.position.set(0.55, -0.9, 0.128);
     this.group.add(dpadNest);
@@ -1381,10 +1374,14 @@ export class MenuIcon3D {
     const dpadHorizontal = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.05, 0.022), keyHighlightMaterial);
     dpadHorizontal.position.set(0.55, -0.9, 0.156);
     this.group.add(dpadHorizontal);
-    const dpadCenter = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.012, 12), keyAccentFaceMaterial);
+    const dpadCenter = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.03, 0.03, 0.012, 12),
+      dpadCenterIndicatorMaterial
+    );
     dpadCenter.rotation.x = Math.PI * 0.5;
     dpadCenter.position.set(0.55, -0.9, 0.168);
     this.group.add(dpadCenter);
+    addIndicatorGlow(blueIndicatorGlowMap, 0xa8cbff, 0.55, -0.9, 0.188, 0.26, 0.26, 0.82);
 
     const leftAction = createRoundedPanel(0.07, 0.12, 0.016, 0.03, keycapMaterial);
     leftAction.position.set(0.37, -0.9, 0.141);
@@ -1574,17 +1571,17 @@ export class MenuIcon3D {
     const width = canvas.width;
     const height = canvas.height;
 
-    ctx.fillStyle = '#05070d';
+    ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, width, height);
 
     const topBarHeight = Math.round(height * 0.14);
     const topBar = ctx.createLinearGradient(0, 0, 0, topBarHeight);
-    topBar.addColorStop(0, '#10152a');
-    topBar.addColorStop(1, '#0b1021');
+    topBar.addColorStop(0, '#eef4ff');
+    topBar.addColorStop(1, '#dfe9ff');
     ctx.fillStyle = topBar;
     ctx.fillRect(0, 0, width, topBarHeight);
 
-    ctx.fillStyle = '#d8e4ff';
+    ctx.fillStyle = '#233a63';
     ctx.font = `700 ${Math.round(height * 0.07)}px sans-serif`;
     ctx.fillText('FriendLink', 22, Math.round(topBarHeight * 0.72));
 
@@ -1595,7 +1592,7 @@ export class MenuIcon3D {
     const signalGap = 4;
     for (let i = 0; i < 4; i++) {
       const barHeight = 8 + i * 5;
-      ctx.fillStyle = i === 3 ? '#e8f4ff' : 'rgba(191, 221, 255, 0.9)';
+      ctx.fillStyle = i === 3 ? '#2d73ff' : 'rgba(35, 58, 99, 0.82)';
       ctx.fillRect(
         signalBaseX + i * (signalBarWidth + signalGap),
         signalBaseY - barHeight,
@@ -1603,7 +1600,7 @@ export class MenuIcon3D {
         barHeight
       );
     }
-    ctx.fillStyle = 'rgba(191, 221, 255, 0.9)';
+    ctx.fillStyle = 'rgba(35, 58, 99, 0.82)';
     ctx.beginPath();
     ctx.arc(signalBaseX - 9, signalBaseY - 2, 2.5, 0, Math.PI * 2);
     ctx.fill();
@@ -1655,24 +1652,6 @@ export class MenuIcon3D {
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.arc(smileX, smileY + smileR * 0.06, smileR * 0.53, 0.18, Math.PI - 0.18);
-    ctx.stroke();
-
-    ctx.lineWidth = Math.max(5, Math.round(smileR * 0.06));
-    ctx.beginPath();
-    ctx.moveTo(smileX - smileR * 0.94, smileY + smileR * 0.06);
-    ctx.quadraticCurveTo(
-      smileX - smileR * 0.72,
-      smileY + smileR * 0.02,
-      smileX - smileR * 0.66,
-      smileY - smileR * 0.18
-    );
-    ctx.moveTo(smileX + smileR * 0.94, smileY + smileR * 0.06);
-    ctx.quadraticCurveTo(
-      smileX + smileR * 0.72,
-      smileY + smileR * 0.02,
-      smileX + smileR * 0.66,
-      smileY - smileR * 0.18
-    );
     ctx.stroke();
 
     const texture = new THREE.CanvasTexture(canvas);

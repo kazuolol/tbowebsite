@@ -763,36 +763,40 @@ export class MenuIcon3D {
 
     const bodyMaterial = new THREE.MeshStandardMaterial({
       map: texture,
-      color: 0xf8f0df,
+      color: 0xfffdf4,
+      emissive: 0x1d4fff,
+      emissiveIntensity: 0.06,
       metalness: 0.0,
-      roughness: 0.95,
+      roughness: 0.92,
     });
     const faceMaterial = new THREE.MeshStandardMaterial({
       map: texture,
-      color: 0xf4e8d2,
+      color: 0xfffaef,
+      emissive: 0x1846ff,
+      emissiveIntensity: 0.08,
       metalness: 0.0,
-      roughness: 0.96,
+      roughness: 0.94,
       side: THREE.DoubleSide,
     });
     const flapTopMaterial = new THREE.MeshStandardMaterial({
       map: texture,
-      color: 0xf4e8d2,
+      color: 0xfff7ea,
       metalness: 0.0,
-      roughness: 0.96,
+      roughness: 0.93,
       side: THREE.DoubleSide,
     });
     const flapEdgeMaterial = new THREE.MeshStandardMaterial({
-      color: 0xe6cfaa,
+      color: 0xf6ebd8,
       metalness: 0.0,
-      roughness: 0.95,
+      roughness: 0.91,
     });
     const foldRidgeMaterial = new THREE.MeshStandardMaterial({
-      color: 0xd6bb88,
+      color: 0xd8c6a4,
       metalness: 0.0,
       roughness: 0.9,
     });
     const foldShadowMaterial = new THREE.MeshBasicMaterial({
-      color: 0xbf9f72,
+      color: 0xb29c79,
       transparent: true,
       opacity: 0.05,
       depthWrite: false,
@@ -806,6 +810,9 @@ export class MenuIcon3D {
     const mailRimLight = new THREE.PointLight(0xfff0d8, 0.14, 5.6, 2.0);
     mailRimLight.position.set(-1.0, -0.42, -0.95);
     this.scene.add(mailRimLight);
+    const mailEdgeLight = new THREE.PointLight(0x2e7dff, 0.34, 6.2, 2.0);
+    mailEdgeLight.position.set(0.02, 0.2, 1.55);
+    this.scene.add(mailEdgeLight);
 
     const bodyGeometry = new THREE.ExtrudeGeometry(createRoundedRectShape(2.06, 1.4, 0.22), {
       depth: 0.23,
@@ -819,6 +826,34 @@ export class MenuIcon3D {
     const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
     body.position.set(0, -0.045, 0);
     this.group.add(body);
+
+    const outlineMaterial = new THREE.LineBasicMaterial({
+      color: 0x2f78ff,
+      transparent: true,
+      opacity: 0.82,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    const glowOutlineMaterial = new THREE.LineBasicMaterial({
+      color: 0x8cc4ff,
+      transparent: true,
+      opacity: 0.26,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    });
+
+    const bodyOutline = new THREE.LineSegments(new THREE.EdgesGeometry(bodyGeometry, 22), outlineMaterial);
+    bodyOutline.position.copy(body.position);
+    this.group.add(bodyOutline);
+
+    const bodyOutlineGlow = new THREE.LineSegments(
+      new THREE.EdgesGeometry(bodyGeometry, 22),
+      glowOutlineMaterial
+    );
+    bodyOutlineGlow.position.copy(body.position);
+    bodyOutlineGlow.scale.setScalar(1.014);
+    this.group.add(bodyOutlineGlow);
 
     const frontFace = new THREE.Mesh(new THREE.PlaneGeometry(1.94, 1.34), faceMaterial);
     frontFace.position.set(0, -0.03, 0.138);
@@ -901,30 +936,30 @@ export class MenuIcon3D {
     };
 
     const base = ctx.createLinearGradient(0, 0, 0, height);
-    base.addColorStop(0, '#fff9ec');
-    base.addColorStop(0.5, '#f8efdd');
-    base.addColorStop(1, '#ecdcc0');
+    base.addColorStop(0, '#fffef8');
+    base.addColorStop(0.5, '#fdf7ec');
+    base.addColorStop(1, '#f5ead8');
     ctx.fillStyle = base;
     ctx.fillRect(0, 0, width, height);
 
     const highlight = ctx.createRadialGradient(width * 0.4, height * 0.17, 20, width * 0.54, height * 0.3, 320);
-    highlight.addColorStop(0, 'rgba(255, 253, 245, 0.56)');
-    highlight.addColorStop(0.6, 'rgba(255, 243, 214, 0.2)');
-    highlight.addColorStop(1, 'rgba(255, 243, 214, 0)');
+    highlight.addColorStop(0, 'rgba(255, 255, 250, 0.6)');
+    highlight.addColorStop(0.6, 'rgba(255, 248, 232, 0.24)');
+    highlight.addColorStop(1, 'rgba(255, 248, 232, 0)');
     ctx.fillStyle = highlight;
     ctx.fillRect(0, 0, width, height);
 
     const lowerShade = ctx.createLinearGradient(0, height * 0.36, 0, height);
     lowerShade.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    lowerShade.addColorStop(1, 'rgba(116, 96, 66, 0.03)');
+    lowerShade.addColorStop(1, 'rgba(112, 92, 66, 0.02)');
     ctx.fillStyle = lowerShade;
     ctx.fillRect(0, 0, width, height);
 
     const sideShade = ctx.createLinearGradient(0, 0, width, 0);
-    sideShade.addColorStop(0, 'rgba(116, 96, 66, 0.01)');
+    sideShade.addColorStop(0, 'rgba(116, 96, 66, 0.007)');
     sideShade.addColorStop(0.2, 'rgba(71, 55, 31, 0)');
     sideShade.addColorStop(0.78, 'rgba(71, 55, 31, 0)');
-    sideShade.addColorStop(1, 'rgba(116, 96, 66, 0.012)');
+    sideShade.addColorStop(1, 'rgba(116, 96, 66, 0.008)');
     ctx.fillStyle = sideShade;
     ctx.fillRect(0, 0, width, height);
 
@@ -932,7 +967,7 @@ export class MenuIcon3D {
       const x = hash(i + 11) * width;
       const y = hash(i + 31) * height;
       const size = 0.5 + hash(i + 53) * 0.9;
-      const alpha = 0.00025 + hash(i + 79) * 0.0006;
+      const alpha = 0.00012 + hash(i + 79) * 0.00035;
       ctx.fillStyle = `rgba(126, 106, 76, ${alpha})`;
       ctx.fillRect(x, y, size, size);
     }
@@ -981,108 +1016,84 @@ export class MenuIcon3D {
     };
 
     const shellMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0xf1f4f8,
-      emissive: 0x15181d,
-      emissiveIntensity: 0.08,
-      metalness: 0.18,
-      roughness: 0.36,
-      clearcoat: 0.84,
-      clearcoatRoughness: 0.24,
+      color: 0xf3e6cc,
+      emissive: 0x17120d,
+      emissiveIntensity: 0.03,
+      metalness: 0.1,
+      roughness: 0.44,
+      clearcoat: 0.7,
+      clearcoatRoughness: 0.28,
     });
-    const shellInnerMaterial = new THREE.MeshStandardMaterial({
-      color: 0xd6dce4,
-      metalness: 0.08,
-      roughness: 0.46,
-    });
-    const darkPanelMaterial = new THREE.MeshStandardMaterial({
-      color: 0x273238,
+    const shellInsetMaterial = new THREE.MeshStandardMaterial({
+      color: 0xe7dac2,
       metalness: 0.08,
       roughness: 0.52,
     });
-    const keyMaterial = new THREE.MeshStandardMaterial({
-      color: 0x3f5fb8,
-      emissive: 0x1e3270,
-      emissiveIntensity: 0.32,
-      metalness: 0.08,
+    const bezelMaterial = new THREE.MeshStandardMaterial({
+      color: 0x182547,
+      emissive: 0x0b1430,
+      emissiveIntensity: 0.22,
+      metalness: 0.18,
+      roughness: 0.32,
+    });
+    const keycapMaterial = new THREE.MeshStandardMaterial({
+      color: 0x16264a,
+      emissive: 0x0a1430,
+      emissiveIntensity: 0.2,
+      metalness: 0.18,
+      roughness: 0.38,
+    });
+    const keyHighlightMaterial = new THREE.MeshStandardMaterial({
+      color: 0x314f91,
+      emissive: 0x1d3270,
+      emissiveIntensity: 0.34,
+      metalness: 0.16,
+      roughness: 0.35,
+    });
+    const trackpadMaterial = new THREE.MeshStandardMaterial({
+      color: 0x0f1a32,
+      emissive: 0x090f1e,
+      emissiveIntensity: 0.22,
+      metalness: 0.12,
+      roughness: 0.48,
+    });
+    const accentOrangeMaterial = new THREE.MeshStandardMaterial({
+      color: 0xff8c33,
+      emissive: 0xd7651f,
+      emissiveIntensity: 0.4,
+      metalness: 0.12,
+      roughness: 0.3,
+    });
+    const accentSteelMaterial = new THREE.MeshStandardMaterial({
+      color: 0x8590a2,
+      metalness: 0.3,
       roughness: 0.34,
     });
-    const keyDarkMaterial = new THREE.MeshStandardMaterial({
-      color: 0x2c468f,
-      emissive: 0x172654,
-      emissiveIntensity: 0.2,
-      metalness: 0.06,
-      roughness: 0.42,
+    const screwMaterial = new THREE.MeshStandardMaterial({
+      color: 0x0b1227,
+      metalness: 0.18,
+      roughness: 0.46,
     });
 
-    const lowerShell = createRoundedPanel(1.08, 1.34, 0.2, 0.16, shellMaterial);
-    lowerShell.position.set(0, -0.56, 0);
-    this.group.add(lowerShell);
+    const shellFill = new THREE.PointLight(0xfff2d5, 0.55, 7.2, 2.0);
+    shellFill.position.set(1.15, 1.24, 1.75);
+    this.scene.add(shellFill);
+    const shellRim = new THREE.PointLight(0xa8beff, 0.24, 6.1, 2.0);
+    shellRim.position.set(-1.1, -0.45, -1.1);
+    this.scene.add(shellRim);
 
-    const lowerInner = createRoundedPanel(0.92, 1.12, 0.06, 0.12, shellInnerMaterial);
-    lowerInner.position.set(0, -0.5, 0.1);
-    this.group.add(lowerInner);
+    // Top display unit.
+    const topShell = createRoundedPanel(2.06, 1.06, 0.15, 0.14, shellMaterial);
+    topShell.position.set(0, 0.58, -0.01);
+    this.group.add(topShell);
 
-    const keypadPanel = createRoundedPanel(0.84, 0.86, 0.028, 0.07, darkPanelMaterial);
-    keypadPanel.position.set(0, -0.62, 0.14);
-    this.group.add(keypadPanel);
+    const topInset = createRoundedPanel(1.9, 0.92, 0.028, 0.1, shellInsetMaterial);
+    topInset.position.set(0, 0.59, 0.075);
+    this.group.add(topInset);
 
-    const navRing = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.05, 12, 28), keyDarkMaterial);
-    navRing.position.set(0, -0.19, 0.14);
-    this.group.add(navRing);
-
-    const navCenter = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.03, 18), keyMaterial);
-    navCenter.position.set(0, -0.19, 0.15);
-    navCenter.rotation.x = Math.PI * 0.5;
-    this.group.add(navCenter);
-
-    const keyGeometry = new THREE.BoxGeometry(0.16, 0.11, 0.034);
-    const keyStartX = -0.24;
-    const keyStepX = 0.24;
-    const keyStartY = -0.44;
-    const keyStepY = 0.155;
-    for (let row = 0; row < 4; row++) {
-      for (let col = 0; col < 3; col++) {
-        const key = new THREE.Mesh(keyGeometry, (row + col) % 2 === 0 ? keyMaterial : keyDarkMaterial);
-        key.position.set(keyStartX + col * keyStepX, keyStartY - row * keyStepY, 0.15);
-        this.group.add(key);
-      }
-    }
-
-    const softKeyLeft = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.1, 0.03), keyMaterial);
-    softKeyLeft.position.set(-0.29, -0.24, 0.15);
-    softKeyLeft.rotation.z = 0.2;
-    this.group.add(softKeyLeft);
-
-    const softKeyRight = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.1, 0.03), keyMaterial);
-    softKeyRight.position.set(0.29, -0.24, 0.15);
-    softKeyRight.rotation.z = -0.2;
-    this.group.add(softKeyRight);
-
-    const hingeLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.24, 16), shellInnerMaterial);
-    hingeLeft.rotation.z = Math.PI * 0.5;
-    hingeLeft.position.set(-0.18, 0.08, -0.01);
-    this.group.add(hingeLeft);
-
-    const hingeRight = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.24, 16), shellInnerMaterial);
-    hingeRight.rotation.z = Math.PI * 0.5;
-    hingeRight.position.set(0.18, 0.08, -0.01);
-    this.group.add(hingeRight);
-
-    const upperPivot = new THREE.Group();
-    upperPivot.position.set(0, 0.08, -0.01);
-    this.group.add(upperPivot);
-
-    const upperShell = createRoundedPanel(1.0, 1.28, 0.2, 0.16, shellMaterial);
-    upperShell.position.set(0, 0.62, 0);
-    upperPivot.add(upperShell);
-
-    const upperInner = createRoundedPanel(0.86, 1.0, 0.06, 0.12, shellInnerMaterial);
-    upperInner.position.set(0, 0.6, 0.09);
-    upperPivot.add(upperInner);
-
-    const screenFrame = createRoundedPanel(0.72, 0.84, 0.026, 0.06, darkPanelMaterial);
-    screenFrame.position.set(0, 0.62, 0.13);
-    upperPivot.add(screenFrame);
+    const screenBezel = createRoundedPanel(1.72, 0.76, 0.048, 0.1, bezelMaterial);
+    screenBezel.position.set(0, 0.64, 0.102);
+    this.group.add(screenBezel);
 
     const screenTexture = this.createPhoneScreenTexture();
     screenTexture.needsUpdate = true;
@@ -1090,43 +1101,153 @@ export class MenuIcon3D {
     screenTexture.magFilter = THREE.LinearFilter;
     screenTexture.anisotropy = 2;
     const screen = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.64, 0.76),
+      new THREE.PlaneGeometry(1.58, 0.66),
       new THREE.MeshBasicMaterial({
         map: screenTexture,
         side: THREE.DoubleSide,
         toneMapped: false,
       })
     );
-    screen.position.set(0, 0.62, 0.165);
+    screen.position.set(0, 0.64, 0.13);
     screen.rotation.y = Math.PI;
     screen.renderOrder = 20;
     const screenMaterial = screen.material as THREE.MeshBasicMaterial;
     screenMaterial.depthTest = false;
     screenMaterial.depthWrite = false;
-    upperPivot.add(screen);
+    this.group.add(screen);
 
-    const speaker = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.045, 0.02), keyDarkMaterial);
-    speaker.position.set(0, 1.03, 0.12);
-    upperPivot.add(speaker);
+    // Speaker grille + controls under the top screen.
+    const speakerPanel = createRoundedPanel(0.58, 0.12, 0.02, 0.05, shellInsetMaterial);
+    speakerPanel.position.set(-0.64, 0.06, 0.1);
+    this.group.add(speakerPanel);
 
-    const cameraDot = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.028, 0.028, 0.015, 12),
-      new THREE.MeshStandardMaterial({
-        color: 0x89ffb3,
-        emissive: 0x48aa73,
-        emissiveIntensity: 0.34,
-        metalness: 0.08,
-        roughness: 0.32,
-      })
-    );
-    cameraDot.rotation.x = Math.PI * 0.5;
-    cameraDot.position.set(0, 1.08, 0.125);
-    upperPivot.add(cameraDot);
+    for (let i = 0; i < 7; i++) {
+      const slot = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.11, 0.016), bezelMaterial);
+      slot.position.set(-0.79 + i * 0.072, 0.06, 0.108);
+      this.group.add(slot);
+    }
 
-    // Open toward the camera at a readable angle.
-    upperPivot.rotation.x = 0.58;
+    const centerLatch = createRoundedPanel(0.38, 0.1, 0.05, 0.03, accentOrangeMaterial);
+    centerLatch.position.set(0, 0.015, 0.106);
+    this.group.add(centerLatch);
 
-    this.group.rotation.set(-0.2, 0.38, 0.02);
+    const rightControlBase = createRoundedPanel(0.42, 0.12, 0.024, 0.05, shellInsetMaterial);
+    rightControlBase.position.set(0.69, 0.06, 0.1);
+    this.group.add(rightControlBase);
+
+    const greyButton = createRoundedPanel(0.17, 0.08, 0.03, 0.03, accentSteelMaterial);
+    greyButton.position.set(0.62, 0.06, 0.112);
+    this.group.add(greyButton);
+
+    const orangeButton = createRoundedPanel(0.11, 0.08, 0.03, 0.03, accentOrangeMaterial);
+    orangeButton.position.set(0.8, 0.06, 0.112);
+    this.group.add(orangeButton);
+
+    const screwGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.012, 14);
+    const topLeftScrew = new THREE.Mesh(screwGeo, screwMaterial);
+    topLeftScrew.rotation.x = Math.PI * 0.5;
+    topLeftScrew.position.set(-0.98, 0.06, 0.108);
+    this.group.add(topLeftScrew);
+    const topRightScrew = new THREE.Mesh(screwGeo, screwMaterial);
+    topRightScrew.rotation.x = Math.PI * 0.5;
+    topRightScrew.position.set(0.98, 0.06, 0.108);
+    this.group.add(topRightScrew);
+
+    const hinge = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 1.76, 24), shellInsetMaterial);
+    hinge.rotation.z = Math.PI * 0.5;
+    hinge.position.set(0, -0.03, 0.01);
+    this.group.add(hinge);
+
+    // Bottom keyboard/control deck.
+    const bottomShell = createRoundedPanel(2.06, 1.12, 0.18, 0.14, shellMaterial);
+    bottomShell.position.set(0, -0.58, -0.02);
+    this.group.add(bottomShell);
+
+    const bottomInset = createRoundedPanel(1.9, 0.96, 0.03, 0.1, shellInsetMaterial);
+    bottomInset.position.set(0, -0.58, 0.084);
+    this.group.add(bottomInset);
+
+    const keyboardWell = createRoundedPanel(1.36, 0.82, 0.03, 0.08, bezelMaterial);
+    keyboardWell.position.set(-0.38, -0.58, 0.11);
+    this.group.add(keyboardWell);
+
+    const keyGeometry = new THREE.BoxGeometry(0.084, 0.06, 0.022);
+    const keyCols = 12;
+    const keyRows = 5;
+    const keyStartX = -0.96;
+    const keyStepX = 0.11;
+    const keyStartY = -0.36;
+    const keyStepY = 0.1;
+    for (let row = 0; row < keyRows; row++) {
+      for (let col = 0; col < keyCols; col++) {
+        const isAccent =
+          (row === 0 && col < 3) ||
+          (row === 0 && col > 8) ||
+          (row === 4 && col > 8) ||
+          (row === 3 && col >= 8 && col <= 9);
+        const key = new THREE.Mesh(keyGeometry, isAccent ? keyHighlightMaterial : keycapMaterial);
+        key.position.set(keyStartX + col * keyStepX, keyStartY - row * keyStepY, 0.14);
+        key.rotation.z = ((row + col) % 2 === 0 ? 1 : -1) * 0.025;
+        this.group.add(key);
+      }
+    }
+
+    const spaceBar = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.055, 0.024), keycapMaterial);
+    spaceBar.position.set(-0.35, -0.86, 0.143);
+    this.group.add(spaceBar);
+
+    const trackpadFrame = createRoundedPanel(0.46, 0.54, 0.03, 0.08, bezelMaterial);
+    trackpadFrame.position.set(0.52, -0.56, 0.114);
+    this.group.add(trackpadFrame);
+
+    const trackpad = createRoundedPanel(0.38, 0.46, 0.02, 0.06, trackpadMaterial);
+    trackpad.position.set(0.52, -0.56, 0.136);
+    this.group.add(trackpad);
+
+    const rollerMount = createRoundedPanel(0.2, 0.26, 0.03, 0.05, bezelMaterial);
+    rollerMount.position.set(0.9, -0.46, 0.12);
+    this.group.add(rollerMount);
+
+    const roller = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.12, 24), accentOrangeMaterial);
+    roller.rotation.z = Math.PI * 0.5;
+    roller.position.set(0.92, -0.46, 0.154);
+    this.group.add(roller);
+
+    const dpadBase = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.03, 8), keycapMaterial);
+    dpadBase.rotation.x = Math.PI * 0.5;
+    dpadBase.position.set(0.52, -0.86, 0.134);
+    this.group.add(dpadBase);
+
+    const dpadVertical = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.2, 0.024), keyHighlightMaterial);
+    dpadVertical.position.set(0.52, -0.86, 0.146);
+    this.group.add(dpadVertical);
+    const dpadHorizontal = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.06, 0.024), keyHighlightMaterial);
+    dpadHorizontal.position.set(0.52, -0.86, 0.146);
+    this.group.add(dpadHorizontal);
+
+    const leftAction = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.11, 0.024), keycapMaterial);
+    leftAction.position.set(0.33, -0.86, 0.138);
+    this.group.add(leftAction);
+    const rightAction = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.11, 0.024), keycapMaterial);
+    rightAction.position.set(0.71, -0.86, 0.138);
+    this.group.add(rightAction);
+
+    const confirmButton = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.03, 18), accentSteelMaterial);
+    confirmButton.rotation.x = Math.PI * 0.5;
+    confirmButton.position.set(0.9, -0.86, 0.145);
+    this.group.add(confirmButton);
+
+    const bottomLeftScrew = new THREE.Mesh(screwGeo, screwMaterial);
+    bottomLeftScrew.rotation.x = Math.PI * 0.5;
+    bottomLeftScrew.position.set(-0.98, -0.86, 0.108);
+    this.group.add(bottomLeftScrew);
+    const bottomRightScrew = new THREE.Mesh(screwGeo, screwMaterial);
+    bottomRightScrew.rotation.x = Math.PI * 0.5;
+    bottomRightScrew.position.set(0.98, -0.86, 0.108);
+    this.group.add(bottomRightScrew);
+
+    this.group.rotation.set(-0.12, 0.3, 0.02);
+    this.group.scale.setScalar(0.92);
   }
 
   private createRadialGlowTexture(inner: string, mid: string, outer: string): THREE.CanvasTexture {
@@ -1281,105 +1402,72 @@ export class MenuIcon3D {
 
   private createPhoneScreenTexture(): THREE.CanvasTexture {
     const canvas = document.createElement('canvas');
-    // Moderate bump over prior texture size for clearer details without large VRAM cost.
-    canvas.width = 512;
-    canvas.height = 608;
+    canvas.width = 640;
+    canvas.height = 360;
     const ctx = canvas.getContext('2d')!;
     const width = canvas.width;
     const height = canvas.height;
 
-    const bg = ctx.createLinearGradient(0, 0, 0, height);
-    bg.addColorStop(0, '#1e2f3a');
-    bg.addColorStop(0.52, '#17232c');
-    bg.addColorStop(1, '#111920');
-    ctx.fillStyle = bg;
+    ctx.fillStyle = '#05070d';
     ctx.fillRect(0, 0, width, height);
 
-    const topBarHeight = Math.round(height * 0.13);
-    ctx.fillStyle = 'rgba(30, 46, 58, 0.96)';
+    const topBarHeight = Math.round(height * 0.14);
+    const topBar = ctx.createLinearGradient(0, 0, 0, topBarHeight);
+    topBar.addColorStop(0, '#10152a');
+    topBar.addColorStop(1, '#0b1021');
+    ctx.fillStyle = topBar;
     ctx.fillRect(0, 0, width, topBarHeight);
-    ctx.fillStyle = '#d8ecfb';
-    ctx.font = `700 ${Math.round(height * 0.06)}px sans-serif`;
-    ctx.fillText('Friends', Math.round(width * 0.06), Math.round(topBarHeight * 0.68));
-    ctx.fillStyle = 'rgba(210, 228, 240, 0.95)';
-    ctx.fillRect(Math.round(width * 0.83), Math.round(topBarHeight * 0.34), Math.round(width * 0.11), Math.round(topBarHeight * 0.06));
-    ctx.fillRect(Math.round(width * 0.83), Math.round(topBarHeight * 0.52), Math.round(width * 0.08), Math.round(topBarHeight * 0.06));
 
-    const cardX = Math.round(width * 0.07);
-    const cardY = Math.round(height * 0.19);
-    const cardW = Math.round(width * 0.86);
-    const cardH = Math.round(height * 0.58);
-    const cardGradient = ctx.createLinearGradient(0, cardY, 0, cardY + cardH);
-    cardGradient.addColorStop(0, '#152633');
-    cardGradient.addColorStop(1, '#0f1d28');
-    ctx.fillStyle = cardGradient;
-    ctx.fillRect(cardX, cardY, cardW, cardH);
-    ctx.strokeStyle = 'rgba(188, 222, 245, 0.32)';
-    ctx.lineWidth = Math.max(2, Math.round(width * 0.0045));
-    ctx.strokeRect(cardX, cardY, cardW, cardH);
+    ctx.fillStyle = '#d8e4ff';
+    ctx.font = `700 ${Math.round(height * 0.07)}px sans-serif`;
+    ctx.fillText('FriendLink', 22, Math.round(topBarHeight * 0.72));
 
-    // Dedicated dark badge behind the smiley for strong contrast at tiny icon size.
-    const badgeX = Math.round(width * 0.2);
-    const badgeY = Math.round(height * 0.255);
-    const badgeW = Math.round(width * 0.6);
-    const badgeH = Math.round(height * 0.37);
-    const badgeRadius = Math.round(width * 0.032);
-    ctx.fillStyle = '#0a151d';
+    // Small reception bars in the top-right of the device screen.
+    const signalBaseX = width - 84;
+    const signalBaseY = Math.round(topBarHeight * 0.82);
+    const signalBarWidth = 8;
+    const signalGap = 4;
+    for (let i = 0; i < 4; i++) {
+      const barHeight = 8 + i * 5;
+      ctx.fillStyle = i === 3 ? '#e8f4ff' : 'rgba(191, 221, 255, 0.9)';
+      ctx.fillRect(
+        signalBaseX + i * (signalBarWidth + signalGap),
+        signalBaseY - barHeight,
+        signalBarWidth,
+        barHeight
+      );
+    }
+    ctx.fillStyle = 'rgba(191, 221, 255, 0.9)';
     ctx.beginPath();
-    ctx.moveTo(badgeX + badgeRadius, badgeY);
-    ctx.lineTo(badgeX + badgeW - badgeRadius, badgeY);
-    ctx.quadraticCurveTo(badgeX + badgeW, badgeY, badgeX + badgeW, badgeY + badgeRadius);
-    ctx.lineTo(badgeX + badgeW, badgeY + badgeH - badgeRadius);
-    ctx.quadraticCurveTo(badgeX + badgeW, badgeY + badgeH, badgeX + badgeW - badgeRadius, badgeY + badgeH);
-    ctx.lineTo(badgeX + badgeRadius, badgeY + badgeH);
-    ctx.quadraticCurveTo(badgeX, badgeY + badgeH, badgeX, badgeY + badgeH - badgeRadius);
-    ctx.lineTo(badgeX, badgeY + badgeRadius);
-    ctx.quadraticCurveTo(badgeX, badgeY, badgeX + badgeRadius, badgeY);
-    ctx.closePath();
+    ctx.arc(signalBaseX - 9, signalBaseY - 2, 2.5, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(157, 201, 230, 0.35)';
-    ctx.lineWidth = Math.max(2, Math.round(width * 0.004));
-    ctx.stroke();
 
-    // Big, high-contrast yellow smiley.
     const smileX = Math.round(width * 0.5);
-    const smileY = Math.round(height * 0.44);
-    const smileR = Math.round(height * 0.2);
+    const smileY = Math.round(height * 0.58);
+    const smileR = Math.round(height * 0.32);
 
-    const smileGlow = ctx.createRadialGradient(smileX, smileY, smileR * 0.15, smileX, smileY, smileR * 1.45);
-    smileGlow.addColorStop(0, 'rgba(255, 237, 86, 0.62)');
-    smileGlow.addColorStop(1, 'rgba(255, 237, 86, 0)');
-    ctx.fillStyle = smileGlow;
-    ctx.beginPath();
-    ctx.arc(smileX, smileY, smileR * 1.5, 0, Math.PI * 2);
-    ctx.fill();
-
-    const faceGradient = ctx.createRadialGradient(
-      smileX - smileR * 0.34,
-      smileY - smileR * 0.36,
-      smileR * 0.1,
+    const faceHighlight = ctx.createRadialGradient(
+      smileX - smileR * 0.56,
+      smileY - smileR * 0.58,
+      smileR * 0.08,
       smileX,
       smileY,
       smileR
     );
-    faceGradient.addColorStop(0, '#fff88e');
-    faceGradient.addColorStop(0.45, '#ffea38');
-    faceGradient.addColorStop(1, '#ffd400');
-    ctx.fillStyle = faceGradient;
+    faceHighlight.addColorStop(0, '#fffcb1');
+    faceHighlight.addColorStop(0.4, '#f6f547');
+    faceHighlight.addColorStop(1, '#f0f100');
+    ctx.fillStyle = faceHighlight;
     ctx.beginPath();
     ctx.arc(smileX, smileY, smileR, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = '#11161b';
-    ctx.lineWidth = Math.max(6, Math.round(width * 0.016));
-    ctx.stroke();
 
-    // Eyes
-    ctx.fillStyle = '#070b0f';
+    ctx.fillStyle = '#000000';
     ctx.beginPath();
     ctx.ellipse(
       smileX - smileR * 0.34,
       smileY - smileR * 0.3,
-      smileR * 0.14,
+      smileR * 0.115,
       smileR * 0.2,
       0,
       0,
@@ -1388,7 +1476,7 @@ export class MenuIcon3D {
     ctx.ellipse(
       smileX + smileR * 0.34,
       smileY - smileR * 0.3,
-      smileR * 0.14,
+      smileR * 0.115,
       smileR * 0.2,
       0,
       0,
@@ -1396,27 +1484,30 @@ export class MenuIcon3D {
     );
     ctx.fill();
 
-    // Smile
-    ctx.strokeStyle = '#070b0f';
-    ctx.lineWidth = Math.max(7, Math.round(width * 0.018));
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = Math.max(8, Math.round(smileR * 0.16));
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.arc(smileX, smileY + smileR * 0.08, smileR * 0.5, 0.22, Math.PI - 0.22);
+    ctx.arc(smileX, smileY + smileR * 0.06, smileR * 0.53, 0.18, Math.PI - 0.18);
     ctx.stroke();
 
-    ctx.fillStyle = '#e4fff1';
-    ctx.font = `700 ${Math.round(height * 0.055)}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.fillText('SMILEY MSG', width * 0.5, height * 0.71);
-    ctx.textAlign = 'left';
-
-    const bottomBarHeight = Math.round(height * 0.11);
-    ctx.fillStyle = 'rgba(32, 49, 62, 0.96)';
-    ctx.fillRect(0, height - bottomBarHeight, width, bottomBarHeight);
-    ctx.fillStyle = '#9fd7f8';
-    ctx.font = `700 ${Math.round(height * 0.045)}px sans-serif`;
-    ctx.fillText('Reply', Math.round(width * 0.08), height - Math.round(bottomBarHeight * 0.35));
-    ctx.fillText('Back', Math.round(width * 0.74), height - Math.round(bottomBarHeight * 0.35));
+    ctx.lineWidth = Math.max(5, Math.round(smileR * 0.06));
+    ctx.beginPath();
+    ctx.moveTo(smileX - smileR * 0.94, smileY + smileR * 0.06);
+    ctx.quadraticCurveTo(
+      smileX - smileR * 0.72,
+      smileY + smileR * 0.02,
+      smileX - smileR * 0.66,
+      smileY - smileR * 0.18
+    );
+    ctx.moveTo(smileX + smileR * 0.94, smileY + smileR * 0.06);
+    ctx.quadraticCurveTo(
+      smileX + smileR * 0.72,
+      smileY + smileR * 0.02,
+      smileX + smileR * 0.66,
+      smileY - smileR * 0.18
+    );
+    ctx.stroke();
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;

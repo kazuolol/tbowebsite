@@ -825,10 +825,10 @@ export class MenuIcon3D {
     this.group.add(frontFace);
 
     const flapShape = new THREE.Shape();
-    flapShape.moveTo(-0.95, 0.56);
-    flapShape.lineTo(0.95, 0.56);
-    flapShape.lineTo(0, -0.23);
-    flapShape.lineTo(-0.95, 0.56);
+    flapShape.moveTo(-0.99, 0.56);
+    flapShape.lineTo(0.99, 0.56);
+    flapShape.lineTo(0, -0.16);
+    flapShape.lineTo(-0.99, 0.56);
     flapShape.closePath();
     const flapGeometry = new THREE.ExtrudeGeometry(flapShape, {
       depth: 0.018,
@@ -840,7 +840,7 @@ export class MenuIcon3D {
     });
     flapGeometry.translate(0, 0, -0.009);
     const flap = new THREE.Mesh(flapGeometry, [flapTopMaterial, flapEdgeMaterial]);
-    flap.position.set(0, 0.1, 0.158);
+    flap.position.set(0, 0.09, 0.158);
     flap.rotation.x = -0.012;
     this.group.add(flap);
 
@@ -865,19 +865,19 @@ export class MenuIcon3D {
 
     createFoldRidge(
       flap,
-      new THREE.Vector3(-0.93, 0.54, 0.0105),
-      new THREE.Vector3(0, -0.22, 0.0105)
+      new THREE.Vector3(-0.97, 0.54, 0.0105),
+      new THREE.Vector3(0, -0.15, 0.0105)
     );
     createFoldRidge(
       flap,
-      new THREE.Vector3(0.93, 0.54, 0.0105),
-      new THREE.Vector3(0, -0.22, 0.0105)
+      new THREE.Vector3(0.97, 0.54, 0.0105),
+      new THREE.Vector3(0, -0.15, 0.0105)
     );
 
     const foldShadowShape = new THREE.Shape();
-    foldShadowShape.moveTo(-0.89, 0.52);
-    foldShadowShape.lineTo(0.89, 0.52);
-    foldShadowShape.lineTo(0, -0.2);
+    foldShadowShape.moveTo(-0.95, 0.52);
+    foldShadowShape.lineTo(0.95, 0.52);
+    foldShadowShape.lineTo(0, -0.13);
     foldShadowShape.closePath();
     const foldShadow = new THREE.Mesh(new THREE.ShapeGeometry(foldShadowShape), foldShadowMaterial);
     foldShadow.position.set(0, 0, -0.011);

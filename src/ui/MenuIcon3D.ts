@@ -1367,14 +1367,14 @@ export class MenuIcon3D {
     rightAction.position.set(0.73, -0.9, 0.141);
     this.group.add(rightAction);
 
-    const confirmButton = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.028, 20), accentSteelMaterial);
-    confirmButton.rotation.x = Math.PI * 0.5;
-    confirmButton.position.set(0.98, -0.9, 0.15);
-    this.group.add(confirmButton);
-    const confirmButtonFace = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.01, 14), keyFaceMaterial);
-    confirmButtonFace.rotation.x = Math.PI * 0.5;
-    confirmButtonFace.position.set(0.98, -0.9, 0.161);
-    this.group.add(confirmButtonFace);
+    const cameraLens = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.032, 20), accentSteelMaterial);
+    cameraLens.rotation.x = Math.PI * 0.5;
+    cameraLens.position.set(0.98, -0.9, 0.15);
+    this.group.add(cameraLens);
+    const cameraLensFace = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.012, 14), keyFaceMaterial);
+    cameraLensFace.rotation.x = Math.PI * 0.5;
+    cameraLensFace.position.set(0.98, -0.9, 0.161);
+    this.group.add(cameraLensFace);
 
     const bottomLeftScrew = new THREE.Mesh(screwGeo, screwMaterial);
     bottomLeftScrew.rotation.x = Math.PI * 0.5;

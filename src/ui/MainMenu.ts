@@ -20,7 +20,7 @@ export interface MenuActionDetail {
 
 interface MenuButtonDefinition {
   label: string;
-  iconType: IconType;
+  iconType?: IconType;
   action: MenuAction;
 }
 
@@ -98,7 +98,7 @@ export class MainMenu {
     this.headerEl = this.createHeader();
     this.container.appendChild(this.headerEl);
 
-    const earlyAccessButton: MenuButtonDefinition = {
+    const earlyAccessButton: MenuButtonDefinition & { iconType: IconType } = {
       label: 'Claim Early Access',
       iconType: 'key',
       action: 'early-access',
@@ -221,16 +221,19 @@ export class MainMenu {
       button.style.animationDelay = `${0.2 + i * 0.15}s`;
       button.dataset.action = btn.action;
 
-      const iconEl = document.createElement('span');
-      iconEl.className = 'dc-menu-btn-icon';
+      if (btn.iconType) {
+        const iconEl = document.createElement('span');
+        iconEl.className = 'dc-menu-btn-icon';
 
-      const canvas = document.createElement('canvas');
-      canvas.width = ICON_RENDER_SIZE;
-      canvas.height = ICON_RENDER_SIZE;
-      iconEl.appendChild(canvas);
+        const canvas = document.createElement('canvas');
+        canvas.width = ICON_RENDER_SIZE;
+        canvas.height = ICON_RENDER_SIZE;
+        iconEl.appendChild(canvas);
 
-      const icon = new MenuIcon3D(canvas, btn.iconType);
-      this.icons.push(icon);
+        const icon = new MenuIcon3D(canvas, btn.iconType);
+        this.icons.push(icon);
+        button.appendChild(iconEl);
+      }
 
       const labelEl = document.createElement('span');
       labelEl.className = 'dc-menu-btn-label';
@@ -244,7 +247,6 @@ export class MainMenu {
         button.removeEventListener('click', clickHandler);
       });
 
-      button.appendChild(iconEl);
       button.appendChild(labelEl);
       menu.appendChild(button);
 
@@ -256,7 +258,9 @@ export class MainMenu {
     return menu;
   }
 
-  private createHeaderExtensionButton(buttonDef: MenuButtonDefinition): HTMLButtonElement {
+  private createHeaderExtensionButton(
+    buttonDef: MenuButtonDefinition & { iconType: IconType }
+  ): HTMLButtonElement {
     const extensionButton = document.createElement('button');
     extensionButton.type = 'button';
     extensionButton.className = 'dc-header-extension-btn';

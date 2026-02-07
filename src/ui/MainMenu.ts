@@ -210,7 +210,7 @@ export class MainMenu {
 
     const buttons: MenuButtonDefinition[] = [
       { label: 'GlobaNet', iconType: 'globe', action: 'play' },
-      { label: 'Inbox', iconType: 'inbox', action: 'inbox' },
+      { label: 'Mail', iconType: 'inbox', action: 'inbox' },
       { label: 'Friends', iconType: 'friends', action: 'friends' },
     ];
 

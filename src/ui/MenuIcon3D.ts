@@ -738,79 +738,207 @@ export class MenuIcon3D {
   }
 
   private buildInboxPlaceholder(): void {
-    const maps = this.createEnvelopePaperMaps();
-    const paperMaterial = new THREE.MeshStandardMaterial({
-      map: maps.color,
-      bumpMap: maps.bump,
-      bumpScale: 0.03,
-      roughnessMap: maps.roughness,
-      roughness: 0.98,
+    const texture = this.createMailEnvelopeTexture();
+    texture.needsUpdate = true;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+
+    const createRoundedRectShape = (width: number, height: number, radius: number): THREE.Shape => {
+      const halfW = width * 0.5;
+      const halfH = height * 0.5;
+      const r = Math.min(radius, halfW, halfH);
+      const shape = new THREE.Shape();
+      shape.moveTo(-halfW + r, -halfH);
+      shape.lineTo(halfW - r, -halfH);
+      shape.quadraticCurveTo(halfW, -halfH, halfW, -halfH + r);
+      shape.lineTo(halfW, halfH - r);
+      shape.quadraticCurveTo(halfW, halfH, halfW - r, halfH);
+      shape.lineTo(-halfW + r, halfH);
+      shape.quadraticCurveTo(-halfW, halfH, -halfW, halfH - r);
+      shape.lineTo(-halfW, -halfH + r);
+      shape.quadraticCurveTo(-halfW, -halfH, -halfW + r, -halfH);
+      shape.closePath();
+      return shape;
+    };
+
+    const bodyMaterial = new THREE.MeshStandardMaterial({
+      map: texture,
+      color: 0xf2dfb3,
       metalness: 0.0,
-      color: 0xffffff,
+      roughness: 0.95,
+    });
+    const faceMaterial = new THREE.MeshStandardMaterial({
+      map: texture,
+      color: 0xe9d3a0,
+      metalness: 0.0,
+      roughness: 0.96,
       side: THREE.DoubleSide,
     });
-    const edgeMaterial = new THREE.MeshStandardMaterial({
-      color: 0xd8c39a,
-      roughness: 0.98,
+    const flapTopMaterial = new THREE.MeshStandardMaterial({
+      map: texture,
+      color: 0xe9d3a0,
       metalness: 0.0,
-    });
-    const flapMaterial = new THREE.MeshStandardMaterial({
-      map: maps.color,
-      bumpMap: maps.bump,
-      bumpScale: 0.018,
-      roughnessMap: maps.roughness,
-      roughness: 0.98,
-      metalness: 0.0,
-      color: 0xf4eee0,
+      roughness: 0.96,
       side: THREE.DoubleSide,
     });
-
-    const back = new THREE.Mesh(new THREE.BoxGeometry(1.9, 1.3, 0.055), edgeMaterial);
-    back.position.set(0, -0.02, -0.022);
-    this.group.add(back);
-
-    const faceGeometry = new THREE.PlaneGeometry(1.86, 1.26, 26, 18);
-    const facePositions = faceGeometry.attributes.position as THREE.BufferAttribute;
-    for (let i = 0; i < facePositions.count; i++) {
-      const x = facePositions.getX(i);
-      const y = facePositions.getY(i);
-      const largeFold = Math.cos((x / 0.93) * Math.PI * 0.78) * Math.cos((y / 0.63) * Math.PI * 0.86) * 0.011;
-      const microFold = Math.sin((x * 6.8) + (y * 3.2)) * 0.0025;
-      facePositions.setZ(i, 0.012 + largeFold + microFold);
-    }
-    faceGeometry.computeVertexNormals();
-
-    const face = new THREE.Mesh(faceGeometry, paperMaterial);
-    face.position.set(0, -0.02, 0.005);
-    this.group.add(face);
-
-    const flapShape = new THREE.Shape();
-    flapShape.moveTo(-0.84, 0.22);
-    flapShape.lineTo(0.84, 0.22);
-    flapShape.lineTo(0.0, -0.4);
-    flapShape.closePath();
-    const flap = new THREE.Mesh(new THREE.ShapeGeometry(flapShape), flapMaterial);
-    flap.position.set(0, 0.24, 0.018);
-    flap.rotation.x = -0.14;
-    this.group.add(flap);
-
-    const seamMaterial = new THREE.LineBasicMaterial({
-      color: 0xb6a98b,
+    const flapEdgeMaterial = new THREE.MeshStandardMaterial({
+      color: 0xddbe86,
+      metalness: 0.0,
+      roughness: 0.95,
+    });
+    const foldRidgeMaterial = new THREE.MeshStandardMaterial({
+      color: 0xc7a366,
+      metalness: 0.0,
+      roughness: 0.9,
+    });
+    const foldShadowMaterial = new THREE.MeshBasicMaterial({
+      color: 0xad854f,
       transparent: true,
-      opacity: 0.56,
+      opacity: 0.07,
       depthWrite: false,
       toneMapped: false,
+      side: THREE.DoubleSide,
     });
-    const seamPoints = [
-      new THREE.Vector3(-0.86, 0.22, 0.029),
-      new THREE.Vector3(0, -0.4, 0.029),
-      new THREE.Vector3(0.86, 0.22, 0.029),
-    ];
-    const seamGeometry = new THREE.BufferGeometry().setFromPoints(seamPoints);
-    const seam = new THREE.Line(seamGeometry, seamMaterial);
-    this.group.add(seam);
 
-    this.group.rotation.set(-0.2, 0.36, -0.2);
+    const mailFillLight = new THREE.PointLight(0xfff5df, 0.36, 6.5, 2.0);
+    mailFillLight.position.set(1.05, 0.92, 1.55);
+    this.scene.add(mailFillLight);
+    const mailRimLight = new THREE.PointLight(0xffedcc, 0.18, 5.6, 2.0);
+    mailRimLight.position.set(-1.0, -0.42, -0.95);
+    this.scene.add(mailRimLight);
+
+    const bodyGeometry = new THREE.ExtrudeGeometry(createRoundedRectShape(2.06, 1.4, 0.22), {
+      depth: 0.23,
+      bevelEnabled: true,
+      bevelSize: 0.055,
+      bevelThickness: 0.05,
+      bevelSegments: 4,
+      curveSegments: 20,
+    });
+    bodyGeometry.translate(0, 0, -0.115);
+    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    body.position.set(0, -0.045, 0);
+    this.group.add(body);
+
+    const frontFace = new THREE.Mesh(new THREE.PlaneGeometry(1.94, 1.34), faceMaterial);
+    frontFace.position.set(0, -0.03, 0.138);
+    this.group.add(frontFace);
+
+    const flapShape = new THREE.Shape();
+    flapShape.moveTo(-0.95, 0.56);
+    flapShape.lineTo(0.95, 0.56);
+    flapShape.lineTo(0, -0.23);
+    flapShape.lineTo(-0.95, 0.56);
+    flapShape.closePath();
+    const flapGeometry = new THREE.ExtrudeGeometry(flapShape, {
+      depth: 0.018,
+      bevelEnabled: true,
+      bevelSize: 0.006,
+      bevelThickness: 0.005,
+      bevelSegments: 2,
+      curveSegments: 24,
+    });
+    flapGeometry.translate(0, 0, -0.009);
+    const flap = new THREE.Mesh(flapGeometry, [flapTopMaterial, flapEdgeMaterial]);
+    flap.position.set(0, 0.1, 0.158);
+    flap.rotation.x = -0.012;
+    this.group.add(flap);
+
+    const createFoldRidge = (
+      parent: THREE.Object3D,
+      start: THREE.Vector3,
+      end: THREE.Vector3
+    ): void => {
+      const direction = end.clone().sub(start);
+      const length = direction.length();
+      const ridge = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.0038, 0.0038, length, 12),
+        foldRidgeMaterial
+      );
+      ridge.position.copy(start).add(end).multiplyScalar(0.5);
+      ridge.quaternion.setFromUnitVectors(
+        new THREE.Vector3(0, 1, 0),
+        direction.normalize()
+      );
+      parent.add(ridge);
+    };
+
+    createFoldRidge(
+      flap,
+      new THREE.Vector3(-0.93, 0.54, 0.0105),
+      new THREE.Vector3(0, -0.22, 0.0105)
+    );
+    createFoldRidge(
+      flap,
+      new THREE.Vector3(0.93, 0.54, 0.0105),
+      new THREE.Vector3(0, -0.22, 0.0105)
+    );
+
+    const foldShadowShape = new THREE.Shape();
+    foldShadowShape.moveTo(-0.89, 0.52);
+    foldShadowShape.lineTo(0.89, 0.52);
+    foldShadowShape.lineTo(0, -0.2);
+    foldShadowShape.closePath();
+    const foldShadow = new THREE.Mesh(new THREE.ShapeGeometry(foldShadowShape), foldShadowMaterial);
+    foldShadow.position.set(0, 0, -0.011);
+    flap.add(foldShadow);
+
+    this.group.rotation.set(-0.16, 0.08, -0.23);
+  }
+
+  private createMailEnvelopeTexture(): THREE.CanvasTexture {
+    const width = 768;
+    const height = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d')!;
+
+    const hash = (seed: number): number => {
+      const value = Math.sin(seed * 93.37 + 17.43) * 43758.5453123;
+      return value - Math.floor(value);
+    };
+
+    const base = ctx.createLinearGradient(0, 0, 0, height);
+    base.addColorStop(0, '#f7e9c8');
+    base.addColorStop(0.5, '#efdcae');
+    base.addColorStop(1, '#e3c98f');
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, width, height);
+
+    const highlight = ctx.createRadialGradient(width * 0.4, height * 0.17, 20, width * 0.54, height * 0.3, 320);
+    highlight.addColorStop(0, 'rgba(255, 249, 232, 0.54)');
+    highlight.addColorStop(0.6, 'rgba(255, 235, 182, 0.22)');
+    highlight.addColorStop(1, 'rgba(255, 235, 182, 0)');
+    ctx.fillStyle = highlight;
+    ctx.fillRect(0, 0, width, height);
+
+    const lowerShade = ctx.createLinearGradient(0, height * 0.36, 0, height);
+    lowerShade.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    lowerShade.addColorStop(1, 'rgba(120, 89, 39, 0.05)');
+    ctx.fillStyle = lowerShade;
+    ctx.fillRect(0, 0, width, height);
+
+    const sideShade = ctx.createLinearGradient(0, 0, width, 0);
+    sideShade.addColorStop(0, 'rgba(126, 96, 50, 0.018)');
+    sideShade.addColorStop(0.2, 'rgba(71, 55, 31, 0)');
+    sideShade.addColorStop(0.78, 'rgba(71, 55, 31, 0)');
+    sideShade.addColorStop(1, 'rgba(126, 96, 50, 0.025)');
+    ctx.fillStyle = sideShade;
+    ctx.fillRect(0, 0, width, height);
+
+    for (let i = 0; i < 60; i++) {
+      const x = hash(i + 11) * width;
+      const y = hash(i + 31) * height;
+      const size = 0.5 + hash(i + 53) * 0.9;
+      const alpha = 0.00025 + hash(i + 79) * 0.0006;
+      ctx.fillStyle = `rgba(130, 99, 55, ${alpha})`;
+      ctx.fillRect(x, y, size, size);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
   }
 
   private buildFriendsPlaceholder(): void {
@@ -1588,14 +1716,16 @@ export class MenuIcon3D {
       this.group.rotation.x = -0.45 + Math.sin(this.elapsed * 0.9) * 0.05;
       this.group.rotation.z = -0.08 + Math.sin(this.elapsed * 0.8) * 0.03;
       this.group.position.y = Math.sin(this.elapsed * 1.4) * 0.03;
-    } else if (this.type === 'inbox' || this.type === 'friends') {
-      const baseX = this.type === 'inbox' ? -0.16 : -0.04;
-      const baseY = this.type === 'inbox' ? 0.46 : 0.2;
-      const baseZ = this.type === 'inbox' ? -0.03 : 0.01;
-      this.group.rotation.x = baseX + Math.sin(this.elapsed * 0.9) * 0.03;
-      const spinY = this.type === 'friends' ? Math.sin(this.elapsed * 0.55) * 0.12 : this.elapsed * 0.42;
-      this.group.rotation.y = baseY + spinY;
-      this.group.rotation.z = baseZ + Math.sin(this.elapsed * 0.7) * 0.02;
+    } else if (this.type === 'inbox') {
+      // Keep the envelope angled like the reference with gentle idle motion.
+      this.group.rotation.x = -0.16 + Math.sin(this.elapsed * 0.72) * 0.007;
+      this.group.rotation.y = 0.08 + Math.sin(this.elapsed * 0.44) * 0.016;
+      this.group.rotation.z = -0.23 + Math.sin(this.elapsed * 0.6) * 0.006;
+      this.group.position.y = Math.sin(this.elapsed * 1.0) * 0.008;
+    } else if (this.type === 'friends') {
+      this.group.rotation.x = -0.04 + Math.sin(this.elapsed * 0.9) * 0.03;
+      this.group.rotation.y = 0.2 + Math.sin(this.elapsed * 0.55) * 0.12;
+      this.group.rotation.z = 0.01 + Math.sin(this.elapsed * 0.7) * 0.02;
       this.group.position.y = Math.sin(this.elapsed * 1.3) * 0.02;
     } else {
       this.group.rotation.y += delta * 0.8;

@@ -761,44 +761,76 @@ export class MenuIcon3D {
       return shape;
     };
 
-    const bodyMaterial = new THREE.MeshStandardMaterial({
+    const bodyMaterial = new THREE.MeshPhysicalMaterial({
       map: texture,
-      color: 0xfffdf4,
-      emissive: 0x1d4fff,
-      emissiveIntensity: 0.06,
-      metalness: 0.0,
-      roughness: 0.92,
-    });
-    const faceMaterial = new THREE.MeshStandardMaterial({
-      map: texture,
-      color: 0xfffaef,
-      emissive: 0x1846ff,
+      color: 0xffffff,
+      emissive: 0xffffff,
       emissiveIntensity: 0.08,
       metalness: 0.0,
-      roughness: 0.94,
-      side: THREE.DoubleSide,
+      roughness: 0.15,
+      transmission: 0.0,
+      thickness: 0.22,
+      ior: 1.35,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.08,
+      transparent: false,
+      opacity: 1.0,
     });
-    const flapTopMaterial = new THREE.MeshStandardMaterial({
+    const faceMaterial = new THREE.MeshPhysicalMaterial({
       map: texture,
-      color: 0xfff7ea,
+      color: 0xffffff,
+      emissive: 0xffffff,
+      emissiveIntensity: 0.09,
       metalness: 0.0,
-      roughness: 0.93,
+      roughness: 0.13,
+      transmission: 0.0,
+      thickness: 0.16,
+      ior: 1.35,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.06,
+      transparent: false,
+      opacity: 1.0,
       side: THREE.DoubleSide,
     });
-    const flapEdgeMaterial = new THREE.MeshStandardMaterial({
-      color: 0xf6ebd8,
+    const flapTopMaterial = new THREE.MeshPhysicalMaterial({
+      map: texture,
+      color: 0xffffff,
+      emissive: 0xffffff,
+      emissiveIntensity: 0.06,
       metalness: 0.0,
-      roughness: 0.91,
+      roughness: 0.18,
+      transmission: 0.0,
+      thickness: 0.14,
+      ior: 1.33,
+      clearcoat: 0.95,
+      clearcoatRoughness: 0.09,
+      transparent: false,
+      opacity: 1.0,
+      side: THREE.DoubleSide,
+    });
+    const flapEdgeMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      emissive: 0xffffff,
+      emissiveIntensity: 0.05,
+      metalness: 0.0,
+      roughness: 0.24,
+      transmission: 0.0,
+      thickness: 0.12,
+      ior: 1.31,
+      clearcoat: 0.9,
+      clearcoatRoughness: 0.12,
+      transparent: false,
+      opacity: 1.0,
     });
     const foldRidgeMaterial = new THREE.MeshStandardMaterial({
-      color: 0xd8c6a4,
+      color: 0xffffff,
       metalness: 0.0,
-      roughness: 0.9,
+      roughness: 0.64,
     });
     const foldShadowMaterial = new THREE.MeshBasicMaterial({
-      color: 0xb29c79,
+      color: 0xffffff,
       transparent: true,
-      opacity: 0.05,
+      opacity: 0.055,
       depthWrite: false,
       toneMapped: false,
       side: THREE.DoubleSide,
@@ -813,6 +845,23 @@ export class MenuIcon3D {
     const mailEdgeLight = new THREE.PointLight(0x2e7dff, 0.34, 6.2, 2.0);
     mailEdgeLight.position.set(0.02, 0.2, 1.55);
     this.scene.add(mailEdgeLight);
+    const mailBackGlow = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: this.createRadialGlowTexture(
+          'rgba(241, 249, 255, 0.94)',
+          'rgba(84, 147, 255, 0.5)',
+          'rgba(0, 0, 0, 0)'
+        ),
+        color: 0x72a8ff,
+        transparent: true,
+        opacity: 0.22,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    mailBackGlow.position.set(0.0, 0.0, -0.56);
+    mailBackGlow.scale.set(3.24, 2.56, 1);
+    this.scene.add(mailBackGlow);
 
     const bodyGeometry = new THREE.ExtrudeGeometry(createRoundedRectShape(2.06, 1.4, 0.22), {
       depth: 0.23,
@@ -828,16 +877,16 @@ export class MenuIcon3D {
     this.group.add(body);
 
     const outlineMaterial = new THREE.LineBasicMaterial({
-      color: 0x2f78ff,
+      color: 0x97bbff,
       transparent: true,
-      opacity: 0.82,
+      opacity: 0.52,
       depthWrite: false,
       toneMapped: false,
     });
     const glowOutlineMaterial = new THREE.LineBasicMaterial({
-      color: 0x8cc4ff,
+      color: 0xd9e8ff,
       transparent: true,
-      opacity: 0.26,
+      opacity: 0.16,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       toneMapped: false,
@@ -936,30 +985,30 @@ export class MenuIcon3D {
     };
 
     const base = ctx.createLinearGradient(0, 0, 0, height);
-    base.addColorStop(0, '#fffef8');
-    base.addColorStop(0.5, '#fdf7ec');
-    base.addColorStop(1, '#f5ead8');
+    base.addColorStop(0, '#ffffff');
+    base.addColorStop(0.5, '#f8fbff');
+    base.addColorStop(1, '#eef5ff');
     ctx.fillStyle = base;
     ctx.fillRect(0, 0, width, height);
 
     const highlight = ctx.createRadialGradient(width * 0.4, height * 0.17, 20, width * 0.54, height * 0.3, 320);
-    highlight.addColorStop(0, 'rgba(255, 255, 250, 0.6)');
-    highlight.addColorStop(0.6, 'rgba(255, 248, 232, 0.24)');
-    highlight.addColorStop(1, 'rgba(255, 248, 232, 0)');
+    highlight.addColorStop(0, 'rgba(255, 255, 255, 0.68)');
+    highlight.addColorStop(0.6, 'rgba(241, 248, 255, 0.26)');
+    highlight.addColorStop(1, 'rgba(241, 248, 255, 0)');
     ctx.fillStyle = highlight;
     ctx.fillRect(0, 0, width, height);
 
     const lowerShade = ctx.createLinearGradient(0, height * 0.36, 0, height);
     lowerShade.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    lowerShade.addColorStop(1, 'rgba(112, 92, 66, 0.02)');
+    lowerShade.addColorStop(1, 'rgba(88, 116, 150, 0.018)');
     ctx.fillStyle = lowerShade;
     ctx.fillRect(0, 0, width, height);
 
     const sideShade = ctx.createLinearGradient(0, 0, width, 0);
-    sideShade.addColorStop(0, 'rgba(116, 96, 66, 0.007)');
-    sideShade.addColorStop(0.2, 'rgba(71, 55, 31, 0)');
-    sideShade.addColorStop(0.78, 'rgba(71, 55, 31, 0)');
-    sideShade.addColorStop(1, 'rgba(116, 96, 66, 0.008)');
+    sideShade.addColorStop(0, 'rgba(104, 131, 161, 0.006)');
+    sideShade.addColorStop(0.2, 'rgba(92, 118, 146, 0)');
+    sideShade.addColorStop(0.78, 'rgba(92, 118, 146, 0)');
+    sideShade.addColorStop(1, 'rgba(104, 131, 161, 0.007)');
     ctx.fillStyle = sideShade;
     ctx.fillRect(0, 0, width, height);
 
@@ -968,7 +1017,7 @@ export class MenuIcon3D {
       const y = hash(i + 31) * height;
       const size = 0.5 + hash(i + 53) * 0.9;
       const alpha = 0.00012 + hash(i + 79) * 0.00035;
-      ctx.fillStyle = `rgba(126, 106, 76, ${alpha})`;
+      ctx.fillStyle = `rgba(122, 146, 174, ${alpha})`;
       ctx.fillRect(x, y, size, size);
     }
 
@@ -1036,19 +1085,40 @@ export class MenuIcon3D {
       metalness: 0.18,
       roughness: 0.32,
     });
-    const keycapMaterial = new THREE.MeshStandardMaterial({
-      color: 0x16264a,
-      emissive: 0x0a1430,
-      emissiveIntensity: 0.2,
+    const keyboardDeckMaterial = new THREE.MeshStandardMaterial({
+      color: 0x0e1a34,
+      emissive: 0x050b1b,
+      emissiveIntensity: 0.16,
       metalness: 0.18,
-      roughness: 0.38,
+      roughness: 0.44,
+    });
+    const keycapMaterial = new THREE.MeshStandardMaterial({
+      color: 0x2a4377,
+      emissive: 0x122753,
+      emissiveIntensity: 0.22,
+      metalness: 0.12,
+      roughness: 0.34,
+    });
+    const keyFaceMaterial = new THREE.MeshStandardMaterial({
+      color: 0x8daee4,
+      emissive: 0x2f548f,
+      emissiveIntensity: 0.14,
+      metalness: 0.06,
+      roughness: 0.42,
     });
     const keyHighlightMaterial = new THREE.MeshStandardMaterial({
-      color: 0x314f91,
-      emissive: 0x1d3270,
-      emissiveIntensity: 0.34,
+      color: 0x4f74c3,
+      emissive: 0x26478d,
+      emissiveIntensity: 0.28,
       metalness: 0.16,
-      roughness: 0.35,
+      roughness: 0.33,
+    });
+    const keyAccentFaceMaterial = new THREE.MeshStandardMaterial({
+      color: 0xd6e4ff,
+      emissive: 0x4f7dcc,
+      emissiveIntensity: 0.2,
+      metalness: 0.05,
+      roughness: 0.45,
     });
     const trackpadMaterial = new THREE.MeshStandardMaterial({
       color: 0x0f1a32,
@@ -1058,9 +1128,9 @@ export class MenuIcon3D {
       roughness: 0.48,
     });
     const accentOrangeMaterial = new THREE.MeshStandardMaterial({
-      color: 0xff8c33,
-      emissive: 0xd7651f,
-      emissiveIntensity: 0.4,
+      color: 0x4e86ff,
+      emissive: 0x000000,
+      emissiveIntensity: 0.0,
       metalness: 0.12,
       roughness: 0.3,
     });
@@ -1069,11 +1139,62 @@ export class MenuIcon3D {
       metalness: 0.3,
       roughness: 0.34,
     });
+    const indicatorWhiteMaterial = new THREE.MeshStandardMaterial({
+      color: 0xf7fbff,
+      emissive: 0xc7dcff,
+      emissiveIntensity: 0.9,
+      metalness: 0.04,
+      roughness: 0.24,
+    });
+    const indicatorBlueMaterial = new THREE.MeshStandardMaterial({
+      color: 0x64a0ff,
+      emissive: 0x2d73ff,
+      emissiveIntensity: 1.2,
+      metalness: 0.06,
+      roughness: 0.22,
+    });
     const screwMaterial = new THREE.MeshStandardMaterial({
       color: 0x0b1227,
       metalness: 0.18,
       roughness: 0.46,
     });
+    const whiteIndicatorGlowMap = this.createRadialGlowTexture(
+      'rgba(255, 255, 255, 0.98)',
+      'rgba(188, 215, 255, 0.4)',
+      'rgba(0, 0, 0, 0)'
+    );
+    const blueIndicatorGlowMap = this.createRadialGlowTexture(
+      'rgba(186, 216, 255, 0.98)',
+      'rgba(62, 129, 255, 0.56)',
+      'rgba(0, 0, 0, 0)'
+    );
+
+    const addIndicatorGlow = (
+      map: THREE.Texture,
+      color: THREE.ColorRepresentation,
+      x: number,
+      y: number,
+      z: number,
+      scaleX: number,
+      scaleY: number,
+      opacity: number
+    ): void => {
+      const glow = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map,
+          color,
+          transparent: true,
+          opacity,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          depthTest: false,
+          toneMapped: false,
+        })
+      );
+      glow.position.set(x, y, z);
+      glow.scale.set(scaleX, scaleY, 1);
+      this.group.add(glow);
+    };
 
     const shellFill = new THREE.PointLight(0xfff2d5, 0.55, 7.2, 2.0);
     shellFill.position.set(1.15, 1.24, 1.75);
@@ -1127,21 +1248,19 @@ export class MenuIcon3D {
       this.group.add(slot);
     }
 
-    const centerLatch = createRoundedPanel(0.38, 0.1, 0.05, 0.03, accentOrangeMaterial);
-    centerLatch.position.set(0, 0.015, 0.106);
-    this.group.add(centerLatch);
-
     const rightControlBase = createRoundedPanel(0.42, 0.12, 0.024, 0.05, shellInsetMaterial);
     rightControlBase.position.set(0.69, 0.06, 0.1);
     this.group.add(rightControlBase);
 
-    const greyButton = createRoundedPanel(0.17, 0.08, 0.03, 0.03, accentSteelMaterial);
+    const greyButton = createRoundedPanel(0.17, 0.08, 0.03, 0.03, indicatorWhiteMaterial);
     greyButton.position.set(0.62, 0.06, 0.112);
     this.group.add(greyButton);
+    addIndicatorGlow(whiteIndicatorGlowMap, 0xf3f8ff, 0.62, 0.06, 0.145, 0.2, 0.14, 0.38);
 
-    const orangeButton = createRoundedPanel(0.11, 0.08, 0.03, 0.03, accentOrangeMaterial);
+    const orangeButton = createRoundedPanel(0.11, 0.08, 0.03, 0.03, indicatorBlueMaterial);
     orangeButton.position.set(0.8, 0.06, 0.112);
     this.group.add(orangeButton);
+    addIndicatorGlow(blueIndicatorGlowMap, 0x73adff, 0.8, 0.06, 0.145, 0.18, 0.14, 0.5);
 
     const screwGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.012, 14);
     const topLeftScrew = new THREE.Mesh(screwGeo, screwMaterial);
@@ -1171,7 +1290,12 @@ export class MenuIcon3D {
     keyboardWell.position.set(-0.38, -0.58, 0.11);
     this.group.add(keyboardWell);
 
-    const keyGeometry = new THREE.BoxGeometry(0.084, 0.06, 0.022);
+    const keyboardDeck = createRoundedPanel(1.24, 0.7, 0.016, 0.07, keyboardDeckMaterial);
+    keyboardDeck.position.set(-0.38, -0.58, 0.132);
+    this.group.add(keyboardDeck);
+
+    const keyBodyGeometry = new THREE.BoxGeometry(0.084, 0.06, 0.024);
+    const keyFaceGeometry = new THREE.BoxGeometry(0.056, 0.034, 0.01);
     const keyCols = 12;
     const keyRows = 5;
     const keyStartX = -0.96;
@@ -1179,72 +1303,114 @@ export class MenuIcon3D {
     const keyStartY = -0.36;
     const keyStepY = 0.1;
     for (let row = 0; row < keyRows; row++) {
+      const rowShift = row % 2 === 0 ? 0 : 0.018;
       for (let col = 0; col < keyCols; col++) {
         const isAccent =
           (row === 0 && col < 3) ||
           (row === 0 && col > 8) ||
           (row === 4 && col > 8) ||
           (row === 3 && col >= 8 && col <= 9);
-        const key = new THREE.Mesh(keyGeometry, isAccent ? keyHighlightMaterial : keycapMaterial);
-        key.position.set(keyStartX + col * keyStepX, keyStartY - row * keyStepY, 0.14);
+        const key = new THREE.Mesh(keyBodyGeometry, isAccent ? keyHighlightMaterial : keycapMaterial);
+        key.position.set(keyStartX + col * keyStepX + rowShift, keyStartY - row * keyStepY, 0.145);
         key.rotation.z = ((row + col) % 2 === 0 ? 1 : -1) * 0.025;
         this.group.add(key);
+
+        const keyFace = new THREE.Mesh(
+          keyFaceGeometry,
+          isAccent ? keyAccentFaceMaterial : keyFaceMaterial
+        );
+        keyFace.position.set(key.position.x, key.position.y + 0.0015, key.position.z + 0.012);
+        keyFace.rotation.z = key.rotation.z * 0.7;
+        this.group.add(keyFace);
       }
     }
 
-    const spaceBar = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.055, 0.024), keycapMaterial);
-    spaceBar.position.set(-0.35, -0.86, 0.143);
+    const spaceBar = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.055, 0.026), keycapMaterial);
+    spaceBar.position.set(-0.35, -0.86, 0.146);
     this.group.add(spaceBar);
+    const spaceBarFace = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.028, 0.01), keyFaceMaterial);
+    spaceBarFace.position.set(-0.35, -0.858, 0.159);
+    this.group.add(spaceBarFace);
 
-    const trackpadFrame = createRoundedPanel(0.46, 0.54, 0.03, 0.08, bezelMaterial);
-    trackpadFrame.position.set(0.52, -0.56, 0.114);
+    const controlCluster = createRoundedPanel(0.62, 0.94, 0.028, 0.1, bezelMaterial);
+    controlCluster.position.set(0.55, -0.66, 0.114);
+    this.group.add(controlCluster);
+
+    const trackpadFrame = createRoundedPanel(0.44, 0.56, 0.03, 0.09, keyboardDeckMaterial);
+    trackpadFrame.position.set(0.55, -0.56, 0.132);
     this.group.add(trackpadFrame);
 
-    const trackpad = createRoundedPanel(0.38, 0.46, 0.02, 0.06, trackpadMaterial);
-    trackpad.position.set(0.52, -0.56, 0.136);
+    const trackpad = createRoundedPanel(0.34, 0.46, 0.018, 0.07, trackpadMaterial);
+    trackpad.position.set(0.55, -0.56, 0.149);
     this.group.add(trackpad);
 
-    const rollerMount = createRoundedPanel(0.2, 0.26, 0.03, 0.05, bezelMaterial);
-    rollerMount.position.set(0.9, -0.46, 0.12);
+    const trackpadSheen = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.38, 0.006), keyFaceMaterial);
+    trackpadSheen.position.set(0.69, -0.56, 0.158);
+    this.group.add(trackpadSheen);
+
+    const trackpadDivider = new THREE.Mesh(new THREE.BoxGeometry(0.31, 0.012, 0.006), keycapMaterial);
+    trackpadDivider.position.set(0.55, -0.73, 0.157);
+    this.group.add(trackpadDivider);
+
+    const rollerMount = createRoundedPanel(0.18, 0.24, 0.03, 0.05, keyboardDeckMaterial);
+    rollerMount.position.set(0.98, -0.56, 0.126);
     this.group.add(rollerMount);
 
-    const roller = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.12, 24), accentOrangeMaterial);
+    const roller = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.11, 24), accentOrangeMaterial);
     roller.rotation.z = Math.PI * 0.5;
-    roller.position.set(0.92, -0.46, 0.154);
+    roller.position.set(1.0, -0.56, 0.158);
     this.group.add(roller);
 
-    const dpadBase = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.03, 8), keycapMaterial);
+    const rollerCore = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.118, 18), keyFaceMaterial);
+    rollerCore.rotation.z = Math.PI * 0.5;
+    rollerCore.position.set(1.0, -0.56, 0.167);
+    this.group.add(rollerCore);
+
+    const dpadNest = createRoundedPanel(0.32, 0.24, 0.024, 0.07, keyboardDeckMaterial);
+    dpadNest.position.set(0.55, -0.9, 0.128);
+    this.group.add(dpadNest);
+
+    const dpadBase = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.026, 16), keycapMaterial);
     dpadBase.rotation.x = Math.PI * 0.5;
-    dpadBase.position.set(0.52, -0.86, 0.134);
+    dpadBase.position.set(0.55, -0.9, 0.145);
     this.group.add(dpadBase);
 
-    const dpadVertical = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.2, 0.024), keyHighlightMaterial);
-    dpadVertical.position.set(0.52, -0.86, 0.146);
+    const dpadVertical = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.16, 0.022), keyHighlightMaterial);
+    dpadVertical.position.set(0.55, -0.9, 0.156);
     this.group.add(dpadVertical);
-    const dpadHorizontal = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.06, 0.024), keyHighlightMaterial);
-    dpadHorizontal.position.set(0.52, -0.86, 0.146);
+    const dpadHorizontal = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.05, 0.022), keyHighlightMaterial);
+    dpadHorizontal.position.set(0.55, -0.9, 0.156);
     this.group.add(dpadHorizontal);
+    const dpadCenter = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.012, 12), keyAccentFaceMaterial);
+    dpadCenter.rotation.x = Math.PI * 0.5;
+    dpadCenter.position.set(0.55, -0.9, 0.168);
+    this.group.add(dpadCenter);
 
-    const leftAction = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.11, 0.024), keycapMaterial);
-    leftAction.position.set(0.33, -0.86, 0.138);
+    const leftAction = createRoundedPanel(0.07, 0.12, 0.016, 0.03, keycapMaterial);
+    leftAction.position.set(0.37, -0.9, 0.141);
     this.group.add(leftAction);
-    const rightAction = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.11, 0.024), keycapMaterial);
-    rightAction.position.set(0.71, -0.86, 0.138);
+    const rightAction = createRoundedPanel(0.07, 0.12, 0.016, 0.03, keycapMaterial);
+    rightAction.position.set(0.73, -0.9, 0.141);
     this.group.add(rightAction);
 
-    const confirmButton = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.03, 18), accentSteelMaterial);
+    const confirmButton = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.028, 20), accentSteelMaterial);
     confirmButton.rotation.x = Math.PI * 0.5;
-    confirmButton.position.set(0.9, -0.86, 0.145);
+    confirmButton.position.set(0.98, -0.9, 0.15);
     this.group.add(confirmButton);
+    const confirmButtonFace = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.01, 14), keyFaceMaterial);
+    confirmButtonFace.rotation.x = Math.PI * 0.5;
+    confirmButtonFace.position.set(0.98, -0.9, 0.161);
+    this.group.add(confirmButtonFace);
 
     const bottomLeftScrew = new THREE.Mesh(screwGeo, screwMaterial);
     bottomLeftScrew.rotation.x = Math.PI * 0.5;
     bottomLeftScrew.position.set(-0.98, -0.86, 0.108);
     this.group.add(bottomLeftScrew);
-    const bottomRightScrew = new THREE.Mesh(screwGeo, screwMaterial);
-    bottomRightScrew.rotation.x = Math.PI * 0.5;
-    bottomRightScrew.position.set(0.98, -0.86, 0.108);
-    this.group.add(bottomRightScrew);
+    const bottomRightIndicator = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.012, 16), indicatorWhiteMaterial);
+    bottomRightIndicator.rotation.x = Math.PI * 0.5;
+    bottomRightIndicator.position.set(0.98, -0.86, 0.112);
+    this.group.add(bottomRightIndicator);
+    addIndicatorGlow(whiteIndicatorGlowMap, 0xeaf3ff, 0.98, -0.86, 0.136, 0.14, 0.14, 0.42);
 
     this.group.rotation.set(-0.12, 0.3, 0.02);
     this.group.scale.setScalar(0.92);

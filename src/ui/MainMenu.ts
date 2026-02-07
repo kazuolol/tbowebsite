@@ -11,7 +11,7 @@ const WEATHER_ICON_SIZE = 34;
 const WEATHER_REFRESH_MS = 15 * 60 * 1000;
 const MENU_ACTION_EVENT = 'tbo:menu-action';
 
-export type MenuAction = 'early-access' | 'play' | 'about-us';
+export type MenuAction = 'early-access' | 'play' | 'inbox' | 'friends' | 'about-us';
 
 export interface MenuActionDetail {
   action: MenuAction;
@@ -87,6 +87,7 @@ export class MainMenu {
     });
     this.iconRenderer.setSize(ICON_RENDER_SIZE, ICON_RENDER_SIZE, false);
     this.iconRenderer.setPixelRatio(1);
+    this.iconRenderer.setClearColor(0x000000, 0);
 
     this.render();
     this.startIconLoop();
@@ -99,7 +100,7 @@ export class MainMenu {
 
     const earlyAccessButton: MenuButtonDefinition = {
       label: 'Claim Early Access',
-      iconType: 'rocket',
+      iconType: 'key',
       action: 'early-access',
     };
     this.headerExtensionButtonEl = this.createHeaderExtensionButton(earlyAccessButton);
@@ -208,8 +209,9 @@ export class MainMenu {
     menu.className = 'dc-menu';
 
     const buttons: MenuButtonDefinition[] = [
-      { label: 'Play', iconType: 'globe', action: 'play' },
-      { label: 'About Us', iconType: 'info', action: 'about-us' },
+      { label: 'GlobaNet', iconType: 'globe', action: 'play' },
+      { label: 'Inbox', iconType: 'inbox', action: 'inbox' },
+      { label: 'Friends', iconType: 'friends', action: 'friends' },
     ];
 
     buttons.forEach((btn, i) => {

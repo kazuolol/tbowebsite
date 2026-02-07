@@ -37,16 +37,19 @@
   --dc-header-extension-left: clamp(120px, 46vw, 760px);
   --dc-header-extension-slope-start: 14%;
   --dc-header-extension-slope-end: 34%;
+  --dc-header-extension-optical-offset: calc(
+    (var(--dc-header-extension-slope-start) + var(--dc-header-extension-slope-end)) / 4
+  );
   --dc-menu-width: min(36vw, 460px);
   --dc-menu-side-padding: 32px;
   --dc-menu-icon-outset: 6px;
   --dc-menu-btn-width: 136px;
   --dc-menu-gap: 12px;
   --dc-menu-font-size: 16px;
-  --dc-menu-icon-size: 108px;
+  --dc-menu-icon-size: 216px;
   --dc-floating-key-size: 108px;
-  --dc-header-key-size: calc(var(--dc-floating-key-size) * 0.8);
-  --dc-header-key-stack-offset-x: 7px;
+  --dc-header-key-size: calc(var(--dc-floating-key-size) * 0.64);
+  --dc-header-key-stack-offset-x: -4px;
   --dc-header-key-stack-offset-y: 13px;
   --dc-date-font-size: 20px;
   --dc-weather-size: 34px;
@@ -428,14 +431,20 @@ html, body {
 }
 
 .dc-header-extension-content {
-  display: inline-flex;
+  position: absolute;
+  left: calc(50% + var(--dc-header-extension-optical-offset));
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: inline-grid;
+  grid-template-columns: var(--dc-header-key-size) auto var(--dc-header-key-size);
   align-items: center;
-  justify-content: center;
-  gap: clamp(8px, 1.2vw, 16px);
+  justify-items: center;
+  column-gap: clamp(4px, 0.8vw, 10px);
   pointer-events: none;
 }
 
 .dc-header-extension-icon {
+  grid-column: 1;
   position: relative;
   width: var(--dc-header-key-size);
   height: var(--dc-header-key-size);
@@ -454,10 +463,11 @@ html, body {
 }
 
 .dc-header-extension-label {
+  grid-column: 2;
   position: static;
   white-space: nowrap;
   text-transform: none;
-  font-size: var(--dc-menu-font-size);
+  font-size: var(--dc-date-font-size);
   font-weight: inherit;
   letter-spacing: inherit;
   text-align: center;
@@ -621,14 +631,14 @@ html, body {
   width: var(--dc-menu-width);
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: space-evenly;
   align-items: stretch;
   padding:
     clamp(12px, 3vh, 32px)
     calc(var(--dc-menu-side-padding) + env(safe-area-inset-right))
     calc(clamp(12px, 3vh, 32px) + env(safe-area-inset-bottom))
     calc(var(--dc-menu-side-padding) + var(--dc-menu-icon-size) + var(--dc-menu-icon-outset) + env(safe-area-inset-left));
-  gap: var(--dc-menu-icon-outset);
+  gap: 0;
   z-index: 50;
   pointer-events: auto;
   overflow-y: auto;
@@ -768,7 +778,7 @@ html, body {
     --dc-menu-btn-width: 136px;
     --dc-menu-gap: 10px;
     --dc-menu-font-size: 16px;
-    --dc-menu-icon-size: 93px;
+    --dc-menu-icon-size: 186px;
     --dc-date-font-size: 18px;
     --dc-weather-size: 32px;
   }
@@ -789,7 +799,7 @@ html, body {
     --dc-menu-btn-width: 136px;
     --dc-menu-gap: 10px;
     --dc-menu-font-size: 16px;
-    --dc-menu-icon-size: 87px;
+    --dc-menu-icon-size: 174px;
     --dc-date-font-size: 17px;
     --dc-weather-size: 30px;
   }
@@ -809,7 +819,7 @@ html, body {
     --dc-menu-btn-width: 136px;
     --dc-menu-gap: clamp(8px, 2vw, 12px);
     --dc-menu-font-size: 16px;
-    --dc-menu-icon-size: clamp(66px, 21vw, 87px);
+    --dc-menu-icon-size: clamp(132px, 42vw, 174px);
     --dc-floating-key-size: clamp(72px, 24vw, 92px);
     --dc-date-font-size: clamp(12px, 3.6vw, 16px);
     --dc-weather-size: clamp(22px, 6vw, 30px);
@@ -821,7 +831,7 @@ html, body {
   }
 
   .dc-menu {
-    justify-content: flex-start;
+    justify-content: space-evenly;
     padding-top: clamp(10px, 2.5vh, 20px);
   }
 
@@ -854,7 +864,7 @@ html, body {
     --dc-menu-btn-width: 136px;
     --dc-menu-gap: 9px;
     --dc-menu-font-size: 16px;
-    --dc-menu-icon-size: 75px;
+    --dc-menu-icon-size: 150px;
     --dc-date-font-size: 14px;
     --dc-weather-size: 26px;
   }
@@ -882,7 +892,7 @@ html, body {
     --dc-menu-btn-width: 136px;
     --dc-menu-gap: 8px;
     --dc-menu-font-size: 16px;
-    --dc-menu-icon-size: 63px;
+    --dc-menu-icon-size: 126px;
     --dc-floating-key-size: 68px;
     --dc-date-font-size: 12px;
     --dc-weather-size: 21px;
@@ -984,7 +994,7 @@ html, body {
     --dc-menu-width: min(52vw, 420px);
     --dc-menu-icon-outset: 6px;
     --dc-menu-btn-width: 136px;
-    --dc-menu-icon-size: 63px;
+    --dc-menu-icon-size: 126px;
     --dc-floating-key-size: 64px;
     --dc-menu-font-size: 16px;
     --dc-date-font-size: 12px;
@@ -996,9 +1006,9 @@ html, body {
   }
 
   .dc-menu {
-    justify-content: flex-start;
+    justify-content: space-evenly;
     padding-top: 8px;
-    gap: var(--dc-menu-icon-outset);
+    gap: 0;
   }
 
   .dc-menu-btn {

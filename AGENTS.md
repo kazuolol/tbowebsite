@@ -23,7 +23,7 @@ These details are important because older docs in the repo may describe a differ
 - `src/ui/Terminal.ts` exists but is not currently mounted
 - `src/scene/SceneManager.ts` and `src/scene/WireframeScene.ts` exist but are not currently used by `main.ts`
 - The active UI class is `MainMenu` (not `DreamcastMenu`)
-- Main menu currently renders three buttons: `Early Access`, `GlobaNet`, `About Us`
+- Main menu currently renders three buttons: `Early Access`, `GlöbaNet`, `About Us`
 
 ## Architecture Principles
 
@@ -186,8 +186,8 @@ Check browser console for:
 - Edit models and animation in `src/ui/MenuIcon3D.ts`
 - Edit button labels in `src/ui/MainMenu.ts`
 - Keep label-to-icon mapping explicit:
-  - `rocket` type currently represents the `Early Access` key icon
-  - `globe` type currently represents the `GlobaNet` icon
+  - `key` type represents the `Early Access` key icon
+  - `globe` type represents the `GlöbaNet` icon
   - `info` type currently represents the paper-style `About Us` icon
 - If changing icon size, sync `ICON_RENDER_SIZE`, `ICON_SIZE`, and CSS icon dimensions
 
@@ -211,7 +211,7 @@ import fragmentShader from '../shaders/example.frag.glsl';
 ## Known Caveats
 
 - `FallingScene` currently binds resize handlers inline for both add and remove. If touching lifecycle code, prefer a stored handler reference so removal works correctly.
-- The icon type name `rocket` is legacy and no longer visually a rocket. Rename carefully if refactoring to avoid breaking label/icon mapping.
+- The icon type name for Early Access is `key`. Keep label/icon mapping explicit if refactoring.
 - Build commonly emits a Vite chunk-size warning (`>500 kB`); treat as informational unless bundling work is in scope.
 
 ## External References

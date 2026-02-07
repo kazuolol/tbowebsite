@@ -63,7 +63,7 @@ export class MainMenu {
   private weatherDebugSelectEl: HTMLSelectElement | null = null;
   private headerEl: HTMLElement | null = null;
   private menuEl: HTMLElement | null = null;
-  private floatingEarlyAccessEl: HTMLElement | null = null;
+  private headerExtensionButtonEl: HTMLButtonElement | null = null;
   private activeButton: HTMLButtonElement | null = null;
   private buttonCleanup: Array<() => void> = [];
   private destroyed = false;
@@ -98,12 +98,12 @@ export class MainMenu {
     this.container.appendChild(this.headerEl);
 
     const earlyAccessButton: MenuButtonDefinition = {
-      label: 'Early Access',
+      label: 'Claim Early Access',
       iconType: 'rocket',
       action: 'early-access',
     };
-    this.floatingEarlyAccessEl = this.createFloatingEarlyAccess(earlyAccessButton);
-    this.container.appendChild(this.floatingEarlyAccessEl);
+    this.headerExtensionButtonEl = this.createHeaderExtensionButton(earlyAccessButton);
+    this.headerEl.appendChild(this.headerExtensionButtonEl);
 
     this.menuEl = this.createMenu();
     this.container.appendChild(this.menuEl);
@@ -254,114 +254,47 @@ export class MainMenu {
     return menu;
   }
 
-  private createFloatingEarlyAccess(buttonDef: MenuButtonDefinition): HTMLElement {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'dc-floating-early-access';
+  private createHeaderExtensionButton(buttonDef: MenuButtonDefinition): HTMLButtonElement {
+    const extensionButton = document.createElement('button');
+    extensionButton.type = 'button';
+    extensionButton.className = 'dc-header-extension-btn';
+    extensionButton.dataset.action = buttonDef.action;
+    extensionButton.setAttribute('aria-label', buttonDef.label);
 
-    const keyButton = document.createElement('button');
-    keyButton.type = 'button';
-    keyButton.className = 'dc-floating-key-trigger';
-    keyButton.setAttribute('aria-label', 'Early Access key');
-    keyButton.setAttribute('aria-expanded', 'false');
-
+    const iconEl = document.createElement('span');
+    iconEl.className = 'dc-header-extension-icon';
     const iconCanvas = document.createElement('canvas');
     iconCanvas.width = ICON_RENDER_SIZE;
     iconCanvas.height = ICON_RENDER_SIZE;
-    keyButton.appendChild(iconCanvas);
-
+    iconEl.appendChild(iconCanvas);
     const keyIcon = new MenuIcon3D(iconCanvas, buttonDef.iconType);
     this.icons.push(keyIcon);
 
-    const actionButton = document.createElement('button');
-    actionButton.type = 'button';
-    actionButton.className = 'dc-menu-btn dc-floating-early-access-btn';
-    actionButton.dataset.action = buttonDef.action;
+    const quantityLabel = document.createElement('span');
+    quantityLabel.className = 'stack-label text-normal dc-key-stack-label';
+    quantityLabel.textContent = 'x100';
+    iconEl.appendChild(quantityLabel);
 
     const actionLabel = document.createElement('span');
-    actionLabel.className = 'dc-menu-btn-label';
+    actionLabel.className = 'dc-header-extension-label';
     actionLabel.textContent = buttonDef.label;
-    actionButton.appendChild(actionLabel);
 
-    const open = () => {
-      wrapper.classList.add('is-open');
-      keyButton.setAttribute('aria-expanded', 'true');
-    };
-    const close = () => {
-      wrapper.classList.remove('is-open');
-      keyButton.setAttribute('aria-expanded', 'false');
-    };
-    const toggle = () => {
-      if (wrapper.classList.contains('is-open')) {
-        close();
-        return;
-      }
-      open();
-    };
-
-    const keyClickHandler = (event: MouseEvent) => {
-      event.stopPropagation();
-      toggle();
-    };
-    keyButton.addEventListener('click', keyClickHandler);
-    this.buttonCleanup.push(() => {
-      keyButton.removeEventListener('click', keyClickHandler);
-    });
+    const content = document.createElement('span');
+    content.className = 'dc-header-extension-content';
+    content.appendChild(iconEl);
+    content.appendChild(actionLabel);
 
     const actionClickHandler = () => {
-      this.handleMenuAction(buttonDef, actionButton);
-      close();
+      this.handleMenuAction(buttonDef, extensionButton);
     };
-    actionButton.addEventListener('click', actionClickHandler);
+    extensionButton.addEventListener('click', actionClickHandler);
     this.buttonCleanup.push(() => {
-      actionButton.removeEventListener('click', actionClickHandler);
+      extensionButton.removeEventListener('click', actionClickHandler);
     });
 
-    const mouseEnterHandler = () => {
-      open();
-    };
-    const mouseLeaveHandler = () => {
-      close();
-    };
-    wrapper.addEventListener('mouseenter', mouseEnterHandler);
-    wrapper.addEventListener('mouseleave', mouseLeaveHandler);
-    this.buttonCleanup.push(() => {
-      wrapper.removeEventListener('mouseenter', mouseEnterHandler);
-      wrapper.removeEventListener('mouseleave', mouseLeaveHandler);
-    });
+    extensionButton.appendChild(content);
 
-    const focusInHandler = () => {
-      open();
-    };
-    const focusOutHandler = (event: FocusEvent) => {
-      const nextFocused = event.relatedTarget;
-      if (nextFocused instanceof Node && wrapper.contains(nextFocused)) {
-        return;
-      }
-      close();
-    };
-    wrapper.addEventListener('focusin', focusInHandler);
-    wrapper.addEventListener('focusout', focusOutHandler);
-    this.buttonCleanup.push(() => {
-      wrapper.removeEventListener('focusin', focusInHandler);
-      wrapper.removeEventListener('focusout', focusOutHandler);
-    });
-
-    const outsidePointerHandler = (event: PointerEvent) => {
-      const target = event.target;
-      if (target instanceof Node && wrapper.contains(target)) {
-        return;
-      }
-      close();
-    };
-    document.addEventListener('pointerdown', outsidePointerHandler);
-    this.buttonCleanup.push(() => {
-      document.removeEventListener('pointerdown', outsidePointerHandler);
-    });
-
-    wrapper.appendChild(keyButton);
-    wrapper.appendChild(actionButton);
-
-    return wrapper;
+    return extensionButton;
   }
 
   private setActiveButton(button: HTMLButtonElement): void {
@@ -621,11 +554,11 @@ export class MainMenu {
     this.iconRenderer.dispose();
     this.headerEl?.remove();
     this.menuEl?.remove();
-    this.floatingEarlyAccessEl?.remove();
+    this.headerExtensionButtonEl?.remove();
     this.weatherDebugEl?.remove();
     this.headerEl = null;
     this.menuEl = null;
-    this.floatingEarlyAccessEl = null;
+    this.headerExtensionButtonEl = null;
     this.weatherDebugEl = null;
     this.weatherDebugSelectEl = null;
     this.dateTimeTextEl = null;

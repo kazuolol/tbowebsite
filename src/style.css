@@ -23,6 +23,10 @@
   --border-color-hover: rgba(255, 255, 255, 0.8);
   --background-color-visual-element: rgba(51, 51, 51, 0.3);
   --transition-default: all 0.3s ease;
+  --dc-ui-font-family: 'Jost', sans-serif;
+  --dc-ui-font-weight: 400;
+  --dc-ui-text-shadow: var(--text-shadow-default);
+  --dc-ui-letter-spacing: 0;
 
   /* Dreamcast BIOS Color Palette */
   --dc-header-bg: #e8e4d8;
@@ -41,10 +45,9 @@
   --dc-menu-font-size: 16px;
   --dc-menu-icon-size: 108px;
   --dc-floating-key-size: 108px;
-  --dc-floating-key-x: 56vw;
-  --dc-floating-key-y: clamp(196px, 34vh, 360px);
-  --dc-floating-key-flyout-offset-x: 10px;
-  --dc-floating-key-flyout-offset-y: 8px;
+  --dc-header-key-size: calc(var(--dc-floating-key-size) * 0.8);
+  --dc-header-key-stack-offset-x: 7px;
+  --dc-header-key-stack-offset-y: 13px;
   --dc-date-font-size: 20px;
   --dc-weather-size: 34px;
 }
@@ -377,14 +380,26 @@ html, body {
   overflow: visible;
 }
 
-.dc-header::after {
-  content: '';
+.dc-header-extension-btn {
   position: absolute;
   top: calc(100% - 2px);
   left: var(--dc-header-extension-left);
   right: 0;
   height: var(--dc-header-extension-height);
+  border: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 calc(var(--dc-header-padding-x) + env(safe-area-inset-right));
+  color: rgb(255, 255, 255);
+  font-family: var(--dc-ui-font-family);
+  font-weight: var(--dc-ui-font-weight);
+  text-shadow: var(--dc-ui-text-shadow);
+  letter-spacing: var(--dc-ui-letter-spacing);
   background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
   clip-path: polygon(
     0 -2px,
@@ -393,7 +408,88 @@ html, body {
     100% 100%,
     100% -2px
   );
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 1;
+  overflow: hidden;
+  transition: background-color 0.24s ease, box-shadow 0.24s ease;
+}
+
+.dc-header-extension-btn:hover,
+.dc-header-extension-btn:focus-visible,
+.dc-header-extension-btn.is-active {
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.14);
+}
+
+.dc-header-extension-btn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.72);
+  outline-offset: 2px;
+}
+
+.dc-header-extension-content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(8px, 1.2vw, 16px);
   pointer-events: none;
+}
+
+.dc-header-extension-icon {
+  position: relative;
+  width: var(--dc-header-key-size);
+  height: var(--dc-header-key-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.dc-header-extension-icon canvas {
+  width: var(--dc-header-key-size);
+  height: var(--dc-header-key-size);
+  display: block;
+}
+
+.dc-header-extension-label {
+  position: static;
+  white-space: nowrap;
+  text-transform: none;
+  font-size: var(--dc-menu-font-size);
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* Mirror game inventory stack quantity classes */
+.text-normal {
+  font-size: 16px;
+  font-style: normal;
+  color: rgb(255, 255, 255);
+  margin: 0;
+  padding: 0;
+  text-shadow: var(--text-shadow-default);
+}
+
+.stack-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin: 0 0 0 4px;
+  padding: 0;
+  text-align: left;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1;
+}
+
+.dc-key-stack-label {
+  margin-top: var(--dc-header-key-stack-offset-y);
+  margin-left: var(--dc-header-key-stack-offset-x);
+  z-index: 2;
 }
 
 .dc-title {
@@ -412,11 +508,12 @@ html, body {
   justify-content: flex-end;
   gap: clamp(4px, 0.7vw, 8px);
   font-size: var(--dc-date-font-size);
-  font-weight: 400;
+  font-family: var(--dc-ui-font-family);
+  font-weight: var(--dc-ui-font-weight);
   color: rgb(255, 255, 255);
   font-variant-numeric: tabular-nums;
-  text-shadow: var(--text-shadow-default);
-  letter-spacing: 0;
+  text-shadow: var(--dc-ui-text-shadow);
+  letter-spacing: var(--dc-ui-letter-spacing);
   white-space: nowrap;
   min-width: 0;
   max-width: min(54vw, 420px);
@@ -559,10 +656,10 @@ html, body {
   border: 1px solid var(--border-color-default);
   border-radius: var(--border-radius-default);
   color: rgb(255, 255, 255);
-  font-family: 'Jost', sans-serif;
+  font-family: var(--dc-ui-font-family);
   font-size: var(--dc-menu-font-size);
-  font-weight: 400;
-  text-shadow: var(--text-shadow-default);
+  font-weight: var(--dc-ui-font-weight);
+  text-shadow: var(--dc-ui-text-shadow);
   cursor: pointer;
   transition: background-color 0.5s ease 0s, border-color 0.5s ease 0s, transform 0.2s ease;
   opacity: 0;
@@ -612,61 +709,6 @@ html, body {
   letter-spacing: 0;
 }
 
-.dc-floating-early-access {
-  position: fixed;
-  left: var(--dc-floating-key-x);
-  top: var(--dc-floating-key-y);
-  transform: translate(-50%, -50%);
-  z-index: 70;
-  pointer-events: auto;
-}
-
-.dc-floating-key-trigger {
-  width: var(--dc-floating-key-size);
-  height: var(--dc-floating-key-size);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  cursor: pointer;
-}
-
-.dc-floating-key-trigger:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.6);
-  outline-offset: 2px;
-  border-radius: 999px;
-}
-
-.dc-floating-key-trigger canvas {
-  width: var(--dc-floating-key-size);
-  height: var(--dc-floating-key-size);
-  display: block;
-}
-
-.dc-floating-early-access-btn {
-  position: absolute;
-  top: calc(100% + var(--dc-floating-key-flyout-offset-y));
-  left: calc(100% + var(--dc-floating-key-flyout-offset-x));
-  width: var(--dc-menu-btn-width);
-  max-width: none;
-  opacity: 0;
-  transform: translate(-10px, -8px);
-  pointer-events: none;
-  white-space: nowrap;
-  animation: none;
-  transition: opacity 0.18s ease, transform 0.18s ease;
-}
-
-.dc-floating-early-access.is-open .dc-floating-early-access-btn,
-.dc-floating-early-access:hover .dc-floating-early-access-btn,
-.dc-floating-early-access:focus-within .dc-floating-early-access-btn {
-  opacity: 1;
-  transform: translate(0, 0);
-  pointer-events: auto;
-}
-
 /* ========================================
    Entrance Animations
    ======================================== */
@@ -712,7 +754,6 @@ html, body {
     --dc-menu-icon-outset: 6px;
     --dc-menu-btn-width: 136px;
     --dc-floating-key-size: 98px;
-    --dc-floating-key-x: 58vw;
   }
 }
 
@@ -770,10 +811,6 @@ html, body {
     --dc-menu-font-size: 16px;
     --dc-menu-icon-size: clamp(66px, 21vw, 87px);
     --dc-floating-key-size: clamp(72px, 24vw, 92px);
-    --dc-floating-key-x: 69vw;
-    --dc-floating-key-y: clamp(170px, 34vh, 296px);
-    --dc-floating-key-flyout-offset-x: 8px;
-    --dc-floating-key-flyout-offset-y: 6px;
     --dc-date-font-size: clamp(12px, 3.6vw, 16px);
     --dc-weather-size: clamp(22px, 6vw, 30px);
   }
@@ -804,6 +841,7 @@ html, body {
     min-width: clamp(140px, 50vw, 260px);
     max-width: min(60vw, 280px);
   }
+
 }
 
 /* iPhone 14 Pro Max / Pixel 7 class portrait phones */
@@ -846,8 +884,6 @@ html, body {
     --dc-menu-font-size: 16px;
     --dc-menu-icon-size: 63px;
     --dc-floating-key-size: 68px;
-    --dc-floating-key-x: 70vw;
-    --dc-floating-key-y: clamp(166px, 34vh, 274px);
     --dc-date-font-size: 12px;
     --dc-weather-size: 21px;
   }
@@ -887,6 +923,7 @@ html, body {
   .dc-weather-debug-label {
     font-size: 11px;
   }
+
 }
 
 @media (max-width: 420px) {
@@ -949,8 +986,6 @@ html, body {
     --dc-menu-btn-width: 136px;
     --dc-menu-icon-size: 63px;
     --dc-floating-key-size: 64px;
-    --dc-floating-key-x: 62vw;
-    --dc-floating-key-y: clamp(120px, 33vh, 200px);
     --dc-menu-font-size: 16px;
     --dc-date-font-size: 12px;
     --dc-weather-size: 22px;
@@ -971,4 +1006,9 @@ html, body {
     height: var(--size-medium);
     padding: 0;
   }
+
+  .dc-header-extension-btn {
+    top: calc(100% - 1px);
+  }
+
 }

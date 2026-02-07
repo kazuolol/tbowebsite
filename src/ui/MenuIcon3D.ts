@@ -171,8 +171,8 @@ export class MenuIcon3D {
     keyGlow.scale.set(2.95, 4.35, 1);
     this.group.add(keyGlow);
 
-    this.group.rotation.x = -0.06;
-    this.group.rotation.z = -0.14;
+    // Base orientation: key teeth point away from camera.
+    this.group.rotation.set(0, Math.PI * 0.5, 0);
   }
 
   private buildGlobe(): void {
@@ -639,9 +639,15 @@ export class MenuIcon3D {
         }
       }
     } else if (this.type === 'rocket') {
-      this.group.rotation.y += delta * 1.05;
-      this.group.rotation.x = -0.08;
-      this.group.rotation.z = -0.14;
+      // Oscillate on vertical axis between "toward camera" and "away from camera".
+      const minYaw = -Math.PI * 0.5;
+      const maxYaw = Math.PI * 0.5;
+      const yawT = (Math.sin(this.elapsed * 0.95) + 1) * 0.5;
+      const tiltY = THREE.MathUtils.lerp(minYaw, maxYaw, yawT);
+      const pulse = 1 + Math.sin(this.elapsed * 2.0) * 0.03;
+      this.group.rotation.set(0, tiltY, 0);
+      this.group.position.set(0, 0, 0);
+      this.group.scale.set(pulse, pulse, pulse);
     } else if (this.type === 'info') {
       this.group.rotation.y += delta * 1.0;
       this.group.rotation.x = -0.45 + Math.sin(this.elapsed * 0.9) * 0.05;

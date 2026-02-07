@@ -1022,7 +1022,7 @@ export class MenuIcon3D {
     lowerInner.position.set(0, -0.5, 0.1);
     this.group.add(lowerInner);
 
-    const keypadPanel = createRoundedPanel(0.84, 0.8, 0.028, 0.07, darkPanelMaterial);
+    const keypadPanel = createRoundedPanel(0.84, 0.86, 0.028, 0.07, darkPanelMaterial);
     keypadPanel.position.set(0, -0.62, 0.14);
     this.group.add(keypadPanel);
 
@@ -1035,22 +1035,26 @@ export class MenuIcon3D {
     navCenter.rotation.x = Math.PI * 0.5;
     this.group.add(navCenter);
 
-    const keyGeometry = new THREE.BoxGeometry(0.17, 0.13, 0.035);
+    const keyGeometry = new THREE.BoxGeometry(0.16, 0.11, 0.034);
+    const keyStartX = -0.24;
+    const keyStepX = 0.24;
+    const keyStartY = -0.44;
+    const keyStepY = 0.155;
     for (let row = 0; row < 4; row++) {
       for (let col = 0; col < 3; col++) {
         const key = new THREE.Mesh(keyGeometry, (row + col) % 2 === 0 ? keyMaterial : keyDarkMaterial);
-        key.position.set(-0.24 + col * 0.24, -0.43 - row * 0.18, 0.15);
+        key.position.set(keyStartX + col * keyStepX, keyStartY - row * keyStepY, 0.15);
         this.group.add(key);
       }
     }
 
     const softKeyLeft = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.1, 0.03), keyMaterial);
-    softKeyLeft.position.set(-0.29, -0.22, 0.15);
+    softKeyLeft.position.set(-0.29, -0.24, 0.15);
     softKeyLeft.rotation.z = 0.2;
     this.group.add(softKeyLeft);
 
     const softKeyRight = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.1, 0.03), keyMaterial);
-    softKeyRight.position.set(0.29, -0.22, 0.15);
+    softKeyRight.position.set(0.29, -0.24, 0.15);
     softKeyRight.rotation.z = -0.2;
     this.group.add(softKeyRight);
 
@@ -1084,6 +1088,7 @@ export class MenuIcon3D {
     screenTexture.needsUpdate = true;
     screenTexture.minFilter = THREE.LinearFilter;
     screenTexture.magFilter = THREE.LinearFilter;
+    screenTexture.anisotropy = 2;
     const screen = new THREE.Mesh(
       new THREE.PlaneGeometry(0.64, 0.76),
       new THREE.MeshBasicMaterial({
@@ -1276,55 +1281,142 @@ export class MenuIcon3D {
 
   private createPhoneScreenTexture(): THREE.CanvasTexture {
     const canvas = document.createElement('canvas');
-    canvas.width = 320;
-    canvas.height = 448;
+    // Moderate bump over prior texture size for clearer details without large VRAM cost.
+    canvas.width = 512;
+    canvas.height = 608;
     const ctx = canvas.getContext('2d')!;
+    const width = canvas.width;
+    const height = canvas.height;
 
-    const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    bg.addColorStop(0, '#1d2b34');
-    bg.addColorStop(0.55, '#17222a');
-    bg.addColorStop(1, '#121a21');
+    const bg = ctx.createLinearGradient(0, 0, 0, height);
+    bg.addColorStop(0, '#1e2f3a');
+    bg.addColorStop(0.52, '#17232c');
+    bg.addColorStop(1, '#111920');
     ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, width, height);
 
-    ctx.fillStyle = 'rgba(36, 54, 63, 0.95)';
-    ctx.fillRect(0, 0, canvas.width, 52);
-    ctx.fillStyle = '#d4e8f5';
-    ctx.font = 'bold 22px sans-serif';
-    ctx.fillText('Friends', 16, 33);
+    const topBarHeight = Math.round(height * 0.13);
+    ctx.fillStyle = 'rgba(30, 46, 58, 0.96)';
+    ctx.fillRect(0, 0, width, topBarHeight);
+    ctx.fillStyle = '#d8ecfb';
+    ctx.font = `700 ${Math.round(height * 0.06)}px sans-serif`;
+    ctx.fillText('Friends', Math.round(width * 0.06), Math.round(topBarHeight * 0.68));
+    ctx.fillStyle = 'rgba(210, 228, 240, 0.95)';
+    ctx.fillRect(Math.round(width * 0.83), Math.round(topBarHeight * 0.34), Math.round(width * 0.11), Math.round(topBarHeight * 0.06));
+    ctx.fillRect(Math.round(width * 0.83), Math.round(topBarHeight * 0.52), Math.round(width * 0.08), Math.round(topBarHeight * 0.06));
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-    ctx.fillRect(20, 72, 280, 288);
+    const cardX = Math.round(width * 0.07);
+    const cardY = Math.round(height * 0.19);
+    const cardW = Math.round(width * 0.86);
+    const cardH = Math.round(height * 0.58);
+    const cardGradient = ctx.createLinearGradient(0, cardY, 0, cardY + cardH);
+    cardGradient.addColorStop(0, '#152633');
+    cardGradient.addColorStop(1, '#0f1d28');
+    ctx.fillStyle = cardGradient;
+    ctx.fillRect(cardX, cardY, cardW, cardH);
+    ctx.strokeStyle = 'rgba(188, 222, 245, 0.32)';
+    ctx.lineWidth = Math.max(2, Math.round(width * 0.0045));
+    ctx.strokeRect(cardX, cardY, cardW, cardH);
 
-    // Large, unmistakable yellow smiley on screen.
-    const smileX = 160;
-    const smileY = 192;
-    const smileR = 88;
-    ctx.fillStyle = '#ffd935';
+    // Dedicated dark badge behind the smiley for strong contrast at tiny icon size.
+    const badgeX = Math.round(width * 0.2);
+    const badgeY = Math.round(height * 0.255);
+    const badgeW = Math.round(width * 0.6);
+    const badgeH = Math.round(height * 0.37);
+    const badgeRadius = Math.round(width * 0.032);
+    ctx.fillStyle = '#0a151d';
+    ctx.beginPath();
+    ctx.moveTo(badgeX + badgeRadius, badgeY);
+    ctx.lineTo(badgeX + badgeW - badgeRadius, badgeY);
+    ctx.quadraticCurveTo(badgeX + badgeW, badgeY, badgeX + badgeW, badgeY + badgeRadius);
+    ctx.lineTo(badgeX + badgeW, badgeY + badgeH - badgeRadius);
+    ctx.quadraticCurveTo(badgeX + badgeW, badgeY + badgeH, badgeX + badgeW - badgeRadius, badgeY + badgeH);
+    ctx.lineTo(badgeX + badgeRadius, badgeY + badgeH);
+    ctx.quadraticCurveTo(badgeX, badgeY + badgeH, badgeX, badgeY + badgeH - badgeRadius);
+    ctx.lineTo(badgeX, badgeY + badgeRadius);
+    ctx.quadraticCurveTo(badgeX, badgeY, badgeX + badgeRadius, badgeY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(157, 201, 230, 0.35)';
+    ctx.lineWidth = Math.max(2, Math.round(width * 0.004));
+    ctx.stroke();
+
+    // Big, high-contrast yellow smiley.
+    const smileX = Math.round(width * 0.5);
+    const smileY = Math.round(height * 0.44);
+    const smileR = Math.round(height * 0.2);
+
+    const smileGlow = ctx.createRadialGradient(smileX, smileY, smileR * 0.15, smileX, smileY, smileR * 1.45);
+    smileGlow.addColorStop(0, 'rgba(255, 237, 86, 0.62)');
+    smileGlow.addColorStop(1, 'rgba(255, 237, 86, 0)');
+    ctx.fillStyle = smileGlow;
+    ctx.beginPath();
+    ctx.arc(smileX, smileY, smileR * 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    const faceGradient = ctx.createRadialGradient(
+      smileX - smileR * 0.34,
+      smileY - smileR * 0.36,
+      smileR * 0.1,
+      smileX,
+      smileY,
+      smileR
+    );
+    faceGradient.addColorStop(0, '#fff88e');
+    faceGradient.addColorStop(0.45, '#ffea38');
+    faceGradient.addColorStop(1, '#ffd400');
+    ctx.fillStyle = faceGradient;
     ctx.beginPath();
     ctx.arc(smileX, smileY, smileR, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#222226';
-    ctx.beginPath();
-    ctx.arc(smileX - 28, smileY - 24, 11, 0, Math.PI * 2);
-    ctx.arc(smileX + 28, smileY - 24, 11, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#222226';
-    ctx.lineWidth = 8;
-    ctx.beginPath();
-    ctx.arc(smileX, smileY + 8, 39, 0.2, Math.PI - 0.2);
+    ctx.strokeStyle = '#11161b';
+    ctx.lineWidth = Math.max(6, Math.round(width * 0.016));
     ctx.stroke();
 
-    ctx.fillStyle = '#dfffea';
-    ctx.font = 'bold 20px sans-serif';
-    ctx.fillText('SMILEY MSG', 96, 330);
+    // Eyes
+    ctx.fillStyle = '#070b0f';
+    ctx.beginPath();
+    ctx.ellipse(
+      smileX - smileR * 0.34,
+      smileY - smileR * 0.3,
+      smileR * 0.14,
+      smileR * 0.2,
+      0,
+      0,
+      Math.PI * 2
+    );
+    ctx.ellipse(
+      smileX + smileR * 0.34,
+      smileY - smileR * 0.3,
+      smileR * 0.14,
+      smileR * 0.2,
+      0,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
 
-    ctx.fillStyle = 'rgba(36, 54, 63, 0.95)';
-    ctx.fillRect(0, canvas.height - 44, canvas.width, 44);
-    ctx.fillStyle = '#9fd3f2';
-    ctx.font = 'bold 20px sans-serif';
-    ctx.fillText('Reply', 24, canvas.height - 14);
-    ctx.fillText('Back', canvas.width - 74, canvas.height - 14);
+    // Smile
+    ctx.strokeStyle = '#070b0f';
+    ctx.lineWidth = Math.max(7, Math.round(width * 0.018));
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(smileX, smileY + smileR * 0.08, smileR * 0.5, 0.22, Math.PI - 0.22);
+    ctx.stroke();
+
+    ctx.fillStyle = '#e4fff1';
+    ctx.font = `700 ${Math.round(height * 0.055)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText('SMILEY MSG', width * 0.5, height * 0.71);
+    ctx.textAlign = 'left';
+
+    const bottomBarHeight = Math.round(height * 0.11);
+    ctx.fillStyle = 'rgba(32, 49, 62, 0.96)';
+    ctx.fillRect(0, height - bottomBarHeight, width, bottomBarHeight);
+    ctx.fillStyle = '#9fd7f8';
+    ctx.font = `700 ${Math.round(height * 0.045)}px sans-serif`;
+    ctx.fillText('Reply', Math.round(width * 0.08), height - Math.round(bottomBarHeight * 0.35));
+    ctx.fillText('Back', Math.round(width * 0.74), height - Math.round(bottomBarHeight * 0.35));
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;

@@ -1,4 +1,4 @@
-# Agent Guidelines for The Big One Website
+﻿# Agent Guidelines for The Big One Website
 
 This document provides architectural context and working rules for AI agents in this repo.
 
@@ -20,10 +20,10 @@ A 3D landing page for "The Big One" MMORPG early access. The current live experi
 These details are important because older docs in the repo may describe a different flow.
 
 - `src/main.ts` instantiates `FallingScene` and `MainMenu`
-- `src/ui/Terminal.ts` exists but is not currently mounted
-- `src/scene/SceneManager.ts` and `src/scene/WireframeScene.ts` exist but are not currently used by `main.ts`
 - The active UI class is `MainMenu` (not `DreamcastMenu`)
-- Main menu currently renders three buttons: `Early Access`, `GlöbaNet`, `About Us`
+- `MainMenu` renders a header extension CTA: `Claim Early Access`
+- Main menu currently renders three left-rail buttons: `GlöbaNet`, `Mail`, `Friends`
+- `MainMenu` publishes weather updates via `tbo:local-weather-update`, consumed by `FallingScene`
 
 ## Architecture Principles
 
@@ -129,8 +129,6 @@ src/
   style.css
   scene/
     FallingScene.ts          # Active scene
-    SceneManager.ts          # Present but not mounted
-    WireframeScene.ts        # Present but not mounted
   environment/
     CharacterPool.ts         # Active character orchestration
     FallingCharacter.ts      # Active character variant/material logic
@@ -138,7 +136,7 @@ src/
   ui/
     MainMenu.ts              # Active UI overlay
     MenuIcon3D.ts            # 3D icon renderer + icon models/animation
-    Terminal.ts              # Present but not mounted
+    WeatherIcons2D.ts        # Weather icon canvas renderer
   shaders/
     *.glsl
   utils/
@@ -186,9 +184,11 @@ Check browser console for:
 - Edit models and animation in `src/ui/MenuIcon3D.ts`
 - Edit button labels in `src/ui/MainMenu.ts`
 - Keep label-to-icon mapping explicit:
-  - `key` type represents the `Early Access` key icon
+  - `key` type represents the `Claim Early Access` key icon
   - `globe` type represents the `GlöbaNet` icon
-  - `info` type currently represents the paper-style `About Us` icon
+  - `inbox` type represents the `Mail` icon
+  - `friends` type represents the `Friends` icon
+  - `info` type is currently unused by `MainMenu` (paper-style icon still exists in `MenuIcon3D`)
 - If changing icon size, sync `ICON_RENDER_SIZE`, `ICON_SIZE`, and CSS icon dimensions
 
 ### Modify Paper Icon Look
@@ -210,10 +210,11 @@ import fragmentShader from '../shaders/example.frag.glsl';
 
 ## Known Caveats
 
-- `FallingScene` currently binds resize handlers inline for both add and remove. If touching lifecycle code, prefer a stored handler reference so removal works correctly.
+- `main.ts` does not attach a default `tbo:menu-action` listener. If you need button behavior, pass `onAction` to `MainMenu` or add a global listener.
 - The icon type name for Early Access is `key`. Keep label/icon mapping explicit if refactoring.
 - Build commonly emits a Vite chunk-size warning (`>500 kB`); treat as informational unless bundling work is in scope.
 
 ## External References
 
 Character assets originate from Unity project `BigCorpp/TheBigOne`. Use that source for material and mesh naming truth when mappings drift.
+

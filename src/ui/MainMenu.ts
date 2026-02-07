@@ -209,7 +209,7 @@ export class MainMenu {
     menu.className = 'dc-menu';
 
     const buttons: MenuButtonDefinition[] = [
-      { label: 'GlobaNet', iconType: 'globe', action: 'play' },
+      { label: 'GlöbaNet', iconType: 'globe', action: 'play' },
       { label: 'Mail', iconType: 'inbox', action: 'inbox' },
       { label: 'Friends', iconType: 'friends', action: 'friends' },
     ];

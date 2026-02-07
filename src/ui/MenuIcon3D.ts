@@ -884,6 +884,7 @@ export class MenuIcon3D {
     flap.add(foldShadow);
 
     this.group.rotation.set(-0.16, 0.08, -0.23);
+    this.group.scale.setScalar(0.9);
   }
 
   private createMailEnvelopeTexture(): THREE.CanvasTexture {
@@ -1717,11 +1718,13 @@ export class MenuIcon3D {
       this.group.rotation.z = -0.08 + Math.sin(this.elapsed * 0.8) * 0.03;
       this.group.position.y = Math.sin(this.elapsed * 1.4) * 0.03;
     } else if (this.type === 'inbox') {
-      // Keep the envelope angled like the reference with gentle idle motion.
-      this.group.rotation.x = -0.16 + Math.sin(this.elapsed * 0.72) * 0.007;
-      this.group.rotation.y = 0.08 + Math.sin(this.elapsed * 0.44) * 0.016;
-      this.group.rotation.z = -0.23 + Math.sin(this.elapsed * 0.6) * 0.006;
-      this.group.position.y = Math.sin(this.elapsed * 1.0) * 0.008;
+      // Match friends-style floating sway while keeping envelope base orientation.
+      this.group.rotation.x = -0.1 + Math.sin(this.elapsed * 0.9) * 0.038;
+      this.group.rotation.y = 0.04 + Math.sin(this.elapsed * 0.55) * 0.14;
+      this.group.rotation.z = -0.09 + Math.sin(this.elapsed * 0.7) * 0.048;
+      this.group.position.x = Math.sin(this.elapsed * 0.62) * 0.014;
+      this.group.position.y = Math.sin(this.elapsed * 1.3) * 0.022;
+      this.group.position.z = Math.sin(this.elapsed * 0.48) * 0.01;
     } else if (this.type === 'friends') {
       this.group.rotation.x = -0.04 + Math.sin(this.elapsed * 0.9) * 0.03;
       this.group.rotation.y = 0.2 + Math.sin(this.elapsed * 0.55) * 0.12;

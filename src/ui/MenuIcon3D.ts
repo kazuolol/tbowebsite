@@ -1139,40 +1139,26 @@ export class MenuIcon3D {
       metalness: 0.3,
       roughness: 0.34,
     });
-    const indicatorWhiteMaterial = new THREE.MeshStandardMaterial({
-      color: 0xf7fbff,
-      emissive: 0xc7dcff,
-      emissiveIntensity: 0.9,
-      metalness: 0.04,
-      roughness: 0.24,
-    });
-    const indicatorBlueMaterial = new THREE.MeshStandardMaterial({
-      color: 0x64a0ff,
-      emissive: 0x2d73ff,
-      emissiveIntensity: 1.2,
-      metalness: 0.06,
-      roughness: 0.22,
-    });
     const dpadCenterIndicatorMaterial = new THREE.MeshStandardMaterial({
-      color: 0x9ec4ff,
-      emissive: 0x4b8dff,
-      emissiveIntensity: 2.2,
+      color: 0xc3dcff,
+      emissive: 0x6ba7ff,
+      emissiveIntensity: 3.0,
       metalness: 0.04,
-      roughness: 0.18,
+      roughness: 0.14,
     });
     const screwMaterial = new THREE.MeshStandardMaterial({
       color: 0x0b1227,
       metalness: 0.18,
       roughness: 0.46,
     });
-    const whiteIndicatorGlowMap = this.createRadialGlowTexture(
-      'rgba(255, 255, 255, 0.98)',
-      'rgba(188, 215, 255, 0.4)',
+    const blueIndicatorGlowMap = this.createRadialGlowTexture(
+      'rgba(214, 233, 255, 1)',
+      'rgba(78, 146, 255, 0.7)',
       'rgba(0, 0, 0, 0)'
     );
-    const blueIndicatorGlowMap = this.createRadialGlowTexture(
-      'rgba(186, 216, 255, 0.98)',
-      'rgba(62, 129, 255, 0.56)',
+    const blueIndicatorCoreGlowMap = this.createRadialGlowTexture(
+      'rgba(255, 255, 255, 1)',
+      'rgba(176, 215, 255, 0.86)',
       'rgba(0, 0, 0, 0)'
     );
 
@@ -1258,16 +1244,6 @@ export class MenuIcon3D {
     const rightControlBase = createRoundedPanel(0.42, 0.12, 0.024, 0.05, shellInsetMaterial);
     rightControlBase.position.set(0.69, 0.06, 0.1);
     this.group.add(rightControlBase);
-
-    const greyButton = createRoundedPanel(0.17, 0.08, 0.03, 0.03, indicatorWhiteMaterial);
-    greyButton.position.set(0.62, 0.06, 0.112);
-    this.group.add(greyButton);
-    addIndicatorGlow(whiteIndicatorGlowMap, 0xf3f8ff, 0.62, 0.06, 0.145, 0.2, 0.14, 0.38);
-
-    const orangeButton = createRoundedPanel(0.11, 0.08, 0.03, 0.03, indicatorBlueMaterial);
-    orangeButton.position.set(0.8, 0.06, 0.112);
-    this.group.add(orangeButton);
-    addIndicatorGlow(blueIndicatorGlowMap, 0x73adff, 0.8, 0.06, 0.145, 0.18, 0.14, 0.5);
 
     const screwGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.012, 14);
     const topLeftScrew = new THREE.Mesh(screwGeo, screwMaterial);
@@ -1381,7 +1357,8 @@ export class MenuIcon3D {
     dpadCenter.rotation.x = Math.PI * 0.5;
     dpadCenter.position.set(0.55, -0.9, 0.168);
     this.group.add(dpadCenter);
-    addIndicatorGlow(blueIndicatorGlowMap, 0xa8cbff, 0.55, -0.9, 0.188, 0.26, 0.26, 0.82);
+    addIndicatorGlow(blueIndicatorGlowMap, 0x9ec8ff, 0.55, -0.9, 0.189, 0.34, 0.34, 0.95);
+    addIndicatorGlow(blueIndicatorCoreGlowMap, 0xe9f4ff, 0.55, -0.9, 0.194, 0.18, 0.18, 0.98);
 
     const leftAction = createRoundedPanel(0.07, 0.12, 0.016, 0.03, keycapMaterial);
     leftAction.position.set(0.37, -0.9, 0.141);
@@ -1403,12 +1380,6 @@ export class MenuIcon3D {
     bottomLeftScrew.rotation.x = Math.PI * 0.5;
     bottomLeftScrew.position.set(-0.98, -0.86, 0.108);
     this.group.add(bottomLeftScrew);
-    const bottomRightIndicator = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.012, 16), indicatorWhiteMaterial);
-    bottomRightIndicator.rotation.x = Math.PI * 0.5;
-    bottomRightIndicator.position.set(0.98, -0.86, 0.112);
-    this.group.add(bottomRightIndicator);
-    addIndicatorGlow(whiteIndicatorGlowMap, 0xeaf3ff, 0.98, -0.86, 0.136, 0.14, 0.14, 0.42);
-
     this.group.rotation.set(-0.12, 0.3, 0.02);
     this.group.scale.setScalar(0.92);
   }

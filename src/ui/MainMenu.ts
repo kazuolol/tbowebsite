@@ -7,6 +7,7 @@ import {
 } from '../utils/LocalWeather';
 
 const ICON_RENDER_SIZE = 216;
+const FRIENDS_ICON_RENDER_SIZE = ICON_RENDER_SIZE * 2;
 const WEATHER_ICON_SIZE = 34;
 const WEATHER_REFRESH_MS = 15 * 60 * 1000;
 const MENU_ACTION_EVENT = 'tbo:menu-action';
@@ -226,8 +227,10 @@ export class MainMenu {
         iconEl.className = 'dc-menu-btn-icon';
 
         const canvas = document.createElement('canvas');
-        canvas.width = ICON_RENDER_SIZE;
-        canvas.height = ICON_RENDER_SIZE;
+        const iconRenderSize =
+          btn.iconType === 'friends' ? FRIENDS_ICON_RENDER_SIZE : ICON_RENDER_SIZE;
+        canvas.width = iconRenderSize;
+        canvas.height = iconRenderSize;
         iconEl.appendChild(canvas);
 
         const icon = new MenuIcon3D(canvas, btn.iconType);

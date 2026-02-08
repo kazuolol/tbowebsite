@@ -2,8 +2,6 @@ import * as THREE from 'three';
 
 export type IconType = 'key' | 'globe' | 'info' | 'inbox' | 'friends';
 
-const ICON_SIZE = 216; // 108 CSS px * 2 DPR
-
 export class MenuIcon3D {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
@@ -44,13 +42,75 @@ export class MenuIcon3D {
   private friendsSocialPanelTexture: THREE.CanvasTexture | null = null;
   private friendsSocialPanelContext: CanvasRenderingContext2D | null = null;
   private friendsSocialPanelGroup: THREE.Group | null = null;
+  private friendsFloatingChatTexture: THREE.CanvasTexture | null = null;
+  private friendsFloatingChatContext: CanvasRenderingContext2D | null = null;
+  private friendsFloatingChatGroup: THREE.Group | null = null;
+  private friendsLeftFloatingChatTexture: THREE.CanvasTexture | null = null;
+  private friendsLeftFloatingChatContext: CanvasRenderingContext2D | null = null;
+  private friendsLeftFloatingChatGroup: THREE.Group | null = null;
+  private friendsOverheadBubbles: Array<{ id: number; text: string; createdAt: number }> = [];
+  private friendsNextBubbleId = 1;
+  private friendsDemoMessageCursor = 0;
+  private friendsTypingIndicatorActive = false;
+  private friendsTypingIndicatorStartTime = 0;
+  private friendsLastTimePlayerTyped = Number.NEGATIVE_INFINITY;
+  private friendsLastTypingRegisterTime = Number.NEGATIVE_INFINITY;
+  private friendsPendingMessageAt: number | null = null;
+  private friendsMessageTranslateY = 0;
+  private friendsMessageTranslateStartY = 0;
+  private friendsMessageTranslateTargetY = 0;
+  private friendsMessageTranslateStartTime = 0;
+  private friendsMessageTranslateAnimating = false;
+  private friendsLeftOverheadBubbles: Array<{ id: number; text: string; createdAt: number }> = [];
+  private friendsLeftNextBubbleId = 1;
+  private friendsLeftDemoMessageCursor = 0;
+  private friendsLeftTypingIndicatorActive = false;
+  private friendsLeftTypingIndicatorStartTime = 0;
+  private friendsLeftLastTimePlayerTyped = Number.NEGATIVE_INFINITY;
+  private friendsLeftLastTypingRegisterTime = Number.NEGATIVE_INFINITY;
+  private friendsLeftPendingMessageAt: number | null = null;
+  private friendsLeftMessageTranslateY = 0;
+  private friendsLeftMessageTranslateStartY = 0;
+  private friendsLeftMessageTranslateTargetY = 0;
+  private friendsLeftMessageTranslateStartTime = 0;
+  private friendsLeftMessageTranslateAnimating = false;
+  private friendsTextureSamplingConfigured = false;
+  private readonly rendererSize = new THREE.Vector2();
   private static readonly FRIENDS_DOT_APPEAR_DURATION = 0.3;
   private static readonly FRIENDS_DOT_PAUSE_DURATION = 0.2;
+  private static readonly FRIENDS_TYPING_SIGN_DURATION = 5.0;
+  private static readonly FRIENDS_TYPING_INDICATOR_HEIGHT = 24;
+  private static readonly FRIENDS_TYPING_INDICATOR_WIDTH = 40;
+  private static readonly FRIENDS_TYPING_INDICATOR_BODY_HEIGHT = 20;
+  private static readonly FRIENDS_MESSAGE_TRANSLATE_DURATION = 0.3;
   private static readonly FRIENDS_MESSAGE_DISPLAY_DURATION = 6.0;
   private static readonly FRIENDS_MESSAGE_FADE_DURATION = 0.5;
+  private static readonly FRIENDS_MESSAGE_MAX_STACK = 3;
+  private static readonly FRIENDS_MESSAGE_PARENT_WIDTH = 200;
+  private static readonly FRIENDS_MESSAGE_PARENT_HEIGHT = 300;
+  private static readonly FRIENDS_MESSAGE_PARENT_PADDING_X = 25;
+  private static readonly FRIENDS_MESSAGE_STACK_GAP = 5;
+  private static readonly FRIENDS_MESSAGE_LABEL_MIN_WIDTH = 50;
+  private static readonly FRIENDS_MESSAGE_LABEL_PADDING_X = 6;
+  private static readonly FRIENDS_MESSAGE_MIN_HEIGHT = 25;
+  private static readonly FRIENDS_BUBBLE_TAIL_WIDTH = 10;
+  private static readonly FRIENDS_BUBBLE_TAIL_HEIGHT = 6;
   private static readonly FRIENDS_SOCIAL_PANEL_BASE_WIDTH = 398;
   private static readonly FRIENDS_SOCIAL_PANEL_BASE_HEIGHT = 480;
-  private static readonly FRIENDS_SOCIAL_PANEL_RENDER_SCALE = 2;
+  // Higher backing resolution improves panel legibility without increasing world-space size.
+  private static readonly FRIENDS_SOCIAL_PANEL_RENDER_SCALE = 4;
+  private static readonly FRIENDS_FLOATING_CHAT_BASE_WIDTH = 200;
+  private static readonly FRIENDS_FLOATING_CHAT_BASE_HEIGHT = 300;
+  private static readonly FRIENDS_FLOATING_CHAT_RENDER_SCALE = 4;
+  private static readonly FRIENDS_FLOATING_CHAT_PLANE_HEIGHT = 0.91;
+  private static readonly FRIENDS_FLOATING_CHAT_PLANE_WIDTH =
+    (MenuIcon3D.FRIENDS_FLOATING_CHAT_PLANE_HEIGHT * MenuIcon3D.FRIENDS_FLOATING_CHAT_BASE_WIDTH) /
+    MenuIcon3D.FRIENDS_FLOATING_CHAT_BASE_HEIGHT;
+  private static readonly FRIENDS_FLOATING_CHAT_WORLD_SCALE = 5.7375;
+  private static readonly FRIENDS_RIGHT_CHAT_OFFSET = new THREE.Vector3(1.967075, 2.772, 0.32);
+  private static readonly FRIENDS_LEFT_CHAT_OFFSET = new THREE.Vector3(-1.731026, 2.43936, 0.32);
+  private static readonly FRIENDS_RIGHT_CHAT_TILT_Z = -0.2178;
+  private static readonly FRIENDS_LEFT_CHAT_TILT_Z = 0.2178;
   private static readonly AXIS_Y = new THREE.Vector3(0, 1, 0);
   private static readonly AXIS_Z = new THREE.Vector3(0, 0, 1);
 
@@ -1393,33 +1453,70 @@ export class MenuIcon3D {
     bottomLeftScrew.position.set(-0.98, -0.86, 0.108);
     this.group.add(bottomLeftScrew);
 
-    // Social panel from the in-game UI lives beside the device, not on its screen.
-    const socialPanelGroup = new THREE.Group();
-    socialPanelGroup.position.set(-1.82, -0.02, 0.24);
-    socialPanelGroup.rotation.set(0.035, 0.2, -0.04);
-    this.group.add(socialPanelGroup);
-    this.friendsSocialPanelGroup = socialPanelGroup;
+    // Chat bubble lives outside the device, floating over the right side.
+    const floatingChatGroup = new THREE.Group();
+    floatingChatGroup.position.copy(MenuIcon3D.FRIENDS_RIGHT_CHAT_OFFSET);
+    // Lean slightly right so it reads like the device is "speaking".
+    floatingChatGroup.rotation.set(0, 0, MenuIcon3D.FRIENDS_RIGHT_CHAT_TILT_Z);
+    floatingChatGroup.scale.setScalar(MenuIcon3D.FRIENDS_FLOATING_CHAT_WORLD_SCALE);
+    this.group.add(floatingChatGroup);
+    this.friendsFloatingChatGroup = floatingChatGroup;
 
-    const socialPanelTexture = this.createFriendsSocialPanelTexture();
-    socialPanelTexture.needsUpdate = true;
-    socialPanelTexture.minFilter = THREE.LinearFilter;
-    socialPanelTexture.magFilter = THREE.LinearFilter;
-    socialPanelTexture.anisotropy = 2;
-    const socialPanelScreen = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.44, 1.74),
+    const floatingChatTexture = this.createFriendsFloatingChatTexture();
+    floatingChatTexture.needsUpdate = true;
+    floatingChatTexture.minFilter = THREE.LinearFilter;
+    floatingChatTexture.magFilter = THREE.LinearFilter;
+    floatingChatTexture.anisotropy = 2;
+    const floatingChatScreen = new THREE.Mesh(
+      new THREE.PlaneGeometry(
+        MenuIcon3D.FRIENDS_FLOATING_CHAT_PLANE_WIDTH,
+        MenuIcon3D.FRIENDS_FLOATING_CHAT_PLANE_HEIGHT
+      ),
       new THREE.MeshBasicMaterial({
-        map: socialPanelTexture,
+        map: floatingChatTexture,
         transparent: true,
         side: THREE.DoubleSide,
         toneMapped: false,
       })
     );
-    socialPanelScreen.position.set(0, 0, 0.016);
-    socialPanelScreen.renderOrder = 24;
-    const socialPanelScreenMaterial = socialPanelScreen.material as THREE.MeshBasicMaterial;
-    socialPanelScreenMaterial.depthTest = false;
-    socialPanelScreenMaterial.depthWrite = false;
-    socialPanelGroup.add(socialPanelScreen);
+    floatingChatScreen.position.set(0, 0, 0.012);
+    floatingChatScreen.renderOrder = 26;
+    const floatingChatScreenMaterial = floatingChatScreen.material as THREE.MeshBasicMaterial;
+    floatingChatScreenMaterial.depthTest = false;
+    floatingChatScreenMaterial.depthWrite = false;
+    floatingChatGroup.add(floatingChatScreen);
+
+    // Secondary mirrored chat stack on the left side.
+    const leftFloatingChatGroup = new THREE.Group();
+    leftFloatingChatGroup.position.copy(MenuIcon3D.FRIENDS_LEFT_CHAT_OFFSET);
+    leftFloatingChatGroup.rotation.set(0, 0, MenuIcon3D.FRIENDS_LEFT_CHAT_TILT_Z);
+    leftFloatingChatGroup.scale.setScalar(MenuIcon3D.FRIENDS_FLOATING_CHAT_WORLD_SCALE);
+    this.group.add(leftFloatingChatGroup);
+    this.friendsLeftFloatingChatGroup = leftFloatingChatGroup;
+
+    const leftFloatingChatTexture = this.createFriendsLeftFloatingChatTexture();
+    leftFloatingChatTexture.needsUpdate = true;
+    leftFloatingChatTexture.minFilter = THREE.LinearFilter;
+    leftFloatingChatTexture.magFilter = THREE.LinearFilter;
+    leftFloatingChatTexture.anisotropy = 2;
+    const leftFloatingChatScreen = new THREE.Mesh(
+      new THREE.PlaneGeometry(
+        MenuIcon3D.FRIENDS_FLOATING_CHAT_PLANE_WIDTH,
+        MenuIcon3D.FRIENDS_FLOATING_CHAT_PLANE_HEIGHT
+      ),
+      new THREE.MeshBasicMaterial({
+        map: leftFloatingChatTexture,
+        transparent: true,
+        side: THREE.DoubleSide,
+        toneMapped: false,
+      })
+    );
+    leftFloatingChatScreen.position.set(0, 0, 0.012);
+    leftFloatingChatScreen.renderOrder = 25;
+    const leftFloatingChatScreenMaterial = leftFloatingChatScreen.material as THREE.MeshBasicMaterial;
+    leftFloatingChatScreenMaterial.depthTest = false;
+    leftFloatingChatScreenMaterial.depthWrite = false;
+    leftFloatingChatGroup.add(leftFloatingChatScreen);
 
     this.group.rotation.set(-0.12, 0.3, 0.02);
     this.group.scale.setScalar(0.92);
@@ -1646,59 +1743,542 @@ export class MenuIcon3D {
     ctx.fillStyle = chatPanelFill;
     ctx.fillRect(chatPanelX, chatPanelY, chatPanelWidth, chatPanelHeight);
 
-    const dotAppearDuration = MenuIcon3D.FRIENDS_DOT_APPEAR_DURATION;
-    const pauseDuration = MenuIcon3D.FRIENDS_DOT_PAUSE_DURATION;
-    const dotCount = 3;
-    const typingCycleDuration = dotCount * dotAppearDuration + pauseDuration + dotCount * dotAppearDuration + pauseDuration;
-    const messageDisplayDuration = MenuIcon3D.FRIENDS_MESSAGE_DISPLAY_DURATION;
-    const messageFadeDuration = MenuIcon3D.FRIENDS_MESSAGE_FADE_DURATION;
-    const phaseDuration = typingCycleDuration + messageDisplayDuration + messageFadeDuration;
-    const phaseTime = elapsedSeconds % phaseDuration;
+    // Keep the phone UI clean; animated typing/message bubble now floats outside the device.
+    const panelLineCount = 8;
+    const lineLeft = chatPanelX + 20;
+    const lineMaxWidth = chatPanelWidth - 40;
+    for (let i = 0; i < panelLineCount; i++) {
+      const y = chatPanelY + 20 + i * 34;
+      const widthRatio = 0.34 + ((i * 37) % 39) / 100;
+      ctx.fillStyle = i % 2 === 0 ? 'rgba(35, 58, 99, 0.12)' : 'rgba(45, 115, 255, 0.11)';
+      ctx.fillRect(lineLeft, y, Math.round(lineMaxWidth * widthRatio), 6);
+    }
+  }
 
-    const bubbleY = Math.round(topBarHeight + (height - topBarHeight) * 0.34);
+  private createFriendsFloatingChatTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width =
+      MenuIcon3D.FRIENDS_FLOATING_CHAT_BASE_WIDTH * MenuIcon3D.FRIENDS_FLOATING_CHAT_RENDER_SCALE;
+    canvas.height =
+      MenuIcon3D.FRIENDS_FLOATING_CHAT_BASE_HEIGHT * MenuIcon3D.FRIENDS_FLOATING_CHAT_RENDER_SCALE;
+    const ctx = canvas.getContext('2d')!;
+    this.friendsFloatingChatContext = ctx;
 
-    if (phaseTime < typingCycleDuration) {
-      const typingBubbleWidth = Math.round(width * 0.2);
-      const typingBubbleHeight = Math.round(height * 0.16);
-      const typingBubbleX = Math.round(width * 0.5 - typingBubbleWidth * 0.5);
-      this.drawFriendsBubble(ctx, typingBubbleX, bubbleY, typingBubbleWidth, typingBubbleHeight, 1);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    this.friendsFloatingChatTexture = texture;
+    this.renderFriendsFloatingChat(0);
+    texture.needsUpdate = true;
+    return texture;
+  }
 
-      const dotDiameter = typingBubbleHeight * (5 / 20);
-      const dotCenterY = bubbleY + typingBubbleHeight * 0.53;
-      const dotCenterXs = [0.2375, 0.5125, 0.7875];
+  private createFriendsLeftFloatingChatTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width =
+      MenuIcon3D.FRIENDS_FLOATING_CHAT_BASE_WIDTH * MenuIcon3D.FRIENDS_FLOATING_CHAT_RENDER_SCALE;
+    canvas.height =
+      MenuIcon3D.FRIENDS_FLOATING_CHAT_BASE_HEIGHT * MenuIcon3D.FRIENDS_FLOATING_CHAT_RENDER_SCALE;
+    const ctx = canvas.getContext('2d')!;
+    this.friendsLeftFloatingChatContext = ctx;
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    this.friendsLeftFloatingChatTexture = texture;
+    this.renderFriendsLeftFloatingChat(0);
+    texture.needsUpdate = true;
+    return texture;
+  }
+
+  private getNextFriendsDemoMessage(): string {
+    const messages = ['wya?', 'lol', '\u{1F602}', '\u{1F62D}\u{1F62D}'];
+    const next = messages[this.friendsDemoMessageCursor % messages.length];
+    this.friendsDemoMessageCursor++;
+    return next;
+  }
+
+  private getNextFriendsLeftDemoMessage(): string {
+    const messages = ['omw', 'world 2?', 'meet me'];
+    const next = messages[this.friendsLeftDemoMessageCursor % messages.length];
+    this.friendsLeftDemoMessageCursor++;
+    return next;
+  }
+
+  private registerFriendsTyping(elapsedSeconds: number): void {
+    this.friendsLastTypingRegisterTime = elapsedSeconds;
+    this.friendsLastTimePlayerTyped = elapsedSeconds;
+    if (!this.friendsTypingIndicatorActive) {
+      this.showFriendsTypingIndicatorSpace(elapsedSeconds);
+    }
+  }
+
+  private stopFriendsTyping(elapsedSeconds: number): void {
+    if (!this.friendsTypingIndicatorActive) {
+      return;
+    }
+    this.hideFriendsTypingIndicatorSpace(elapsedSeconds);
+  }
+
+  private showFriendsTypingIndicatorSpace(elapsedSeconds: number): void {
+    this.friendsTypingIndicatorActive = true;
+    this.friendsTypingIndicatorStartTime = elapsedSeconds;
+    this.startFriendsMessageTranslate(-MenuIcon3D.FRIENDS_TYPING_INDICATOR_HEIGHT, elapsedSeconds);
+  }
+
+  private hideFriendsTypingIndicatorSpace(elapsedSeconds: number): void {
+    this.friendsTypingIndicatorActive = false;
+    this.startFriendsMessageTranslate(0, elapsedSeconds);
+  }
+
+  private startFriendsMessageTranslate(targetY: number, elapsedSeconds: number): void {
+    if (Math.abs(this.friendsMessageTranslateY - targetY) <= 0.001) {
+      this.friendsMessageTranslateY = targetY;
+      this.friendsMessageTranslateAnimating = false;
+      return;
+    }
+    this.friendsMessageTranslateStartY = this.friendsMessageTranslateY;
+    this.friendsMessageTranslateTargetY = targetY;
+    this.friendsMessageTranslateStartTime = elapsedSeconds;
+    this.friendsMessageTranslateAnimating = true;
+  }
+
+  private updateFriendsMessageTranslate(elapsedSeconds: number): void {
+    if (!this.friendsMessageTranslateAnimating) {
+      return;
+    }
+    const progress = THREE.MathUtils.clamp(
+      (elapsedSeconds - this.friendsMessageTranslateStartTime) /
+        MenuIcon3D.FRIENDS_MESSAGE_TRANSLATE_DURATION,
+      0,
+      1
+    );
+    const smooth = THREE.MathUtils.smoothstep(progress, 0, 1);
+    this.friendsMessageTranslateY = THREE.MathUtils.lerp(
+      this.friendsMessageTranslateStartY,
+      this.friendsMessageTranslateTargetY,
+      smooth
+    );
+    if (progress >= 1) {
+      this.friendsMessageTranslateY = this.friendsMessageTranslateTargetY;
+      this.friendsMessageTranslateAnimating = false;
+    }
+  }
+
+  private removeOldestFriendsBubble(): void {
+    if (this.friendsOverheadBubbles.length === 0) {
+      return;
+    }
+    this.friendsOverheadBubbles.shift();
+  }
+
+  private showFriendsOverheadMessage(message: string, elapsedSeconds: number): void {
+    if (this.friendsOverheadBubbles.length >= MenuIcon3D.FRIENDS_MESSAGE_MAX_STACK) {
+      this.removeOldestFriendsBubble();
+    }
+    this.friendsOverheadBubbles.push({
+      id: this.friendsNextBubbleId++,
+      text: message,
+      createdAt: elapsedSeconds,
+    });
+  }
+
+  private updateFriendsOverheadBubbles(elapsedSeconds: number): void {
+    const maxAge =
+      MenuIcon3D.FRIENDS_MESSAGE_DISPLAY_DURATION + MenuIcon3D.FRIENDS_MESSAGE_FADE_DURATION;
+    this.friendsOverheadBubbles = this.friendsOverheadBubbles.filter(
+      (bubble) => elapsedSeconds - bubble.createdAt <= maxAge
+    );
+  }
+
+  private updateFriendsOverheadDemo(elapsedSeconds: number): void {
+    if (
+      !this.friendsTypingIndicatorActive &&
+      this.friendsPendingMessageAt === null &&
+      elapsedSeconds - this.friendsLastTypingRegisterTime >= 3.2
+    ) {
+      this.registerFriendsTyping(elapsedSeconds);
+      this.friendsPendingMessageAt = elapsedSeconds + 1.2;
+    }
+
+    if (
+      this.friendsTypingIndicatorActive &&
+      elapsedSeconds > this.friendsLastTimePlayerTyped + MenuIcon3D.FRIENDS_TYPING_SIGN_DURATION
+    ) {
+      this.stopFriendsTyping(elapsedSeconds);
+      this.friendsPendingMessageAt = null;
+    }
+
+    if (this.friendsPendingMessageAt !== null && elapsedSeconds >= this.friendsPendingMessageAt) {
+      this.showFriendsOverheadMessage(this.getNextFriendsDemoMessage(), elapsedSeconds);
+      this.stopFriendsTyping(elapsedSeconds);
+      this.friendsPendingMessageAt = null;
+    }
+
+    this.updateFriendsOverheadBubbles(elapsedSeconds);
+    this.updateFriendsMessageTranslate(elapsedSeconds);
+  }
+
+  private renderFriendsFloatingChat(elapsedSeconds: number): void {
+    if (!this.friendsFloatingChatContext) {
+      return;
+    }
+
+    this.updateFriendsOverheadDemo(elapsedSeconds);
+
+    const ctx = this.friendsFloatingChatContext;
+    const pixelWidth = ctx.canvas.width;
+    const pixelHeight = ctx.canvas.height;
+    const width = MenuIcon3D.FRIENDS_MESSAGE_PARENT_WIDTH;
+    const height = MenuIcon3D.FRIENDS_MESSAGE_PARENT_HEIGHT;
+    const scaleX = pixelWidth / width;
+    const scaleY = pixelHeight / height;
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, pixelWidth, pixelHeight);
+    ctx.setTransform(scaleX, 0, 0, scaleY, 0, 0);
+
+    const parentWidth = MenuIcon3D.FRIENDS_MESSAGE_PARENT_WIDTH;
+    const parentPaddingX = MenuIcon3D.FRIENDS_MESSAGE_PARENT_PADDING_X;
+    const messageAreaWidth = parentWidth - parentPaddingX * 2;
+
+    // Draw canonical typing indicator first so message bubbles render above it.
+    if (this.friendsTypingIndicatorActive) {
+      const indicatorWidth = MenuIcon3D.FRIENDS_TYPING_INDICATOR_WIDTH;
+      const indicatorHeight = MenuIcon3D.FRIENDS_TYPING_INDICATOR_BODY_HEIGHT;
+      const indicatorX = Math.round((parentWidth - indicatorWidth) * 0.5);
+      // Anchor typing bubble to the bottom; message stack uses translate(-24) when typing is active.
+      const indicatorY = Math.round(height - indicatorHeight - MenuIcon3D.FRIENDS_BUBBLE_TAIL_HEIGHT);
+
+      this.drawFriendsBubble(ctx, indicatorX, indicatorY, indicatorWidth, indicatorHeight, 1, true);
+
+      const dotAppearDuration = MenuIcon3D.FRIENDS_DOT_APPEAR_DURATION;
+      const pauseDuration = MenuIcon3D.FRIENDS_DOT_PAUSE_DURATION;
+      const typingCycleDuration = dotAppearDuration * 3 + pauseDuration + dotAppearDuration * 3 + pauseDuration;
+      const timeInCycle =
+        ((elapsedSeconds - this.friendsTypingIndicatorStartTime) % typingCycleDuration + typingCycleDuration) %
+        typingCycleDuration;
+      const dotDiameter = 5;
+      const dotOffsetsX = [7, 18, 29];
       const dotTints = [178, 217, 255];
-      for (let i = 0; i < dotCenterXs.length; i++) {
-        const dotOpacity = this.getFriendsTypingDotOpacity(i, phaseTime, dotAppearDuration, pauseDuration);
+      for (let i = 0; i < dotOffsetsX.length; i++) {
+        const dotOpacity = this.getFriendsTypingDotOpacity(i, timeInCycle, dotAppearDuration, pauseDuration);
         if (dotOpacity <= 0) {
           continue;
         }
         const dotTint = dotTints[i];
         ctx.fillStyle = `rgba(${dotTint}, ${dotTint}, ${dotTint}, ${Math.min(1, dotOpacity)})`;
         ctx.beginPath();
-        ctx.arc(typingBubbleX + typingBubbleWidth * dotCenterXs[i], dotCenterY, dotDiameter * 0.5, 0, Math.PI * 2);
+        ctx.arc(indicatorX + dotOffsetsX[i], indicatorY + 8, dotDiameter * 0.5, 0, Math.PI * 2);
         ctx.fill();
       }
-    } else {
-      const messageTime = phaseTime - typingCycleDuration;
-      let messageAlpha = 1;
-      if (messageTime > messageDisplayDuration) {
-        const fadeProgress = (messageTime - messageDisplayDuration) / messageFadeDuration;
-        messageAlpha = THREE.MathUtils.clamp(1 - fadeProgress, 0, 1);
+    }
+
+    // Draw message stack (oldest top, newest bottom) with canonical max stack/fade timings.
+    const labelFont = 'normal 12px "Jost", "Segoe UI Emoji", "Apple Color Emoji", sans-serif';
+    const labelMinWidth = MenuIcon3D.FRIENDS_MESSAGE_LABEL_MIN_WIDTH;
+    const labelPaddingX = MenuIcon3D.FRIENDS_MESSAGE_LABEL_PADDING_X;
+    const bubbleHeight = MenuIcon3D.FRIENDS_MESSAGE_MIN_HEIGHT;
+    // Keep tail geometry visible within the texture bounds.
+    let currentBottom = height - MenuIcon3D.FRIENDS_BUBBLE_TAIL_HEIGHT + this.friendsMessageTranslateY;
+    const newestIndex = this.friendsOverheadBubbles.length - 1;
+
+    for (let i = newestIndex; i >= 0; i--) {
+      const bubble = this.friendsOverheadBubbles[i];
+      const age = elapsedSeconds - bubble.createdAt;
+      const bubbleOpacity =
+        age <= MenuIcon3D.FRIENDS_MESSAGE_DISPLAY_DURATION
+          ? 1
+          : THREE.MathUtils.clamp(
+              1 -
+                (age - MenuIcon3D.FRIENDS_MESSAGE_DISPLAY_DURATION) /
+                  MenuIcon3D.FRIENDS_MESSAGE_FADE_DURATION,
+              0,
+              1
+            );
+      if (bubbleOpacity <= 0) {
+        continue;
       }
 
-      if (messageAlpha > 0) {
-        const messageBubbleWidth = Math.round(width * 0.17);
-        const messageBubbleHeight = Math.round(height * 0.15);
-        const messageBubbleX = Math.round(width * 0.5 - messageBubbleWidth * 0.5);
-        this.drawFriendsBubble(ctx, messageBubbleX, bubbleY, messageBubbleWidth, messageBubbleHeight, messageAlpha);
+      ctx.font = labelFont;
+      const maxTextWidth = messageAreaWidth - labelPaddingX * 2;
+      let messageText = bubble.text;
+      if (ctx.measureText(messageText).width > maxTextWidth) {
+        const chars = Array.from(messageText);
+        while (chars.length > 1 && ctx.measureText(`${chars.join('')}...`).width > maxTextWidth) {
+          chars.pop();
+        }
+        messageText = `${chars.join('')}...`;
+      }
+      const textWidth = Math.ceil(ctx.measureText(messageText).width);
+      const bubbleWidth = Math.max(labelMinWidth, textWidth) + labelPaddingX * 2;
+      const bubbleX = Math.round(parentPaddingX + (messageAreaWidth - bubbleWidth) * 0.5);
+      const showTail = i === newestIndex && !this.friendsTypingIndicatorActive;
+      const tailHeight = showTail ? MenuIcon3D.FRIENDS_BUBBLE_TAIL_HEIGHT : 0;
+      const bubbleY = Math.round(currentBottom - (bubbleHeight + tailHeight));
 
-        ctx.fillStyle = `rgba(255, 255, 255, ${messageAlpha})`;
-        ctx.font = `700 ${Math.round(messageBubbleHeight * 0.64)}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('\u{1F602}', messageBubbleX + messageBubbleWidth * 0.5, bubbleY + messageBubbleHeight * 0.52);
+      this.drawFriendsBubble(
+        ctx,
+        bubbleX,
+        bubbleY,
+        bubbleWidth,
+        bubbleHeight,
+        bubbleOpacity,
+        showTail
+      );
+
+      ctx.fillStyle = `rgba(255, 255, 255, ${bubbleOpacity})`;
+      ctx.font = labelFont;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = `rgba(0, 0, 0, ${bubbleOpacity})`;
+      ctx.shadowOffsetX = 1;
+      ctx.shadowOffsetY = 1;
+      ctx.shadowBlur = 0;
+      ctx.fillText(messageText, bubbleX + bubbleWidth * 0.5, bubbleY + bubbleHeight * 0.5);
+      ctx.shadowColor = 'rgba(0, 0, 0, 0)';
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+
+      currentBottom = bubbleY - MenuIcon3D.FRIENDS_MESSAGE_STACK_GAP;
+    }
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  private registerFriendsLeftTyping(elapsedSeconds: number): void {
+    this.friendsLeftLastTypingRegisterTime = elapsedSeconds;
+    this.friendsLeftLastTimePlayerTyped = elapsedSeconds;
+    if (!this.friendsLeftTypingIndicatorActive) {
+      this.showFriendsLeftTypingIndicatorSpace(elapsedSeconds);
+    }
+  }
+
+  private stopFriendsLeftTyping(elapsedSeconds: number): void {
+    if (!this.friendsLeftTypingIndicatorActive) {
+      return;
+    }
+    this.hideFriendsLeftTypingIndicatorSpace(elapsedSeconds);
+  }
+
+  private showFriendsLeftTypingIndicatorSpace(elapsedSeconds: number): void {
+    this.friendsLeftTypingIndicatorActive = true;
+    this.friendsLeftTypingIndicatorStartTime = elapsedSeconds;
+    this.startFriendsLeftMessageTranslate(-MenuIcon3D.FRIENDS_TYPING_INDICATOR_HEIGHT, elapsedSeconds);
+  }
+
+  private hideFriendsLeftTypingIndicatorSpace(elapsedSeconds: number): void {
+    this.friendsLeftTypingIndicatorActive = false;
+    this.startFriendsLeftMessageTranslate(0, elapsedSeconds);
+  }
+
+  private startFriendsLeftMessageTranslate(targetY: number, elapsedSeconds: number): void {
+    if (Math.abs(this.friendsLeftMessageTranslateY - targetY) <= 0.001) {
+      this.friendsLeftMessageTranslateY = targetY;
+      this.friendsLeftMessageTranslateAnimating = false;
+      return;
+    }
+    this.friendsLeftMessageTranslateStartY = this.friendsLeftMessageTranslateY;
+    this.friendsLeftMessageTranslateTargetY = targetY;
+    this.friendsLeftMessageTranslateStartTime = elapsedSeconds;
+    this.friendsLeftMessageTranslateAnimating = true;
+  }
+
+  private updateFriendsLeftMessageTranslate(elapsedSeconds: number): void {
+    if (!this.friendsLeftMessageTranslateAnimating) {
+      return;
+    }
+    const progress = THREE.MathUtils.clamp(
+      (elapsedSeconds - this.friendsLeftMessageTranslateStartTime) /
+        MenuIcon3D.FRIENDS_MESSAGE_TRANSLATE_DURATION,
+      0,
+      1
+    );
+    const smooth = THREE.MathUtils.smoothstep(progress, 0, 1);
+    this.friendsLeftMessageTranslateY = THREE.MathUtils.lerp(
+      this.friendsLeftMessageTranslateStartY,
+      this.friendsLeftMessageTranslateTargetY,
+      smooth
+    );
+    if (progress >= 1) {
+      this.friendsLeftMessageTranslateY = this.friendsLeftMessageTranslateTargetY;
+      this.friendsLeftMessageTranslateAnimating = false;
+    }
+  }
+
+  private removeOldestFriendsLeftBubble(): void {
+    if (this.friendsLeftOverheadBubbles.length === 0) {
+      return;
+    }
+    this.friendsLeftOverheadBubbles.shift();
+  }
+
+  private showFriendsLeftOverheadMessage(message: string, elapsedSeconds: number): void {
+    if (this.friendsLeftOverheadBubbles.length >= MenuIcon3D.FRIENDS_MESSAGE_MAX_STACK) {
+      this.removeOldestFriendsLeftBubble();
+    }
+    this.friendsLeftOverheadBubbles.push({
+      id: this.friendsLeftNextBubbleId++,
+      text: message,
+      createdAt: elapsedSeconds,
+    });
+  }
+
+  private updateFriendsLeftOverheadBubbles(elapsedSeconds: number): void {
+    const maxAge =
+      MenuIcon3D.FRIENDS_MESSAGE_DISPLAY_DURATION + MenuIcon3D.FRIENDS_MESSAGE_FADE_DURATION;
+    this.friendsLeftOverheadBubbles = this.friendsLeftOverheadBubbles.filter(
+      (bubble) => elapsedSeconds - bubble.createdAt <= maxAge
+    );
+  }
+
+  private updateFriendsLeftOverheadDemo(elapsedSeconds: number): void {
+    if (
+      !this.friendsLeftTypingIndicatorActive &&
+      this.friendsLeftPendingMessageAt === null &&
+      elapsedSeconds - this.friendsLeftLastTypingRegisterTime >= 3.2
+    ) {
+      this.registerFriendsLeftTyping(elapsedSeconds);
+      this.friendsLeftPendingMessageAt = elapsedSeconds + 1.2;
+    }
+
+    if (
+      this.friendsLeftTypingIndicatorActive &&
+      elapsedSeconds > this.friendsLeftLastTimePlayerTyped + MenuIcon3D.FRIENDS_TYPING_SIGN_DURATION
+    ) {
+      this.stopFriendsLeftTyping(elapsedSeconds);
+      this.friendsLeftPendingMessageAt = null;
+    }
+
+    if (this.friendsLeftPendingMessageAt !== null && elapsedSeconds >= this.friendsLeftPendingMessageAt) {
+      this.showFriendsLeftOverheadMessage(this.getNextFriendsLeftDemoMessage(), elapsedSeconds);
+      this.stopFriendsLeftTyping(elapsedSeconds);
+      this.friendsLeftPendingMessageAt = null;
+    }
+
+    this.updateFriendsLeftOverheadBubbles(elapsedSeconds);
+    this.updateFriendsLeftMessageTranslate(elapsedSeconds);
+  }
+
+  private renderFriendsLeftFloatingChat(elapsedSeconds: number): void {
+    if (!this.friendsLeftFloatingChatContext) {
+      return;
+    }
+
+    this.updateFriendsLeftOverheadDemo(elapsedSeconds);
+
+    const ctx = this.friendsLeftFloatingChatContext;
+    const pixelWidth = ctx.canvas.width;
+    const pixelHeight = ctx.canvas.height;
+    const width = MenuIcon3D.FRIENDS_MESSAGE_PARENT_WIDTH;
+    const height = MenuIcon3D.FRIENDS_MESSAGE_PARENT_HEIGHT;
+    const scaleX = pixelWidth / width;
+    const scaleY = pixelHeight / height;
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, pixelWidth, pixelHeight);
+    ctx.setTransform(scaleX, 0, 0, scaleY, 0, 0);
+
+    const parentWidth = MenuIcon3D.FRIENDS_MESSAGE_PARENT_WIDTH;
+    const parentPaddingX = MenuIcon3D.FRIENDS_MESSAGE_PARENT_PADDING_X;
+    const messageAreaWidth = parentWidth - parentPaddingX * 2;
+
+    if (this.friendsLeftTypingIndicatorActive) {
+      const indicatorWidth = MenuIcon3D.FRIENDS_TYPING_INDICATOR_WIDTH;
+      const indicatorHeight = MenuIcon3D.FRIENDS_TYPING_INDICATOR_BODY_HEIGHT;
+      const indicatorX = Math.round((parentWidth - indicatorWidth) * 0.5);
+      const indicatorY = Math.round(height - indicatorHeight - MenuIcon3D.FRIENDS_BUBBLE_TAIL_HEIGHT);
+
+      this.drawFriendsBubble(ctx, indicatorX, indicatorY, indicatorWidth, indicatorHeight, 1, true);
+
+      const dotAppearDuration = MenuIcon3D.FRIENDS_DOT_APPEAR_DURATION;
+      const pauseDuration = MenuIcon3D.FRIENDS_DOT_PAUSE_DURATION;
+      const typingCycleDuration = dotAppearDuration * 3 + pauseDuration + dotAppearDuration * 3 + pauseDuration;
+      const timeInCycle =
+        ((elapsedSeconds - this.friendsLeftTypingIndicatorStartTime) % typingCycleDuration + typingCycleDuration) %
+        typingCycleDuration;
+      const dotDiameter = 5;
+      const dotOffsetsX = [7, 18, 29];
+      const dotTints = [178, 217, 255];
+      for (let i = 0; i < dotOffsetsX.length; i++) {
+        const dotOpacity = this.getFriendsTypingDotOpacity(i, timeInCycle, dotAppearDuration, pauseDuration);
+        if (dotOpacity <= 0) {
+          continue;
+        }
+        const dotTint = dotTints[i];
+        ctx.fillStyle = `rgba(${dotTint}, ${dotTint}, ${dotTint}, ${Math.min(1, dotOpacity)})`;
+        ctx.beginPath();
+        ctx.arc(indicatorX + dotOffsetsX[i], indicatorY + 8, dotDiameter * 0.5, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
+
+    const labelFont = 'normal 12px "Jost", "Segoe UI Emoji", "Apple Color Emoji", sans-serif';
+    const labelMinWidth = MenuIcon3D.FRIENDS_MESSAGE_LABEL_MIN_WIDTH;
+    const labelPaddingX = MenuIcon3D.FRIENDS_MESSAGE_LABEL_PADDING_X;
+    const bubbleHeight = MenuIcon3D.FRIENDS_MESSAGE_MIN_HEIGHT;
+    let currentBottom = height - MenuIcon3D.FRIENDS_BUBBLE_TAIL_HEIGHT + this.friendsLeftMessageTranslateY;
+    const newestIndex = this.friendsLeftOverheadBubbles.length - 1;
+
+    for (let i = newestIndex; i >= 0; i--) {
+      const bubble = this.friendsLeftOverheadBubbles[i];
+      const age = elapsedSeconds - bubble.createdAt;
+      const bubbleOpacity =
+        age <= MenuIcon3D.FRIENDS_MESSAGE_DISPLAY_DURATION
+          ? 1
+          : THREE.MathUtils.clamp(
+              1 -
+                (age - MenuIcon3D.FRIENDS_MESSAGE_DISPLAY_DURATION) /
+                  MenuIcon3D.FRIENDS_MESSAGE_FADE_DURATION,
+              0,
+              1
+            );
+      if (bubbleOpacity <= 0) {
+        continue;
+      }
+
+      ctx.font = labelFont;
+      const maxTextWidth = messageAreaWidth - labelPaddingX * 2;
+      let messageText = bubble.text;
+      if (ctx.measureText(messageText).width > maxTextWidth) {
+        const chars = Array.from(messageText);
+        while (chars.length > 1 && ctx.measureText(`${chars.join('')}...`).width > maxTextWidth) {
+          chars.pop();
+        }
+        messageText = `${chars.join('')}...`;
+      }
+      const textWidth = Math.ceil(ctx.measureText(messageText).width);
+      const bubbleWidth = Math.max(labelMinWidth, textWidth) + labelPaddingX * 2;
+      const bubbleX = Math.round(parentPaddingX + (messageAreaWidth - bubbleWidth) * 0.5);
+      const showTail = i === newestIndex && !this.friendsLeftTypingIndicatorActive;
+      const tailHeight = showTail ? MenuIcon3D.FRIENDS_BUBBLE_TAIL_HEIGHT : 0;
+      const bubbleY = Math.round(currentBottom - (bubbleHeight + tailHeight));
+
+      this.drawFriendsBubble(
+        ctx,
+        bubbleX,
+        bubbleY,
+        bubbleWidth,
+        bubbleHeight,
+        bubbleOpacity,
+        showTail
+      );
+
+      ctx.fillStyle = `rgba(255, 255, 255, ${bubbleOpacity})`;
+      ctx.font = labelFont;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = `rgba(0, 0, 0, ${bubbleOpacity})`;
+      ctx.shadowOffsetX = 1;
+      ctx.shadowOffsetY = 1;
+      ctx.shadowBlur = 0;
+      ctx.fillText(messageText, bubbleX + bubbleWidth * 0.5, bubbleY + bubbleHeight * 0.5);
+      ctx.shadowColor = 'rgba(0, 0, 0, 0)';
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+
+      currentBottom = bubbleY - MenuIcon3D.FRIENDS_MESSAGE_STACK_GAP;
+    }
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
   private drawFriendsBubble(
@@ -1707,14 +2287,12 @@ export class MenuIcon3D {
     y: number,
     width: number,
     height: number,
-    alpha: number
+    alpha: number,
+    showTail: boolean
   ): void {
-    const radius = Math.min(Math.round(height * 0.3), Math.round(width * 0.18));
+    const radius = 6;
     const right = x + width;
     const bottom = y + height;
-    const tailWidth = Math.max(12, Math.round(width * 0.14));
-    const tailHeight = Math.max(8, Math.round(height * 0.24));
-    const tailCenterX = x + width * 0.5;
 
     ctx.beginPath();
     ctx.moveTo(x + radius, y);
@@ -1722,17 +2300,20 @@ export class MenuIcon3D {
     ctx.quadraticCurveTo(right, y, right, y + radius);
     ctx.lineTo(right, bottom - radius);
     ctx.quadraticCurveTo(right, bottom, right - radius, bottom);
-    ctx.lineTo(tailCenterX + tailWidth * 0.5, bottom);
-    ctx.lineTo(tailCenterX, bottom + tailHeight);
-    ctx.lineTo(tailCenterX - tailWidth * 0.5, bottom);
+    if (showTail) {
+      const tailWidth = MenuIcon3D.FRIENDS_BUBBLE_TAIL_WIDTH;
+      const tailHeight = MenuIcon3D.FRIENDS_BUBBLE_TAIL_HEIGHT;
+      const tailCenterX = x + width * 0.5;
+      ctx.lineTo(tailCenterX + tailWidth * 0.5, bottom);
+      ctx.lineTo(tailCenterX, bottom + tailHeight);
+      ctx.lineTo(tailCenterX - tailWidth * 0.5, bottom);
+    }
     ctx.lineTo(x + radius, bottom);
     ctx.quadraticCurveTo(x, bottom, x, bottom - radius);
     ctx.lineTo(x, y + radius);
     ctx.quadraticCurveTo(x, y, x + radius, y);
     ctx.closePath();
 
-    ctx.fillStyle = `rgba(34, 52, 92, ${0.9 * alpha})`;
-    ctx.fill();
     ctx.lineWidth = 2;
     ctx.strokeStyle = `rgba(255, 255, 255, ${0.2 * alpha})`;
     ctx.stroke();
@@ -1994,6 +2575,42 @@ export class MenuIcon3D {
     }
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  private configureFriendsTextureSampling(renderer: THREE.WebGLRenderer): void {
+    if (this.friendsTextureSamplingConfigured) {
+      return;
+    }
+    const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
+    const targetAnisotropy = Math.max(1, Math.min(8, maxAnisotropy));
+
+    if (this.friendsScreenTexture) {
+      this.friendsScreenTexture.anisotropy = targetAnisotropy;
+      this.friendsScreenTexture.needsUpdate = true;
+    }
+    if (this.friendsSocialPanelTexture) {
+      this.friendsSocialPanelTexture.anisotropy = targetAnisotropy;
+      this.friendsSocialPanelTexture.needsUpdate = true;
+    }
+    if (this.friendsFloatingChatTexture) {
+      this.friendsFloatingChatTexture.anisotropy = targetAnisotropy;
+      this.friendsFloatingChatTexture.needsUpdate = true;
+    }
+    if (this.friendsLeftFloatingChatTexture) {
+      this.friendsLeftFloatingChatTexture.anisotropy = targetAnisotropy;
+      this.friendsLeftFloatingChatTexture.needsUpdate = true;
+    }
+    this.friendsTextureSamplingConfigured = true;
+  }
+
+  private syncRendererSize(renderer: THREE.WebGLRenderer): void {
+    const targetWidth = this.ctx.canvas.width;
+    const targetHeight = this.ctx.canvas.height;
+    renderer.getSize(this.rendererSize);
+    if (this.rendererSize.x === targetWidth && this.rendererSize.y === targetHeight) {
+      return;
+    }
+    renderer.setSize(targetWidth, targetHeight, false);
   }
 
   private createEnvelopePaperMaps(): {
@@ -2314,6 +2931,7 @@ export class MenuIcon3D {
   /** Update animation state + render via shared renderer, then blit to display canvas. */
   update(delta: number, renderer: THREE.WebGLRenderer): void {
     this.elapsed += delta;
+    this.syncRendererSize(renderer);
     renderer.setClearColor(0x000000, 0);
 
     if (this.type === 'globe') {
@@ -2391,25 +3009,44 @@ export class MenuIcon3D {
       this.group.position.y = Math.sin(this.elapsed * 1.3) * 0.022;
       this.group.position.z = Math.sin(this.elapsed * 0.48) * 0.01;
     } else if (this.type === 'friends') {
+      this.configureFriendsTextureSampling(renderer);
+
       if (this.friendsScreenTexture) {
         this.renderFriendsPhoneScreen(this.elapsed);
         this.friendsScreenTexture.needsUpdate = true;
       }
-      if (this.friendsSocialPanelTexture) {
-        this.renderFriendsSocialPanel(this.elapsed);
-        this.friendsSocialPanelTexture.needsUpdate = true;
+      if (this.friendsFloatingChatTexture) {
+        this.renderFriendsFloatingChat(this.elapsed);
+        this.friendsFloatingChatTexture.needsUpdate = true;
       }
-      this.group.rotation.x = -0.04 + Math.sin(this.elapsed * 0.9) * 0.03;
-      this.group.rotation.y = 0.2 + Math.sin(this.elapsed * 0.55) * 0.12;
-      this.group.rotation.z = 0.01 + Math.sin(this.elapsed * 0.7) * 0.02;
-      this.group.position.y = Math.sin(this.elapsed * 1.3) * 0.02;
+      if (this.friendsLeftFloatingChatTexture) {
+        this.renderFriendsLeftFloatingChat(this.elapsed);
+        this.friendsLeftFloatingChatTexture.needsUpdate = true;
+      }
+      // Increase overall Friends icon floatiness.
+      this.group.rotation.x = -0.04 + Math.sin(this.elapsed * 1.0) * 0.045;
+      this.group.rotation.y = 0.2 + Math.sin(this.elapsed * 0.62) * 0.16;
+      this.group.rotation.z = 0.01 + Math.sin(this.elapsed * 0.84) * 0.03;
+      this.group.position.y = Math.sin(this.elapsed * 1.4) * 0.045;
     } else {
       this.group.rotation.y += delta * 0.8;
     }
 
     renderer.render(this.scene, this.camera);
-    this.ctx.clearRect(0, 0, ICON_SIZE, ICON_SIZE);
-    this.ctx.drawImage(renderer.domElement, 0, 0);
+    const targetWidth = this.ctx.canvas.width;
+    const targetHeight = this.ctx.canvas.height;
+    this.ctx.clearRect(0, 0, targetWidth, targetHeight);
+    this.ctx.drawImage(
+      renderer.domElement,
+      0,
+      0,
+      renderer.domElement.width,
+      renderer.domElement.height,
+      0,
+      0,
+      targetWidth,
+      targetHeight
+    );
   }
 
   dispose(): void {
@@ -2475,5 +3112,12 @@ export class MenuIcon3D {
     this.friendsSocialPanelTexture = null;
     this.friendsSocialPanelContext = null;
     this.friendsSocialPanelGroup = null;
+    this.friendsFloatingChatTexture = null;
+    this.friendsFloatingChatContext = null;
+    this.friendsFloatingChatGroup = null;
+    this.friendsLeftFloatingChatTexture = null;
+    this.friendsLeftFloatingChatContext = null;
+    this.friendsLeftFloatingChatGroup = null;
+    this.friendsTextureSamplingConfigured = false;
   }
 }

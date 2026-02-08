@@ -6,7 +6,7 @@ This document provides architectural context and working rules for AI agents in 
 
 A 3D landing page for "The Big One" MMORPG early access. The current live experience is:
 - A Three.js falling scene with floating emissive cubes and rotating character variants
-- A Dreamcast BIOS-inspired HTML/CSS menu overlay
+- In-world orbiting action icons around the active character
 
 ## Tech Stack
 
@@ -19,11 +19,9 @@ A 3D landing page for "The Big One" MMORPG early access. The current live experi
 
 These details are important because older docs in the repo may describe a different flow.
 
-- `src/main.ts` instantiates `FallingScene` and `MainMenu`
-- The active UI class is `MainMenu` (not `DreamcastMenu`)
-- `MainMenu` renders a header extension CTA: `Claim Early Access`
-- Main menu currently renders three left-rail buttons: `GlobaNet`, `B-mail`, `Social`
-- `MainMenu` publishes weather updates via `tbo:local-weather-update`, consumed by `FallingScene`
+- `src/main.ts` instantiates `FallingScene`, `HeaderOverlay`, and `LocalWeatherService`
+- `HeaderOverlay` renders the top `dc-header` with date/time, weather, and `Claim Early Access`
+- `LocalWeatherService` publishes weather updates via `tbo:local-weather-update`, consumed by `FallingScene`
 - `FallingScene` also instantiates `CharacterOrbitCarousel` (in-world orbiting action buttons around the active character)
 
 ## Architecture Principles
@@ -51,16 +49,14 @@ HTML/CSS overlays in `src/ui/` are separate from the WebGL canvas. The UI root s
 
 `MenuIcon3D` currently has two render paths:
 
-- Offscreen canvas path: `MainMenu` uses a shared offscreen `THREE.WebGLRenderer`, and each icon is drawn into its own display canvas.
+- Offscreen canvas path: supported by `MenuIcon3D`, but not used by the active runtime entry flow.
 - Mounted scene path: `CharacterOrbitCarousel` calls `MenuIcon3D.mountToObject()` so icon meshes/lights are mounted directly into the main scene and animated by `MenuIcon3D.update()` without offscreen canvas blitting.
 
-- MainMenu offscreen render size constant: `src/ui/MainMenu.ts` `ICON_RENDER_SIZE`
-- MainMenu friends icon render size override: `src/ui/MainMenu.ts` `FRIENDS_ICON_RENDER_SIZE`
 - In-world carousel icon/button size constants: `src/environment/CharacterOrbitCarousel.ts` (`ICON_DISPLAY_SIZE_PX`, `BUTTON_WIDTH_PX`, `BUTTON_HEIGHT_PX`)
 - CSS display size: `.dc-menu-btn-icon` and `.dc-menu-btn-icon canvas` in `src/style.css`
 - In-world icon sizing is world-space driven: carousel creates a tiny placeholder canvas for `MenuIcon3D` and then fits mounted icon bounds to target world size in `CharacterOrbitCarousel.fitIconToTargetSize()`
 
-When resizing MainMenu icons, update render constants and CSS together to avoid blur, clipping, or inconsistent scale. When resizing in-world icons, update `CharacterOrbitCarousel` size and hitbox constants together.
+When resizing in-world icons, update `CharacterOrbitCarousel` size and hitbox constants together.
 
 ### Asset Loading
 
@@ -162,7 +158,7 @@ src/
     FallingCharacter.ts      # Active character variant/material logic
     *.ts                     # Other components, some unused by current entrypoint
   ui/
-    MainMenu.ts              # Active UI overlay
+    HeaderOverlay.ts         # Active header overlay (`dc-header`)
     MenuIcon3D.ts            # 3D icon renderer + icon models/animation
     WeatherIcons2D.ts        # Weather icon canvas renderer
   shaders/
@@ -207,17 +203,14 @@ Check browser console for:
 - Update visibility and matching logic in `FallingCharacter.applyVariantConfig()`
 - Update allowed generated combinations in `CharacterPool.generateConfigs()`
 
-### Modify Main Menu Icons
+### Modify Carousel Icons
 
 - Edit models and animation in `src/ui/MenuIcon3D.ts`
-- Edit button labels in `src/ui/MainMenu.ts`
 - Keep label-to-icon mapping explicit:
-  - `key` type represents the `Claim Early Access` key icon
   - `globe` type represents the `GlobaNet` icon
   - `inbox` type represents the `B-mail` icon
   - `friends` type represents the `Social` icon
-  - `info` type is currently unused by `MainMenu` (paper-style icon still exists in `MenuIcon3D`)
-- If changing MainMenu icon size, sync `ICON_RENDER_SIZE`, `FRIENDS_ICON_RENDER_SIZE`, and CSS icon dimensions
+  - `key` and `info` are currently inactive in runtime
 - If changing in-world orbit icon size, also sync related constants in `CharacterOrbitCarousel` (`ICON_DISPLAY_SIZE_PX`, `BUTTON_WIDTH_PX`, `BUTTON_HEIGHT_PX`, hitbox constants)
 
 ### Modify Paper Icon Look
@@ -239,7 +232,7 @@ import fragmentShader from '../shaders/example.frag.glsl';
 
 ## Known Caveats
 
-- `main.ts` does not attach a default `tbo:menu-action` listener. If you need button behavior, pass `onAction` to `MainMenu` or add a global listener.
+- `main.ts` does not attach a default `tbo:menu-action` listener. Add a global listener if you need button behavior.
 - The icon type name for Early Access is `key`. Keep label/icon mapping explicit if refactoring.
 - `MenuIcon3D` currently contains dormant helper paths that are not wired into active icon construction (`createFriendsSocialPanelTexture` / `renderFriendsSocialPanel`, `createPortalStreakTexture`, `createPortalVortexTexture`).
 - Build commonly emits a Vite chunk-size warning (`>500 kB`); treat as informational unless bundling work is in scope.

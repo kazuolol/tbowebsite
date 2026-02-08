@@ -1,6 +1,7 @@
 import './style.css';
 import { FallingScene } from './scene/FallingScene';
-import { MainMenu } from './ui/MainMenu';
+import { HeaderOverlay } from './ui/HeaderOverlay';
+import { LocalWeatherService } from './utils/LocalWeatherService';
 
 const canvas = document.getElementById('scene');
 const uiRoot = document.getElementById('ui-root');
@@ -13,13 +14,16 @@ if (!(uiRoot instanceof HTMLElement)) {
 }
 
 const fallingScene = new FallingScene(canvas);
-const mainMenu = new MainMenu(uiRoot);
+const headerOverlay = new HeaderOverlay(uiRoot);
+const localWeatherService = new LocalWeatherService();
+localWeatherService.start();
 
 let disposed = false;
 const cleanup = (): void => {
   if (disposed) return;
   disposed = true;
-  mainMenu.destroy();
+  localWeatherService.stop();
+  headerOverlay.destroy();
   fallingScene.dispose();
 };
 

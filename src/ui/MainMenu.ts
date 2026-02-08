@@ -210,9 +210,9 @@ export class MainMenu {
     menu.className = 'dc-menu';
 
     const buttons: MenuButtonDefinition[] = [
-      { label: 'GlöbaNet', iconType: 'globe', action: 'play' },
-      { label: 'Mail', iconType: 'inbox', action: 'inbox' },
-      { label: 'Friends', iconType: 'friends', action: 'friends' },
+      { label: 'GlobaNet', iconType: 'globe', action: 'play' },
+      { label: 'B-mail', iconType: 'inbox', action: 'inbox' },
+      { label: 'Social', iconType: 'friends', action: 'friends' },
     ];
 
     buttons.forEach((btn, i) => {
@@ -253,9 +253,6 @@ export class MainMenu {
       button.appendChild(labelEl);
       menu.appendChild(button);
 
-      if (i === 0) {
-        this.setActiveButton(button);
-      }
     });
 
     return menu;

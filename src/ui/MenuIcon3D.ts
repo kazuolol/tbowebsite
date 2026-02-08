@@ -1882,6 +1882,63 @@ export class MenuIcon3D {
       ctx.fillStyle = i % 2 === 0 ? 'rgba(35, 58, 99, 0.12)' : 'rgba(45, 115, 255, 0.11)';
       ctx.fillRect(lineLeft, y, Math.round(lineMaxWidth * widthRatio), 6);
     }
+
+    const smileRadius = Math.round(Math.min(chatPanelWidth, chatPanelHeight) * 0.28);
+    const smileCenterX = chatPanelX + Math.round(chatPanelWidth * 0.5);
+    const smileCenterY = chatPanelY + Math.round(chatPanelHeight * 0.52);
+    const smileFill = ctx.createRadialGradient(
+      smileCenterX - smileRadius * 0.35,
+      smileCenterY - smileRadius * 0.5,
+      smileRadius * 0.2,
+      smileCenterX,
+      smileCenterY,
+      smileRadius
+    );
+    smileFill.addColorStop(0, '#fff7a4');
+    smileFill.addColorStop(0.7, '#f4e72a');
+    smileFill.addColorStop(1, '#d2c900');
+    ctx.fillStyle = smileFill;
+    ctx.beginPath();
+    ctx.arc(smileCenterX, smileCenterY, smileRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#0d0d0d';
+    const eyeOffsetX = smileRadius * 0.38;
+    const eyeOffsetY = smileRadius * 0.27;
+    ctx.beginPath();
+    ctx.ellipse(
+      smileCenterX - eyeOffsetX,
+      smileCenterY - eyeOffsetY,
+      smileRadius * 0.12,
+      smileRadius * 0.16,
+      0,
+      0,
+      Math.PI * 2
+    );
+    ctx.ellipse(
+      smileCenterX + eyeOffsetX,
+      smileCenterY - eyeOffsetY,
+      smileRadius * 0.12,
+      smileRadius * 0.16,
+      0,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+
+    ctx.strokeStyle = '#0d0d0d';
+    ctx.lineWidth = Math.max(2, Math.round(smileRadius * 0.1));
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(
+      smileCenterX,
+      smileCenterY + smileRadius * 0.06,
+      smileRadius * 0.58,
+      Math.PI * 0.16,
+      Math.PI * 0.84,
+      false
+    );
+    ctx.stroke();
   }
 
   private createFriendsFloatingChatTexture(): THREE.CanvasTexture {

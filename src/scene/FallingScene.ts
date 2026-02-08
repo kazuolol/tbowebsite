@@ -55,6 +55,8 @@ const DEFAULT_WORLD_SPEED = 12;
 const DEFAULT_FOG_DENSITY = 0.005;
 const DEFAULT_FRAGMENT_SPAWN_CHANCE = 0.02;
 const DEFAULT_MAX_FRAGMENTS = 80;
+const NEAR_CAMERA_FADE_START_Z_OFFSET = -75;
+const NEAR_CAMERA_FADE_END_Z_OFFSET = 6;
 
 export class FallingScene {
   private scene: THREE.Scene;
@@ -497,11 +499,12 @@ export class FallingScene {
       cube.mesh.rotation.z += cube.rotationSpeed.z * delta;
 
       const material = cube.mesh.material as THREE.MeshStandardMaterial;
+      const nearCameraFade = this.getNearCameraFade(cube.mesh.position.z);
       material.color.copy(this.cubeMaterial.color);
       material.emissive.copy(this.cubeMaterial.emissive);
-      material.opacity = cube.baseOpacity * this.cubeOpacityMultiplier;
+      material.opacity = cube.baseOpacity * this.cubeOpacityMultiplier * nearCameraFade;
       material.emissiveIntensity =
-        cube.baseEmissiveIntensity * this.cubeEmissiveMultiplier;
+        cube.baseEmissiveIntensity * this.cubeEmissiveMultiplier * nearCameraFade;
 
       if (cube.mesh.position.x > horizontalBounds) {
         cube.mesh.position.x = -horizontalBounds;
@@ -570,14 +573,15 @@ export class FallingScene {
       const lifeRatio = fragment.life / fragment.maxLife;
 
       const material = fragment.mesh.material as THREE.MeshStandardMaterial;
+      const nearCameraFade = this.getNearCameraFade(fragment.mesh.position.z);
       material.color.copy(this.cubeMaterial.color);
       material.emissive.copy(this.cubeMaterial.emissive);
       material.emissiveIntensity =
-        fragment.baseEmissiveIntensity * this.cubeEmissiveMultiplier;
+        fragment.baseEmissiveIntensity * this.cubeEmissiveMultiplier * nearCameraFade;
 
       const lifeOpacity = this.getFragmentLifeOpacity(lifeRatio);
       material.opacity =
-        fragment.baseOpacity * this.cubeOpacityMultiplier * lifeOpacity;
+        fragment.baseOpacity * this.cubeOpacityMultiplier * lifeOpacity * nearCameraFade;
 
       if (fragment.life > fragment.maxLife || fragment.mesh.position.z > 50) {
         this.scene.remove(fragment.mesh);
@@ -596,6 +600,12 @@ export class FallingScene {
       return Math.max(0, 1 - (lifeRatio - 0.5) / 0.5);
     }
     return 1;
+  }
+
+  private getNearCameraFade(z: number): number {
+    const fadeStartZ = this.camera.position.z + NEAR_CAMERA_FADE_START_Z_OFFSET;
+    const fadeEndZ = this.camera.position.z + NEAR_CAMERA_FADE_END_Z_OFFSET;
+    return 1 - THREE.MathUtils.smoothstep(z, fadeStartZ, fadeEndZ);
   }
 
   private applyWeatherSnapshot(snapshot: LocalWeatherSnapshot): void {

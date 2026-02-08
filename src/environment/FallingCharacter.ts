@@ -19,6 +19,11 @@ export class FallingCharacter {
   private clipMaxY = 0;
   private clipBoundsReady = false;
   private clipBoundsBox = new THREE.Box3();
+  private clipBoundsMeshBox = new THREE.Box3();
+  private orbitAnchorHipBone: THREE.Bone | null = null;
+  private orbitAnchorUpperBone: THREE.Bone | null = null;
+  private orbitAnchorHipPos = new THREE.Vector3();
+  private orbitAnchorUpperPos = new THREE.Vector3();
 
   private spinSpeed: number = 0.45; // rad/s
 
@@ -140,6 +145,10 @@ export class FallingCharacter {
     this.model = clonedModel;
     this.model.scale.setScalar(scale);
     this.model.position.set(0, 0, 0);
+    this.model.traverse((child) => {
+      child.layers.set(0);
+    });
+    this.resolveOrbitAnchorBones();
 
     this.applyVariantConfig(textureMap);
 
@@ -410,6 +419,64 @@ export class FallingCharacter {
     return null;
   }
 
+  private findBoneByPriority(priorityNames: readonly string[]): THREE.Bone | null {
+    if (!this.model) {
+      return null;
+    }
+
+    let bestMatch: THREE.Bone | null = null;
+    let bestScore = -1;
+
+    this.model.traverse((child) => {
+      if (!(child instanceof THREE.Bone)) {
+        return;
+      }
+
+      const rawName = child.name.toLowerCase();
+      const normalized = rawName.replace(/[:\s]/g, '_');
+      for (let i = 0; i < priorityNames.length; i += 1) {
+        const token = priorityNames[i];
+        if (
+          normalized === token ||
+          normalized.endsWith(`_${token}`) ||
+          normalized.includes(token)
+        ) {
+          const score = priorityNames.length - i;
+          if (score > bestScore) {
+            bestScore = score;
+            bestMatch = child;
+          }
+          return;
+        }
+      }
+    });
+
+    return bestMatch;
+  }
+
+  private resolveOrbitAnchorBones(): void {
+    this.orbitAnchorHipBone = this.findBoneByPriority([
+      // Shared expected names across male and female rigs.
+      'pelvis',
+      'hips',
+      // Common alternatives in other exports.
+      'hip',
+      'b_hips',
+      'root_hips',
+      'root_pelvis',
+    ]);
+
+    this.orbitAnchorUpperBone = this.findBoneByPriority([
+      'spine_02',
+      'spine2',
+      'spine_03',
+      'spine3',
+      'spine_01',
+      'spine1',
+      'spine',
+    ]);
+  }
+
   private elapsed: number = 0;
 
   update(delta: number): void {
@@ -431,10 +498,40 @@ export class FallingCharacter {
 
   private refreshClipBounds(): void {
     if (!this.model) return;
-    const bbox = this.clipBoundsBox.setFromObject(this.model);
-    this.clipMinY = bbox.min.y;
-    this.clipMaxY = bbox.max.y;
-    this.clipBoundsReady = Number.isFinite(this.clipMinY) &&
+    this.model.updateWorldMatrix(true, true);
+    this.clipBoundsBox.makeEmpty();
+
+    this.model.traverse((child) => {
+      if (!(child instanceof THREE.Mesh || child instanceof THREE.SkinnedMesh)) {
+        return;
+      }
+      if (!child.visible) {
+        return;
+      }
+      const position = child.geometry?.getAttribute('position');
+      if (!position || position.count === 0) {
+        return;
+      }
+      this.clipBoundsMeshBox.setFromObject(child, true);
+      if (!this.clipBoundsMeshBox.isEmpty()) {
+        this.clipBoundsBox.union(this.clipBoundsMeshBox);
+      }
+    });
+
+    // Fallback in case a variant has no visible mesh bounds.
+    if (this.clipBoundsBox.isEmpty()) {
+      this.clipBoundsBox.copy(this.clipBoundsMeshBox.setFromObject(this.model));
+    }
+
+    if (this.clipBoundsBox.isEmpty()) {
+      this.clipBoundsReady = false;
+      return;
+    }
+
+    this.clipMinY = this.clipBoundsBox.min.y;
+    this.clipMaxY = this.clipBoundsBox.max.y;
+    this.clipBoundsReady =
+      Number.isFinite(this.clipMinY) &&
       Number.isFinite(this.clipMaxY) &&
       this.clipMaxY > this.clipMinY;
   }
@@ -446,6 +543,35 @@ export class FallingCharacter {
     }
     if (!this.clipBoundsReady) return null;
     return { minY: this.clipMinY, maxY: this.clipMaxY };
+  }
+
+  getOrbitAnchor(target: THREE.Vector3): THREE.Vector3 | null {
+    if (!this.model) {
+      return null;
+    }
+
+    this.model.updateWorldMatrix(true, true);
+
+    if (this.orbitAnchorHipBone && this.orbitAnchorUpperBone) {
+      this.orbitAnchorHipBone.getWorldPosition(this.orbitAnchorHipPos);
+      this.orbitAnchorUpperBone.getWorldPosition(this.orbitAnchorUpperPos);
+      // Favor upper torso so orbit controls stay centered around the body mass.
+      target.lerpVectors(this.orbitAnchorHipPos, this.orbitAnchorUpperPos, 0.62);
+      return target;
+    }
+
+    if (this.orbitAnchorUpperBone) {
+      this.orbitAnchorUpperBone.getWorldPosition(target);
+      return target;
+    }
+
+    if (this.orbitAnchorHipBone) {
+      this.orbitAnchorHipBone.getWorldPosition(target);
+      target.y += 0.35;
+      return target;
+    }
+
+    return null;
   }
 
   getBoundingBox(): THREE.Box3 | null {
@@ -498,5 +624,7 @@ export class FallingCharacter {
     this.clipBoundsReady = false;
     this.clipMinY = 0;
     this.clipMaxY = 0;
+    this.orbitAnchorHipBone = null;
+    this.orbitAnchorUpperBone = null;
   }
 }

@@ -171,6 +171,34 @@ export class CharacterPool {
     }
   }
 
+  getActiveCharacterOrbitAnchor(target: THREE.Vector3): THREE.Vector3 | null {
+    if (!this.loaded || this.characters.length === 0) {
+      return null;
+    }
+
+    const active = this.characters[this.activeIndex];
+    const model = active.getModel();
+    if (!model) {
+      return null;
+    }
+
+    const orbitAnchor = active.getOrbitAnchor(target);
+    if (orbitAnchor) {
+      return orbitAnchor;
+    }
+
+    model.getWorldPosition(target);
+
+    const clipBounds = active.getClipBounds();
+    if (clipBounds) {
+      target.y = clipBounds.minY + (clipBounds.maxY - clipBounds.minY) * 0.62;
+    } else {
+      target.y += 1.8;
+    }
+
+    return target;
+  }
+
   update(delta: number): void {
     if (!this.loaded || this.characters.length === 0) return;
 

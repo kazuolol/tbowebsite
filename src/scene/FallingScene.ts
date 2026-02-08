@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CharacterPool } from '../environment/CharacterPool';
+import { CharacterOrbitCarousel } from '../environment/CharacterOrbitCarousel';
 import { WeatherParticles } from '../environment/WeatherParticles';
 import {
   LOCAL_WEATHER_UPDATE_EVENT,
@@ -66,6 +67,7 @@ export class FallingScene {
   private canvas: HTMLCanvasElement;
 
   private characterPool: CharacterPool;
+  private orbitCarousel: CharacterOrbitCarousel;
   private weatherParticles: WeatherParticles;
   private cubeMaterial: THREE.MeshStandardMaterial;
 
@@ -164,6 +166,7 @@ export class FallingScene {
       roughness: 0.15,
       metalness: 0.0,
       transparent: true,
+      depthWrite: false,
       opacity: 0.9,
     });
 
@@ -206,6 +209,12 @@ export class FallingScene {
     this.scene.add(this.glowSprite);
 
     this.characterPool = new CharacterPool(this.scene);
+    this.orbitCarousel = new CharacterOrbitCarousel(
+      this.scene,
+      this.camera,
+      this.canvas,
+      this.characterPool
+    );
     this.weatherParticles = new WeatherParticles(this.scene);
     void this.loadCharacter();
 
@@ -383,6 +392,7 @@ export class FallingScene {
     this.weatherParticles.setWind(this.cubeDrift.x, this.cubeDrift.y, this.worldSpeed);
     this.weatherParticles.update(delta);
     this.characterPool.update(delta);
+    this.orbitCarousel.update(delta, this.renderer);
     this.updateCubes(delta);
     this.updateFragments(delta);
 
@@ -899,6 +909,7 @@ export class FallingScene {
       this.onWeatherUpdateHandler as EventListener
     );
 
+    this.orbitCarousel.dispose();
     this.characterPool.dispose();
     this.weatherParticles.dispose();
 

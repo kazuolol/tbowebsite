@@ -39,6 +39,15 @@ export class MenuIcon3D {
     phase: number;
     zOffset: number;
   }> = [];
+  private friendsScreenTexture: THREE.CanvasTexture | null = null;
+  private friendsScreenContext: CanvasRenderingContext2D | null = null;
+  private friendsSocialPanelTexture: THREE.CanvasTexture | null = null;
+  private friendsSocialPanelContext: CanvasRenderingContext2D | null = null;
+  private friendsSocialPanelGroup: THREE.Group | null = null;
+  private static readonly FRIENDS_DOT_APPEAR_DURATION = 0.3;
+  private static readonly FRIENDS_DOT_PAUSE_DURATION = 0.2;
+  private static readonly FRIENDS_MESSAGE_DISPLAY_DURATION = 6.0;
+  private static readonly FRIENDS_MESSAGE_FADE_DURATION = 0.5;
   private static readonly AXIS_Y = new THREE.Vector3(0, 1, 0);
   private static readonly AXIS_Z = new THREE.Vector3(0, 0, 1);
 
@@ -1380,6 +1389,35 @@ export class MenuIcon3D {
     bottomLeftScrew.rotation.x = Math.PI * 0.5;
     bottomLeftScrew.position.set(-0.98, -0.86, 0.108);
     this.group.add(bottomLeftScrew);
+
+    // Social panel from the in-game UI lives beside the device, not on its screen.
+    const socialPanelGroup = new THREE.Group();
+    socialPanelGroup.position.set(-1.82, -0.02, 0.24);
+    socialPanelGroup.rotation.set(0.035, 0.2, -0.04);
+    this.group.add(socialPanelGroup);
+    this.friendsSocialPanelGroup = socialPanelGroup;
+
+    const socialPanelTexture = this.createFriendsSocialPanelTexture();
+    socialPanelTexture.needsUpdate = true;
+    socialPanelTexture.minFilter = THREE.LinearFilter;
+    socialPanelTexture.magFilter = THREE.LinearFilter;
+    socialPanelTexture.anisotropy = 2;
+    const socialPanelScreen = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.44, 1.74),
+      new THREE.MeshBasicMaterial({
+        map: socialPanelTexture,
+        transparent: true,
+        side: THREE.DoubleSide,
+        toneMapped: false,
+      })
+    );
+    socialPanelScreen.position.set(0, 0, 0.016);
+    socialPanelScreen.renderOrder = 24;
+    const socialPanelScreenMaterial = socialPanelScreen.material as THREE.MeshBasicMaterial;
+    socialPanelScreenMaterial.depthTest = false;
+    socialPanelScreenMaterial.depthWrite = false;
+    socialPanelGroup.add(socialPanelScreen);
+
     this.group.rotation.set(-0.12, 0.3, 0.02);
     this.group.scale.setScalar(0.92);
   }
@@ -1539,9 +1577,26 @@ export class MenuIcon3D {
     canvas.width = 640;
     canvas.height = 360;
     const ctx = canvas.getContext('2d')!;
-    const width = canvas.width;
-    const height = canvas.height;
+    this.friendsScreenContext = ctx;
 
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    this.friendsScreenTexture = texture;
+    this.renderFriendsPhoneScreen(0);
+    texture.needsUpdate = true;
+    return texture;
+  }
+
+  private renderFriendsPhoneScreen(elapsedSeconds: number): void {
+    if (!this.friendsScreenContext) {
+      return;
+    }
+
+    const ctx = this.friendsScreenContext;
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+
+    ctx.clearRect(0, 0, width, height);
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, width, height);
 
@@ -1554,6 +1609,8 @@ export class MenuIcon3D {
 
     ctx.fillStyle = '#233a63';
     ctx.font = `700 ${Math.round(height * 0.07)}px sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
     ctx.fillText('FriendLink', 22, Math.round(topBarHeight * 0.72));
 
     // Small reception bars in the top-right of the device screen.
@@ -1576,58 +1633,353 @@ export class MenuIcon3D {
     ctx.arc(signalBaseX - 9, signalBaseY - 2, 2.5, 0, Math.PI * 2);
     ctx.fill();
 
-    const smileX = Math.round(width * 0.5);
-    const smileY = Math.round(height * 0.58);
-    const smileR = Math.round(height * 0.32);
+    const chatPanelX = 22;
+    const chatPanelY = topBarHeight + 12;
+    const chatPanelWidth = width - chatPanelX * 2;
+    const chatPanelHeight = height - chatPanelY - 14;
+    const chatPanelFill = ctx.createLinearGradient(0, chatPanelY, 0, chatPanelY + chatPanelHeight);
+    chatPanelFill.addColorStop(0, '#f8fbff');
+    chatPanelFill.addColorStop(1, '#ecf3ff');
+    ctx.fillStyle = chatPanelFill;
+    ctx.fillRect(chatPanelX, chatPanelY, chatPanelWidth, chatPanelHeight);
 
-    const faceHighlight = ctx.createRadialGradient(
-      smileX - smileR * 0.56,
-      smileY - smileR * 0.58,
-      smileR * 0.08,
-      smileX,
-      smileY,
-      smileR
-    );
-    faceHighlight.addColorStop(0, '#fffcb1');
-    faceHighlight.addColorStop(0.4, '#f6f547');
-    faceHighlight.addColorStop(1, '#f0f100');
-    ctx.fillStyle = faceHighlight;
+    const dotAppearDuration = MenuIcon3D.FRIENDS_DOT_APPEAR_DURATION;
+    const pauseDuration = MenuIcon3D.FRIENDS_DOT_PAUSE_DURATION;
+    const dotCount = 3;
+    const typingCycleDuration = dotCount * dotAppearDuration + pauseDuration + dotCount * dotAppearDuration + pauseDuration;
+    const messageDisplayDuration = MenuIcon3D.FRIENDS_MESSAGE_DISPLAY_DURATION;
+    const messageFadeDuration = MenuIcon3D.FRIENDS_MESSAGE_FADE_DURATION;
+    const phaseDuration = typingCycleDuration + messageDisplayDuration + messageFadeDuration;
+    const phaseTime = elapsedSeconds % phaseDuration;
+
+    const bubbleY = Math.round(topBarHeight + (height - topBarHeight) * 0.34);
+
+    if (phaseTime < typingCycleDuration) {
+      const typingBubbleWidth = Math.round(width * 0.2);
+      const typingBubbleHeight = Math.round(height * 0.16);
+      const typingBubbleX = Math.round(width * 0.5 - typingBubbleWidth * 0.5);
+      this.drawFriendsBubble(ctx, typingBubbleX, bubbleY, typingBubbleWidth, typingBubbleHeight, 1);
+
+      const dotDiameter = typingBubbleHeight * (5 / 20);
+      const dotCenterY = bubbleY + typingBubbleHeight * 0.53;
+      const dotCenterXs = [0.2375, 0.5125, 0.7875];
+      const dotTints = [178, 217, 255];
+      for (let i = 0; i < dotCenterXs.length; i++) {
+        const dotOpacity = this.getFriendsTypingDotOpacity(i, phaseTime, dotAppearDuration, pauseDuration);
+        if (dotOpacity <= 0) {
+          continue;
+        }
+        const dotTint = dotTints[i];
+        ctx.fillStyle = `rgba(${dotTint}, ${dotTint}, ${dotTint}, ${Math.min(1, dotOpacity)})`;
+        ctx.beginPath();
+        ctx.arc(typingBubbleX + typingBubbleWidth * dotCenterXs[i], dotCenterY, dotDiameter * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      const messageTime = phaseTime - typingCycleDuration;
+      let messageAlpha = 1;
+      if (messageTime > messageDisplayDuration) {
+        const fadeProgress = (messageTime - messageDisplayDuration) / messageFadeDuration;
+        messageAlpha = THREE.MathUtils.clamp(1 - fadeProgress, 0, 1);
+      }
+
+      if (messageAlpha > 0) {
+        const messageBubbleWidth = Math.round(width * 0.17);
+        const messageBubbleHeight = Math.round(height * 0.15);
+        const messageBubbleX = Math.round(width * 0.5 - messageBubbleWidth * 0.5);
+        this.drawFriendsBubble(ctx, messageBubbleX, bubbleY, messageBubbleWidth, messageBubbleHeight, messageAlpha);
+
+        ctx.fillStyle = `rgba(255, 255, 255, ${messageAlpha})`;
+        ctx.font = `700 ${Math.round(messageBubbleHeight * 0.64)}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('\u{1F602}', messageBubbleX + messageBubbleWidth * 0.5, bubbleY + messageBubbleHeight * 0.52);
+      }
+    }
+  }
+
+  private drawFriendsBubble(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    alpha: number
+  ): void {
+    const radius = Math.min(Math.round(height * 0.3), Math.round(width * 0.18));
+    const right = x + width;
+    const bottom = y + height;
+    const tailWidth = Math.max(12, Math.round(width * 0.14));
+    const tailHeight = Math.max(8, Math.round(height * 0.24));
+    const tailCenterX = x + width * 0.5;
+
     ctx.beginPath();
-    ctx.arc(smileX, smileY, smileR, 0, Math.PI * 2);
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(right - radius, y);
+    ctx.quadraticCurveTo(right, y, right, y + radius);
+    ctx.lineTo(right, bottom - radius);
+    ctx.quadraticCurveTo(right, bottom, right - radius, bottom);
+    ctx.lineTo(tailCenterX + tailWidth * 0.5, bottom);
+    ctx.lineTo(tailCenterX, bottom + tailHeight);
+    ctx.lineTo(tailCenterX - tailWidth * 0.5, bottom);
+    ctx.lineTo(x + radius, bottom);
+    ctx.quadraticCurveTo(x, bottom, x, bottom - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+
+    ctx.fillStyle = `rgba(34, 52, 92, ${0.9 * alpha})`;
     ctx.fill();
-
-    ctx.fillStyle = '#000000';
-    ctx.beginPath();
-    ctx.ellipse(
-      smileX - smileR * 0.34,
-      smileY - smileR * 0.3,
-      smileR * 0.115,
-      smileR * 0.2,
-      0,
-      0,
-      Math.PI * 2
-    );
-    ctx.ellipse(
-      smileX + smileR * 0.34,
-      smileY - smileR * 0.3,
-      smileR * 0.115,
-      smileR * 0.2,
-      0,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
-
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = Math.max(8, Math.round(smileR * 0.16));
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.arc(smileX, smileY + smileR * 0.06, smileR * 0.53, 0.18, Math.PI - 0.18);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.2 * alpha})`;
     ctx.stroke();
+  }
+
+  private getFriendsTypingDotOpacity(
+    dotIndex: number,
+    timeInCycle: number,
+    dotAppearDuration: number,
+    pauseDuration: number
+  ): number {
+    const fadeOutStart = dotAppearDuration * 3 + pauseDuration;
+    const dotFadeInStart = dotIndex * dotAppearDuration;
+    const dotFadeInEnd = dotFadeInStart + dotAppearDuration;
+    const dotFadeOutStart = fadeOutStart + dotIndex * dotAppearDuration;
+    const dotFadeOutEnd = dotFadeOutStart + dotAppearDuration;
+
+    if (timeInCycle < dotFadeInStart) {
+      return 0;
+    }
+    if (timeInCycle < dotFadeInEnd) {
+      return (timeInCycle - dotFadeInStart) / dotAppearDuration;
+    }
+    if (timeInCycle < dotFadeOutStart) {
+      return 1;
+    }
+    if (timeInCycle < dotFadeOutEnd) {
+      return 1 - (timeInCycle - dotFadeOutStart) / dotAppearDuration;
+    }
+    return 0;
+  }
+
+  private createFriendsSocialPanelTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 398;
+    canvas.height = 480;
+    const ctx = canvas.getContext('2d')!;
+    this.friendsSocialPanelContext = ctx;
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
+    this.friendsSocialPanelTexture = texture;
+    this.renderFriendsSocialPanel(0);
+    texture.needsUpdate = true;
     return texture;
+  }
+
+  private renderFriendsSocialPanel(elapsedSeconds: number): void {
+    if (!this.friendsSocialPanelContext) {
+      return;
+    }
+
+    const ctx = this.friendsSocialPanelContext;
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+
+    const roundedRect = (x: number, y: number, w: number, h: number, r: number): void => {
+      const radius = Math.min(r, w * 0.5, h * 0.5);
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + w - radius, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+      ctx.lineTo(x + w, y + h - radius);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+      ctx.lineTo(x + radius, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.closePath();
+    };
+
+    const SLOT_BG = 'rgba(255, 255, 255, 0.02)';
+    const HOVER_BG = 'rgba(255, 255, 255, 0.15)';
+    const BORDER_DEFAULT = 'rgba(255, 255, 255, 0.4)';
+    const BORDER_HOVER = 'rgba(255, 255, 255, 0.8)';
+    const TEXT_COLOR = 'rgb(255, 255, 255)';
+    const TEXT_SHADOW = 'rgb(0, 0, 0)';
+    const ONLINE_COLOR = 'rgb(77, 255, 77)';
+    const OFFLINE_COLOR = 'rgb(102, 102, 102)';
+
+    const drawTextShadow = (
+      text: string,
+      x: number,
+      y: number,
+      font: string,
+      align: CanvasTextAlign,
+      baseline: CanvasTextBaseline,
+      color = TEXT_COLOR
+    ): void => {
+      ctx.font = font;
+      ctx.textAlign = align;
+      ctx.textBaseline = baseline;
+      ctx.fillStyle = color;
+      ctx.shadowColor = TEXT_SHADOW;
+      ctx.shadowOffsetX = 1;
+      ctx.shadowOffsetY = 1;
+      ctx.shadowBlur = 0;
+      ctx.fillText(text, x, y);
+      ctx.shadowColor = 'rgba(0, 0, 0, 0)';
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+    };
+
+    const drawBasicButton = (
+      x: number,
+      y: number,
+      w: number,
+      h: number,
+      radius: number,
+      active = false
+    ): void => {
+      roundedRect(x, y, w, h, radius);
+      ctx.fillStyle = active ? HOVER_BG : SLOT_BG;
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = active ? BORDER_HOVER : BORDER_DEFAULT;
+      ctx.stroke();
+    };
+
+    const drawAvatarPlaceholder = (centerX: number, centerY: number, radius: number): void => {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.beginPath();
+      ctx.arc(centerX, centerY - radius * 0.22, radius * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(centerX, centerY + radius * 0.3, radius * 0.42, radius * 0.32, 0, 0, Math.PI * 2);
+      ctx.fill();
+    };
+
+    const drawCategoryItem = (x: number, label: string, active: boolean): void => {
+      const buttonX = x + 10;
+      const buttonY = 12;
+      drawBasicButton(buttonX, buttonY, 60, 60, 30, active);
+      drawAvatarPlaceholder(buttonX + 30, buttonY + 30, 18);
+      drawTextShadow(label, x + 40, 79, '500 16px "Jost", sans-serif', 'center', 'top');
+    };
+
+    const drawFriendTile = (
+      x: number,
+      y: number,
+      name: string,
+      isOnline: boolean,
+      isAddFriend: boolean
+    ): void => {
+      const iconSize = 60;
+      const iconX = x + 20;
+      const iconY = y;
+      drawBasicButton(iconX, iconY, iconSize, iconSize, iconSize * 0.5, false);
+
+      if (isAddFriend) {
+        drawTextShadow('+', iconX + iconSize * 0.5, iconY + iconSize * 0.53, '500 30px "Jost", sans-serif', 'center', 'middle');
+
+        const badgeX = iconX + iconSize - 2;
+        const badgeY = iconY + 8;
+        ctx.beginPath();
+        ctx.arc(badgeX, badgeY, 12.5, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(badgeX, badgeY, 11.5, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgb(0, 0, 0)';
+        ctx.fill();
+        drawTextShadow('5', badgeX, badgeY + 0.5, '400 16px "Jost", sans-serif', 'center', 'middle');
+      } else {
+        drawAvatarPlaceholder(iconX + iconSize * 0.5, iconY + iconSize * 0.5, iconSize * 0.46);
+
+        const statusX = iconX + iconSize - 5;
+        const statusY = iconY + iconSize - 5;
+        ctx.beginPath();
+        ctx.arc(statusX, statusY, 5.2, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(statusX, statusY, 4, 0, Math.PI * 2);
+        ctx.fillStyle = isOnline ? ONLINE_COLOR : OFFLINE_COLOR;
+        ctx.fill();
+      }
+
+      drawTextShadow(name, x + 50, y + 74, '400 16px "Jost", sans-serif', 'center', 'top');
+
+      if (!isAddFriend) {
+        const actionY = y + 98;
+        const drawAction = (ax: number, symbol: string): void => {
+          drawBasicButton(ax, actionY, 20, 20, 6, false);
+          drawTextShadow(
+            symbol,
+            ax + 10,
+            actionY + 10.5,
+            '500 12px "Segoe UI Emoji", "Apple Color Emoji", sans-serif',
+            'center',
+            'middle'
+          );
+        };
+        drawAction(x + 27, '\u{1F4AC}');
+        drawAction(x + 53, '\u{1F310}');
+      }
+    };
+
+    ctx.clearRect(0, 0, width, height);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = BORDER_DEFAULT;
+    ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
+
+    drawCategoryItem(26, 'Friends', true);
+    drawCategoryItem(116, 'Guild', false);
+
+    drawBasicButton(width - 60, 4, 24, 24, 6, false);
+    drawTextShadow('\u00D7', width - 48, 16, '400 20px "Jost", sans-serif', 'center', 'middle');
+
+    roundedRect(36, 102, 326, 36, 12);
+    ctx.fillStyle = SLOT_BG;
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = BORDER_DEFAULT;
+    ctx.stroke();
+    drawTextShadow(
+      'Search friends...',
+      50,
+      120,
+      '400 16px "Jost", sans-serif',
+      'left',
+      'middle',
+      BORDER_HOVER
+    );
+
+    const tileStartX = 18;
+    const tileStartY = 152;
+    const tileStepX = 118;
+    const tileStepY = 132;
+    const entries = [
+      { name: 'Add Friend', online: false, add: true },
+      { name: 'NoScopeNinja', online: true, add: false },
+      { name: 'PixelCrusher', online: false, add: false },
+      { name: 'LagWizard', online: true, add: false },
+      { name: 'CritQueen', online: false, add: false },
+      { name: 'XPHunter', online: true, add: false },
+    ];
+
+    for (let i = 0; i < entries.length; i++) {
+      const col = i % 3;
+      const row = Math.floor(i / 3);
+      const tileX = tileStartX + col * tileStepX;
+      const tileY = tileStartY + row * tileStepY;
+      const entry = entries[i];
+      drawFriendTile(tileX, tileY, entry.name, entry.online, entry.add);
+    }
   }
 
   private createEnvelopePaperMaps(): {
@@ -2025,6 +2377,14 @@ export class MenuIcon3D {
       this.group.position.y = Math.sin(this.elapsed * 1.3) * 0.022;
       this.group.position.z = Math.sin(this.elapsed * 0.48) * 0.01;
     } else if (this.type === 'friends') {
+      if (this.friendsScreenTexture) {
+        this.renderFriendsPhoneScreen(this.elapsed);
+        this.friendsScreenTexture.needsUpdate = true;
+      }
+      if (this.friendsSocialPanelTexture) {
+        this.renderFriendsSocialPanel(this.elapsed);
+        this.friendsSocialPanelTexture.needsUpdate = true;
+      }
       this.group.rotation.x = -0.04 + Math.sin(this.elapsed * 0.9) * 0.03;
       this.group.rotation.y = 0.2 + Math.sin(this.elapsed * 0.55) * 0.12;
       this.group.rotation.z = 0.01 + Math.sin(this.elapsed * 0.7) * 0.02;
@@ -2096,5 +2456,10 @@ export class MenuIcon3D {
     this.globeAuxPanels = [];
     this.globePulseMaterials = [];
     this.globePacketNodes = [];
+    this.friendsScreenTexture = null;
+    this.friendsScreenContext = null;
+    this.friendsSocialPanelTexture = null;
+    this.friendsSocialPanelContext = null;
+    this.friendsSocialPanelGroup = null;
   }
 }

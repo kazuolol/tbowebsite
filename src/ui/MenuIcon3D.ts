@@ -48,6 +48,9 @@ export class MenuIcon3D {
   private static readonly FRIENDS_DOT_PAUSE_DURATION = 0.2;
   private static readonly FRIENDS_MESSAGE_DISPLAY_DURATION = 6.0;
   private static readonly FRIENDS_MESSAGE_FADE_DURATION = 0.5;
+  private static readonly FRIENDS_SOCIAL_PANEL_BASE_WIDTH = 398;
+  private static readonly FRIENDS_SOCIAL_PANEL_BASE_HEIGHT = 480;
+  private static readonly FRIENDS_SOCIAL_PANEL_RENDER_SCALE = 2;
   private static readonly AXIS_Y = new THREE.Vector3(0, 1, 0);
   private static readonly AXIS_Z = new THREE.Vector3(0, 0, 1);
 
@@ -1764,8 +1767,10 @@ export class MenuIcon3D {
 
   private createFriendsSocialPanelTexture(): THREE.CanvasTexture {
     const canvas = document.createElement('canvas');
-    canvas.width = 398;
-    canvas.height = 480;
+    canvas.width =
+      MenuIcon3D.FRIENDS_SOCIAL_PANEL_BASE_WIDTH * MenuIcon3D.FRIENDS_SOCIAL_PANEL_RENDER_SCALE;
+    canvas.height =
+      MenuIcon3D.FRIENDS_SOCIAL_PANEL_BASE_HEIGHT * MenuIcon3D.FRIENDS_SOCIAL_PANEL_RENDER_SCALE;
     const ctx = canvas.getContext('2d')!;
     this.friendsSocialPanelContext = ctx;
 
@@ -1783,8 +1788,16 @@ export class MenuIcon3D {
     }
 
     const ctx = this.friendsSocialPanelContext;
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
+    const pixelWidth = ctx.canvas.width;
+    const pixelHeight = ctx.canvas.height;
+    const width = MenuIcon3D.FRIENDS_SOCIAL_PANEL_BASE_WIDTH;
+    const height = MenuIcon3D.FRIENDS_SOCIAL_PANEL_BASE_HEIGHT;
+    const scaleX = pixelWidth / width;
+    const scaleY = pixelHeight / height;
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, pixelWidth, pixelHeight);
+    ctx.setTransform(scaleX, 0, 0, scaleY, 0, 0);
 
     const roundedRect = (x: number, y: number, w: number, h: number, r: number): void => {
       const radius = Math.min(r, w * 0.5, h * 0.5);
@@ -1932,7 +1945,6 @@ export class MenuIcon3D {
       }
     };
 
-    ctx.clearRect(0, 0, width, height);
     ctx.lineWidth = 1;
     ctx.strokeStyle = BORDER_DEFAULT;
     ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
@@ -1980,6 +1992,8 @@ export class MenuIcon3D {
       const entry = entries[i];
       drawFriendTile(tileX, tileY, entry.name, entry.online, entry.add);
     }
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
   private createEnvelopePaperMaps(): {

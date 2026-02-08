@@ -74,6 +74,11 @@ export class MenuIcon3D {
   private friendsLeftMessageTranslateTargetY = 0;
   private friendsLeftMessageTranslateStartTime = 0;
   private friendsLeftMessageTranslateAnimating = false;
+  private friendsConversationInitialized = false;
+  private friendsConversationNextActionAt = 0;
+  private friendsConversationStepIndex = 0;
+  private friendsConversationActiveSide: 'left' | 'right' | null = null;
+  private friendsConversationTypingUntil = 0;
   private friendsTextureSamplingConfigured = false;
   private readonly rendererSize = new THREE.Vector2();
   private static readonly FRIENDS_DOT_APPEAR_DURATION = 0.3;
@@ -111,6 +116,130 @@ export class MenuIcon3D {
   private static readonly FRIENDS_LEFT_CHAT_OFFSET = new THREE.Vector3(-1.731026, 2.43936, 0.32);
   private static readonly FRIENDS_RIGHT_CHAT_TILT_Z = -0.2178;
   private static readonly FRIENDS_LEFT_CHAT_TILT_Z = 0.2178;
+  private static readonly FRIENDS_CONVERSATION_INITIAL_DELAY = 0.6;
+  private static readonly FRIENDS_CONVERSATION_SCRIPT: ReadonlyArray<{
+    side: 'left' | 'right';
+    message: string;
+  }> = [
+    { side: 'left', message: 'omw' },
+    { side: 'right', message: 'wya?' },
+    { side: 'left', message: 'still home' },
+    { side: 'left', message: 'lol' },
+    { side: 'right', message: 'same' },
+    { side: 'right', message: '\u{1F62D}\u{1F62D}' },
+    { side: 'left', message: 'logging soon' },
+    { side: 'right', message: 'pc booting' },
+    { side: 'left', message: 'wifi slow' },
+    { side: 'right', message: 'of course' },
+    { side: 'right', message: '\u{1F480}' },
+    { side: 'left', message: 'coffee first' },
+    { side: 'right', message: 'priorities' },
+    { side: 'left', message: 'u ate?' },
+    { side: 'right', message: 'barely' },
+    { side: 'right', message: '\u{1F62D}' },
+    { side: 'left', message: 'dangerous' },
+    { side: 'right', message: 'living wild' },
+    { side: 'right', message: '\u{1F480}' },
+    { side: 'left', message: 'what time' },
+    { side: 'right', message: '5 mins' },
+    { side: 'left', message: 'u swear?' },
+    { side: 'right', message: 'mostly' },
+    { side: 'right', message: '\u{1F62D}' },
+    { side: 'left', message: '\u{1F644}' },
+    { side: 'right', message: 'dont judge' },
+    { side: 'left', message: 'headphones?' },
+    { side: 'right', message: 'charging' },
+    { side: 'right', message: '\u{1F480}' },
+    { side: 'left', message: 'again??' },
+    { side: 'right', message: 'listen' },
+    { side: 'right', message: '\u{1F62D}\u{1F62D}' },
+    { side: 'left', message: 'always u' },
+    { side: 'right', message: 'I KNOW' },
+    { side: 'left', message: 'im ready' },
+    { side: 'right', message: 'not yet' },
+    { side: 'right', message: '\u{1F480}' },
+    { side: 'left', message: 'shocker' },
+    { side: 'right', message: 'one sec' },
+    { side: 'left', message: 'u said that' },
+    { side: 'right', message: 'different sec' },
+    { side: 'right', message: '\u{1F62D}' },
+    { side: 'left', message: 'lies' },
+    { side: 'right', message: 'truth-ish' },
+    { side: 'left', message: 'launching game' },
+    { side: 'right', message: 'updating' },
+    { side: 'right', message: '\u{1F480}\u{1F480}' },
+    { side: 'left', message: 'NOOO' },
+    { side: 'right', message: '\u{1F602}\u{1F602}' },
+    { side: 'left', message: 'how long' },
+    { side: 'right', message: 'estimating' },
+    { side: 'left', message: 'dont say it' },
+    { side: 'right', message: '12 mins' },
+    { side: 'right', message: '\u{1F62D}\u{1F62D}\u{1F62D}' },
+    { side: 'left', message: 'im screaming' },
+    { side: 'right', message: 'im sorry' },
+    { side: 'right', message: '\u{1F480}' },
+    { side: 'left', message: 'queue snacks' },
+    { side: 'right', message: 'emotional support' },
+    { side: 'left', message: 'valid' },
+    { side: 'right', message: 'send memes' },
+    { side: 'left', message: 'already did' },
+    { side: 'right', message: 'im crying' },
+    { side: 'right', message: '\u{1F62D}' },
+    { side: 'left', message: 'update moved' },
+    { side: 'right', message: 'to 15' },
+    { side: 'right', message: '\u{1F480}' },
+    { side: 'left', message: 'i quit' },
+    { side: 'right', message: 'pls dont' },
+    { side: 'left', message: 'too late' },
+    { side: 'right', message: 'lying' },
+    { side: 'right', message: '\u{1F62D}' },
+    { side: 'left', message: 'ok fine' },
+    { side: 'right', message: 'thank god' },
+    { side: 'left', message: 'u alive' },
+    { side: 'right', message: 'barely' },
+    { side: 'right', message: '\u{1F480}' },
+    { side: 'left', message: 'fan loud' },
+    { side: 'right', message: 'jet engine' },
+    { side: 'right', message: '\u{1F62D}' },
+    { side: 'left', message: 'pc fighting' },
+    { side: 'right', message: 'losing battle' },
+    { side: 'left', message: 'any percent' },
+    { side: 'right', message: '93%' },
+    { side: 'left', message: 'DONT MOVE' },
+    { side: 'right', message: 'IM NOT' },
+    { side: 'right', message: '\u{1F62D}' },
+    { side: 'left', message: 'last time' },
+    { side: 'right', message: 'I KNOW' },
+    { side: 'left', message: 'ok ready' },
+    { side: 'right', message: 'WAIT' },
+    { side: 'right', message: '\u{1F480}' },
+    { side: 'left', message: 'WHAT' },
+    { side: 'right', message: 'restart' },
+    { side: 'right', message: '\u{1F62D}\u{1F62D}' },
+    { side: 'left', message: 'im done' },
+    { side: 'right', message: 'PLEASE' },
+    { side: 'left', message: 'deep breaths' },
+    { side: 'right', message: 'hyperventilating' },
+    { side: 'left', message: 'ok go' },
+    { side: 'right', message: 'LAUNCHED' },
+    { side: 'left', message: 'actually?' },
+    { side: 'right', message: 'ACTUALLY' },
+    { side: 'left', message: 'invite me' },
+    { side: 'right', message: 'sent' },
+    { side: 'left', message: 'loading' },
+    { side: 'right', message: 'dont crash' },
+    { side: 'left', message: 'promise?' },
+    { side: 'right', message: 'no promises' },
+    { side: 'right', message: '\u{1F480}' },
+    { side: 'left', message: 'im in' },
+    { side: 'right', message: 'ME TOO' },
+    { side: 'left', message: 'finally' },
+    { side: 'right', message: 'after years' },
+    { side: 'right', message: '\u{1F62D}\u{1F62D}' },
+    { side: 'left', message: 'worth it' },
+    { side: 'right', message: 'barely' },
+    { side: 'right', message: '\u{1F602}\u{1F480}' },
+  ];
   private static readonly AXIS_Y = new THREE.Vector3(0, 1, 0);
   private static readonly AXIS_Z = new THREE.Vector3(0, 0, 1);
 
@@ -1922,8 +2051,6 @@ export class MenuIcon3D {
       return;
     }
 
-    this.updateFriendsOverheadDemo(elapsedSeconds);
-
     const ctx = this.friendsFloatingChatContext;
     const pixelWidth = ctx.canvas.width;
     const pixelHeight = ctx.canvas.height;
@@ -2158,12 +2285,104 @@ export class MenuIcon3D {
     this.updateFriendsLeftMessageTranslate(elapsedSeconds);
   }
 
+  private startFriendsConversationTyping(side: 'left' | 'right', elapsedSeconds: number): void {
+    if (side === 'left') {
+      this.registerFriendsLeftTyping(elapsedSeconds);
+      return;
+    }
+    this.registerFriendsTyping(elapsedSeconds);
+  }
+
+  private stopFriendsConversationTyping(side: 'left' | 'right', elapsedSeconds: number): void {
+    if (side === 'left') {
+      this.stopFriendsLeftTyping(elapsedSeconds);
+      return;
+    }
+    this.stopFriendsTyping(elapsedSeconds);
+  }
+
+  private showFriendsConversationMessage(
+    side: 'left' | 'right',
+    message: string,
+    elapsedSeconds: number
+  ): void {
+    if (side === 'left') {
+      this.showFriendsLeftOverheadMessage(message, elapsedSeconds);
+      return;
+    }
+    this.showFriendsOverheadMessage(message, elapsedSeconds);
+  }
+
+  private getFriendsConversationTypingDuration(message: string): number {
+    const glyphCount = Array.from(message).length;
+    const duration = 0.35 + Math.min(1.05, glyphCount * 0.045);
+    return THREE.MathUtils.clamp(duration, 0.35, 1.4);
+  }
+
+  private getFriendsConversationGapAfter(stepIndex: number): number {
+    const current = MenuIcon3D.FRIENDS_CONVERSATION_SCRIPT[stepIndex];
+    const next =
+      MenuIcon3D.FRIENDS_CONVERSATION_SCRIPT[
+        (stepIndex + 1) % MenuIcon3D.FRIENDS_CONVERSATION_SCRIPT.length
+      ];
+    let gap = current.side === next.side ? 0.28 : 0.8;
+
+    if (current.message.includes('?') || current.message.includes('!')) {
+      gap += 0.08;
+    }
+
+    if (Array.from(current.message).length <= 3) {
+      gap -= 0.05;
+    }
+
+    return THREE.MathUtils.clamp(gap, 0.2, 1.1);
+  }
+
+  private updateFriendsConversationScript(elapsedSeconds: number): void {
+    if (!this.friendsConversationInitialized) {
+      this.friendsConversationInitialized = true;
+      this.friendsConversationStepIndex = 0;
+      this.friendsConversationActiveSide = null;
+      this.friendsConversationTypingUntil = 0;
+      this.friendsConversationNextActionAt =
+        elapsedSeconds + MenuIcon3D.FRIENDS_CONVERSATION_INITIAL_DELAY;
+    }
+
+    if (
+      this.friendsConversationActiveSide !== null &&
+      elapsedSeconds >= this.friendsConversationTypingUntil
+    ) {
+      const step = MenuIcon3D.FRIENDS_CONVERSATION_SCRIPT[this.friendsConversationStepIndex];
+      const gapAfter = this.getFriendsConversationGapAfter(this.friendsConversationStepIndex);
+      this.showFriendsConversationMessage(step.side, step.message, elapsedSeconds);
+      this.stopFriendsConversationTyping(step.side, elapsedSeconds);
+      this.friendsConversationActiveSide = null;
+      this.friendsConversationStepIndex =
+        (this.friendsConversationStepIndex + 1) % MenuIcon3D.FRIENDS_CONVERSATION_SCRIPT.length;
+      this.friendsConversationNextActionAt = elapsedSeconds + gapAfter;
+    }
+
+    if (
+      this.friendsConversationActiveSide === null &&
+      elapsedSeconds >= this.friendsConversationNextActionAt
+    ) {
+      const step = MenuIcon3D.FRIENDS_CONVERSATION_SCRIPT[this.friendsConversationStepIndex];
+      const typingDuration = this.getFriendsConversationTypingDuration(step.message);
+      this.startFriendsConversationTyping(step.side, elapsedSeconds);
+      this.friendsConversationActiveSide = step.side;
+      this.friendsConversationTypingUntil = elapsedSeconds + typingDuration;
+    }
+
+    this.updateFriendsOverheadBubbles(elapsedSeconds);
+    this.updateFriendsMessageTranslate(elapsedSeconds);
+    this.updateFriendsLeftOverheadBubbles(elapsedSeconds);
+    this.updateFriendsLeftMessageTranslate(elapsedSeconds);
+  }
+
   private renderFriendsLeftFloatingChat(elapsedSeconds: number): void {
     if (!this.friendsLeftFloatingChatContext) {
       return;
     }
-
-    this.updateFriendsLeftOverheadDemo(elapsedSeconds);
 
     const ctx = this.friendsLeftFloatingChatContext;
     const pixelWidth = ctx.canvas.width;
@@ -3010,6 +3229,7 @@ export class MenuIcon3D {
       this.group.position.z = Math.sin(this.elapsed * 0.48) * 0.01;
     } else if (this.type === 'friends') {
       this.configureFriendsTextureSampling(renderer);
+      this.updateFriendsConversationScript(this.elapsed);
 
       if (this.friendsScreenTexture) {
         this.renderFriendsPhoneScreen(this.elapsed);
@@ -3118,6 +3338,11 @@ export class MenuIcon3D {
     this.friendsLeftFloatingChatTexture = null;
     this.friendsLeftFloatingChatContext = null;
     this.friendsLeftFloatingChatGroup = null;
+    this.friendsConversationInitialized = false;
+    this.friendsConversationNextActionAt = 0;
+    this.friendsConversationStepIndex = 0;
+    this.friendsConversationActiveSide = null;
+    this.friendsConversationTypingUntil = 0;
     this.friendsTextureSamplingConfigured = false;
   }
 }

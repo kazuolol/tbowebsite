@@ -22,8 +22,9 @@ These details are important because older docs in the repo may describe a differ
 - `src/main.ts` instantiates `FallingScene` and `MainMenu`
 - The active UI class is `MainMenu` (not `DreamcastMenu`)
 - `MainMenu` renders a header extension CTA: `Claim Early Access`
-- Main menu currently renders three left-rail buttons: `GlöbaNet`, `Mail`, `Friends`
+- Main menu currently renders three left-rail buttons: `GlobaNet`, `B-mail`, `Social`
 - `MainMenu` publishes weather updates via `tbo:local-weather-update`, consumed by `FallingScene`
+- `FallingScene` also instantiates `CharacterOrbitCarousel` (in-world orbiting action buttons around the active character)
 
 ## Architecture Principles
 
@@ -48,13 +49,18 @@ HTML/CSS overlays in `src/ui/` are separate from the WebGL canvas. The UI root s
 
 ### Menu Icon Rendering Pattern
 
-`MainMenu` uses a shared offscreen `THREE.WebGLRenderer` and each button icon is drawn into its own display canvas via `MenuIcon3D`.
+`MenuIcon3D` currently has two render paths:
 
-- Offscreen render size constant: `src/ui/MainMenu.ts` `ICON_RENDER_SIZE`
-- Per-icon canvas blit size constant: `src/ui/MenuIcon3D.ts` `ICON_SIZE`
+- Offscreen canvas path: `MainMenu` uses a shared offscreen `THREE.WebGLRenderer`, and each icon is drawn into its own display canvas.
+- Mounted scene path: `CharacterOrbitCarousel` calls `MenuIcon3D.mountToObject()` so icon meshes/lights are mounted directly into the main scene and animated by `MenuIcon3D.update()` without offscreen canvas blitting.
+
+- MainMenu offscreen render size constant: `src/ui/MainMenu.ts` `ICON_RENDER_SIZE`
+- MainMenu friends icon render size override: `src/ui/MainMenu.ts` `FRIENDS_ICON_RENDER_SIZE`
+- In-world carousel icon/button size constants: `src/environment/CharacterOrbitCarousel.ts` (`ICON_DISPLAY_SIZE_PX`, `BUTTON_WIDTH_PX`, `BUTTON_HEIGHT_PX`)
 - CSS display size: `.dc-menu-btn-icon` and `.dc-menu-btn-icon canvas` in `src/style.css`
+- In-world icon sizing is world-space driven: carousel creates a tiny placeholder canvas for `MenuIcon3D` and then fits mounted icon bounds to target world size in `CharacterOrbitCarousel.fitIconToTargetSize()`
 
-When resizing icons, update all three locations together to avoid blur, clipping, or inconsistent scale.
+When resizing MainMenu icons, update render constants and CSS together to avoid blur, clipping, or inconsistent scale. When resizing in-world icons, update `CharacterOrbitCarousel` size and hitbox constants together.
 
 ### Asset Loading
 
@@ -69,6 +75,17 @@ When resizing icons, update all three locations together to avoid blur, clipping
 - Spawns and recycles many emissive cubes moving toward the camera
 - Uses ACES tone mapping, fog, and fragment-like cube particles near the camera
 - Delegates character logic to `CharacterPool`
+- Updates `CharacterOrbitCarousel` each frame and disposes it during scene teardown
+
+### CharacterOrbitCarousel
+
+- Lives at `src/environment/CharacterOrbitCarousel.ts`
+- Anchors to `CharacterPool.getActiveCharacterOrbitAnchor()` and hides itself until a character is active
+- Renders three in-world orbiting action buttons (`play`, `inbox`, `friends`) with labels `GlobaNet`, `B-mail`, `Social`
+- Uses `MenuIcon3D.mountToObject()` so icons render directly in the main scene (layer-gated to `ORBIT_LAYER = 2`)
+- Uses invisible hit meshes + `THREE.Raycaster` from scene canvas pointer events for hover/click
+- Dispatches `tbo:menu-action` with `{ action, label }` on click
+- Clicked item highlight state is sticky (`activeIndex`) and stays active until another item is clicked or the carousel is disposed
 
 ### CharacterPool
 
@@ -121,6 +138,16 @@ Always ensure `dispose()` methods:
 - Dispose materials and textures
 - Clear arrays and references
 
+### Orbit Layer Wiring
+
+`CharacterOrbitCarousel` depends on consistent layer setup for both rendering and pointer picking:
+
+- Camera must have `ORBIT_LAYER` enabled
+- Carousel meshes/hit meshes must be on `ORBIT_LAYER`
+- Raycaster used for hover/click must target `ORBIT_LAYER`
+
+If these drift, orbit buttons can disappear, render incorrectly, or stop receiving hover/click hits.
+
 ## File Organization
 
 ```text
@@ -131,6 +158,7 @@ src/
     FallingScene.ts          # Active scene
   environment/
     CharacterPool.ts         # Active character orchestration
+    CharacterOrbitCarousel.ts # In-world orbiting action menu
     FallingCharacter.ts      # Active character variant/material logic
     *.ts                     # Other components, some unused by current entrypoint
   ui/
@@ -185,11 +213,12 @@ Check browser console for:
 - Edit button labels in `src/ui/MainMenu.ts`
 - Keep label-to-icon mapping explicit:
   - `key` type represents the `Claim Early Access` key icon
-  - `globe` type represents the `GlöbaNet` icon
-  - `inbox` type represents the `Mail` icon
-  - `friends` type represents the `Friends` icon
+  - `globe` type represents the `GlobaNet` icon
+  - `inbox` type represents the `B-mail` icon
+  - `friends` type represents the `Social` icon
   - `info` type is currently unused by `MainMenu` (paper-style icon still exists in `MenuIcon3D`)
-- If changing icon size, sync `ICON_RENDER_SIZE`, `ICON_SIZE`, and CSS icon dimensions
+- If changing MainMenu icon size, sync `ICON_RENDER_SIZE`, `FRIENDS_ICON_RENDER_SIZE`, and CSS icon dimensions
+- If changing in-world orbit icon size, also sync related constants in `CharacterOrbitCarousel` (`ICON_DISPLAY_SIZE_PX`, `BUTTON_WIDTH_PX`, `BUTTON_HEIGHT_PX`, hitbox constants)
 
 ### Modify Paper Icon Look
 
@@ -212,6 +241,7 @@ import fragmentShader from '../shaders/example.frag.glsl';
 
 - `main.ts` does not attach a default `tbo:menu-action` listener. If you need button behavior, pass `onAction` to `MainMenu` or add a global listener.
 - The icon type name for Early Access is `key`. Keep label/icon mapping explicit if refactoring.
+- `MenuIcon3D` currently contains dormant helper paths that are not wired into active icon construction (`createFriendsSocialPanelTexture` / `renderFriendsSocialPanel`, `createPortalStreakTexture`, `createPortalVortexTexture`).
 - Build commonly emits a Vite chunk-size warning (`>500 kB`); treat as informational unless bundling work is in scope.
 
 ## Exact Parity Mode (BigCorpp Imports)

@@ -9,6 +9,10 @@ export class MenuIcon3D {
   private type: IconType;
   private ctx: CanvasRenderingContext2D;
   private elapsed = 0;
+  private readonly ambientLight: THREE.AmbientLight;
+  private readonly directionalLight: THREE.DirectionalLight;
+  private externalRoot: THREE.Group | null = null;
+  private mountedExternally = false;
   private readonly keySpinQuat = new THREE.Quaternion();
   private readonly keyTiltQuat = new THREE.Quaternion();
   private globeCoreGroup: THREE.Group | null = null;
@@ -250,11 +254,11 @@ export class MenuIcon3D {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
 
-    const ambient = new THREE.AmbientLight(0xffffff, 0.8);
-    this.scene.add(ambient);
-    const dir = new THREE.DirectionalLight(0xffffff, 1.0);
-    dir.position.set(2, 3, 4);
-    this.scene.add(dir);
+    this.ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    this.scene.add(this.ambientLight);
+    this.directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    this.directionalLight.position.set(2, 3, 4);
+    this.scene.add(this.directionalLight);
 
     this.group = new THREE.Group();
     this.scene.add(this.group);
@@ -283,6 +287,38 @@ export class MenuIcon3D {
     }
 
     this.camera.lookAt(0, 0, 0);
+  }
+
+  public mountToObject(parent: THREE.Object3D, layer?: number): THREE.Group {
+    if (!this.externalRoot) {
+      this.externalRoot = new THREE.Group();
+      this.externalRoot.name = `MenuIcon3D-${this.type}`;
+
+      const movableChildren = this.scene.children.slice();
+      for (const child of movableChildren) {
+        this.scene.remove(child);
+        this.externalRoot.add(child);
+      }
+    }
+
+    if (this.externalRoot.parent && this.externalRoot.parent !== parent) {
+      this.externalRoot.parent.remove(this.externalRoot);
+    }
+    if (this.externalRoot.parent !== parent) {
+      parent.add(this.externalRoot);
+    }
+
+    if (layer !== undefined) {
+      this.applyLayer(this.externalRoot, layer);
+    }
+    this.mountedExternally = true;
+    return this.externalRoot;
+  }
+
+  private applyLayer(root: THREE.Object3D, layer: number): void {
+    root.traverse((obj) => {
+      obj.layers.set(layer);
+    });
   }
 
   private buildKey(): void {
@@ -2853,11 +2889,11 @@ export class MenuIcon3D {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
-  private configureFriendsTextureSampling(renderer: THREE.WebGLRenderer): void {
+  private configureFriendsTextureSampling(renderer?: THREE.WebGLRenderer): void {
     if (this.friendsTextureSamplingConfigured) {
       return;
     }
-    const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
+    const maxAnisotropy = renderer ? renderer.capabilities.getMaxAnisotropy() : 1;
     const targetAnisotropy = Math.max(1, Math.min(8, maxAnisotropy));
 
     if (this.friendsScreenTexture) {
@@ -3204,11 +3240,17 @@ export class MenuIcon3D {
     return texture;
   }
 
-  /** Update animation state + render via shared renderer, then blit to display canvas. */
-  update(delta: number, renderer: THREE.WebGLRenderer): void {
+  /** Update animation state; optionally render via shared renderer and blit to display canvas. */
+  update(delta: number, renderer?: THREE.WebGLRenderer): void {
     this.elapsed += delta;
-    this.syncRendererSize(renderer);
-    renderer.setClearColor(0x000000, 0);
+    const renderToCanvas = !this.mountedExternally;
+    if (renderToCanvas) {
+      if (!renderer) {
+        return;
+      }
+      this.syncRendererSize(renderer);
+      renderer.setClearColor(0x000000, 0);
+    }
 
     if (this.type === 'globe') {
       // Keep auxiliary terminal screens non-spinning; apply only a soft bob + wobble.
@@ -3309,6 +3351,10 @@ export class MenuIcon3D {
       this.group.rotation.y += delta * 0.8;
     }
 
+    if (!renderToCanvas || !renderer) {
+      return;
+    }
+
     renderer.render(this.scene, this.camera);
     const targetWidth = this.ctx.canvas.width;
     const targetHeight = this.ctx.canvas.height;
@@ -3362,7 +3408,7 @@ export class MenuIcon3D {
       disposedMaterials.add(material.uuid);
     };
 
-    this.scene.traverse((obj) => {
+    const disposeObject = (obj: THREE.Object3D): void => {
       if (obj instanceof THREE.Mesh || obj instanceof THREE.Line || obj instanceof THREE.Points) {
         obj.geometry.dispose();
         if (Array.isArray(obj.material)) {
@@ -3377,7 +3423,15 @@ export class MenuIcon3D {
           disposeMaterial(obj.material);
         }
       }
-    });
+    };
+
+    if (this.externalRoot) {
+      this.externalRoot.traverse(disposeObject);
+      if (this.externalRoot.parent) {
+        this.externalRoot.parent.remove(this.externalRoot);
+      }
+    }
+    this.scene.traverse(disposeObject);
 
     this.globeCoreGroup = null;
     this.globeOrbitalGroup = null;
@@ -3401,5 +3455,7 @@ export class MenuIcon3D {
     this.friendsConversationActiveSide = null;
     this.friendsConversationTypingUntil = 0;
     this.friendsTextureSamplingConfigured = false;
+    this.externalRoot = null;
+    this.mountedExternally = false;
   }
 }

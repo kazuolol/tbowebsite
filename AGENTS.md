@@ -214,6 +214,25 @@ import fragmentShader from '../shaders/example.frag.glsl';
 - The icon type name for Early Access is `key`. Keep label/icon mapping explicit if refactoring.
 - Build commonly emits a Vite chunk-size warning (`>500 kB`); treat as informational unless bundling work is in scope.
 
+## Exact Parity Mode (BigCorpp Imports)
+
+Use this mode when asked to match behavior or visuals from `BigCorpp/TheBigOne` "exactly".
+
+- Source from canonical files first and treat them as the single source of truth:
+  `UXML`, `USS`, screen/controller scripts, and required shared style dependencies
+  (for example `GlobalStyles.uss` and `Inventory.uss`).
+- Copy numeric values, spacing, radii, colors, and timing values exactly from source files.
+- Do not add creative styling in parity mode:
+  no extra gradients, glows, motion, color shifts, or layout changes unless they exist upstream.
+- Social panel parity checklist:
+  preserve transparent/minimal visual style, use `basic-button` token values from USS, and preserve canonical panel sizing/layout.
+- Resolution vs size rule:
+  if asked to improve quality, increase texture backing resolution only; keep world-space size unchanged unless size change is explicitly requested.
+- Repo hygiene:
+  do not commit scratch/context files (for example `context.md`) unless explicitly requested.
+- PowerShell command compatibility:
+  use separate commands or `;` as a command separator instead of `&&`.
+
 ## External References
 
 Character assets originate from Unity project `BigCorpp/TheBigOne`. Use that source for material and mesh naming truth when mappings drift.

@@ -39,6 +39,18 @@ export class MenuIcon3D {
     phase: number;
     zOffset: number;
   }> = [];
+  private inboxOrbitCenter: THREE.Group | null = null;
+  private inboxOrbitParticles: Array<{
+    sprite: THREE.Sprite;
+    orbitRadiusX: number;
+    orbitRadiusZ: number;
+    speed: number;
+    phase: number;
+    yBobAmplitude: number;
+    yBobSpeed: number;
+    baseScale: number;
+    opacityPhase: number;
+  }> = [];
   private friendsScreenTexture: THREE.CanvasTexture | null = null;
   private friendsScreenContext: CanvasRenderingContext2D | null = null;
   private friendsSocialPanelTexture: THREE.CanvasTexture | null = null;
@@ -115,9 +127,16 @@ export class MenuIcon3D {
     MenuIcon3D.FRIENDS_FLOATING_CHAT_BASE_HEIGHT;
   private static readonly FRIENDS_FLOATING_CHAT_WORLD_SCALE = 5.7375;
   private static readonly FRIENDS_RIGHT_CHAT_OFFSET = new THREE.Vector3(1.967075, 2.772, 0.32);
-  private static readonly FRIENDS_LEFT_CHAT_OFFSET = new THREE.Vector3(-1.731026, 2.43936, 0.32);
+  private static readonly FRIENDS_LEFT_CHAT_X_EXTRA_OFFSET = 0.3;
+  // Visual compensation for icon yaw so left/right anchors read equally distant on screen.
+  private static readonly FRIENDS_LEFT_CHAT_Z_VISUAL_OFFSET = 0.08;
+  private static readonly FRIENDS_LEFT_CHAT_OFFSET = new THREE.Vector3(
+    -MenuIcon3D.FRIENDS_RIGHT_CHAT_OFFSET.x - MenuIcon3D.FRIENDS_LEFT_CHAT_X_EXTRA_OFFSET,
+    MenuIcon3D.FRIENDS_RIGHT_CHAT_OFFSET.y,
+    MenuIcon3D.FRIENDS_RIGHT_CHAT_OFFSET.z + MenuIcon3D.FRIENDS_LEFT_CHAT_Z_VISUAL_OFFSET
+  );
   private static readonly FRIENDS_RIGHT_CHAT_TILT_Z = -0.2178;
-  private static readonly FRIENDS_LEFT_CHAT_TILT_Z = 0.2178;
+  private static readonly FRIENDS_LEFT_CHAT_TILT_Z = -MenuIcon3D.FRIENDS_RIGHT_CHAT_TILT_Z;
   private static readonly FRIENDS_CONVERSATION_INITIAL_DELAY = 0.6;
   private static readonly FRIENDS_CONVERSATION_TIME_SCALE = 2.34;
   private static readonly FRIENDS_CONVERSATION_SCRIPT: ReadonlyArray<{
@@ -1013,7 +1032,7 @@ export class MenuIcon3D {
       map: texture,
       color: 0xffffff,
       emissive: 0xffffff,
-      emissiveIntensity: 0.05,
+      emissiveIntensity: 0.028,
       metalness: 0.0,
       roughness: 0.13,
       transmission: 0.0,
@@ -1029,7 +1048,7 @@ export class MenuIcon3D {
       map: texture,
       color: 0xffffff,
       emissive: 0xffffff,
-      emissiveIntensity: 0.035,
+      emissiveIntensity: 0.02,
       metalness: 0.0,
       roughness: 0.18,
       transmission: 0.0,
@@ -1044,7 +1063,7 @@ export class MenuIcon3D {
     const flapEdgeMaterial = new THREE.MeshPhysicalMaterial({
       color: 0xffffff,
       emissive: 0xffffff,
-      emissiveIntensity: 0.05,
+      emissiveIntensity: 0.028,
       metalness: 0.0,
       roughness: 0.24,
       transmission: 0.0,
@@ -1055,15 +1074,17 @@ export class MenuIcon3D {
       transparent: false,
       opacity: 1.0,
     });
-    const foldRidgeMaterial = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      metalness: 0.0,
-      roughness: 0.64,
+    const foldRidgeMaterial = new THREE.MeshBasicMaterial({
+      color: 0xb7c4d8,
+      transparent: true,
+      opacity: 0.52,
+      depthWrite: false,
+      toneMapped: false,
     });
     const foldShadowMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
+      color: 0xe3e8f0,
       transparent: true,
-      opacity: 0.055,
+      opacity: 0.06,
       depthWrite: false,
       toneMapped: false,
       side: THREE.DoubleSide,
@@ -1095,6 +1116,47 @@ export class MenuIcon3D {
     mailBackGlow.position.set(0.0, 0.0, -0.56);
     mailBackGlow.scale.set(3.24, 2.56, 1);
     this.scene.add(mailBackGlow);
+
+    const orbitParticleMap = this.createRadialGlowTexture(
+      'rgba(232, 248, 255, 1)',
+      'rgba(92, 183, 255, 0.9)',
+      'rgba(0, 0, 0, 0)'
+    );
+    const orbitCenter = new THREE.Group();
+    // Center the orbit around the envelope body so particles pass in front and behind.
+    orbitCenter.position.set(0, -0.03, 0.02);
+    this.group.add(orbitCenter);
+    this.inboxOrbitCenter = orbitCenter;
+    this.inboxOrbitParticles = [];
+
+    for (let i = 0; i < 3; i++) {
+      const sprite = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: orbitParticleMap,
+          color: 0xb4e3ff,
+          transparent: true,
+          opacity: 0.42,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          depthTest: true,
+          toneMapped: false,
+        })
+      );
+      sprite.renderOrder = 24;
+      orbitCenter.add(sprite);
+      this.inboxOrbitParticles.push({
+        sprite,
+        orbitRadiusX: 1.28 + i * 0.06,
+        orbitRadiusZ: 0.52 + i * 0.04,
+        speed: 1.12 + i * 0.14,
+        phase: (i / 3) * Math.PI * 2,
+        yBobAmplitude: 0.075 + i * 0.01,
+        yBobSpeed: 2.2 + i * 0.25,
+        baseScale: 0.11 + i * 0.007,
+        opacityPhase: i * 1.37,
+      });
+    }
+    this.updateInboxOrbitParticles(this.elapsed);
 
     const bodyGeometry = new THREE.ExtrudeGeometry(createRoundedRectShape(2.06, 1.4, 0.22), {
       depth: 0.23,
@@ -1169,7 +1231,7 @@ export class MenuIcon3D {
       const direction = end.clone().sub(start);
       const length = direction.length();
       const ridge = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.0038, 0.0038, length, 12),
+        new THREE.CylinderGeometry(0.0054, 0.0054, length, 12),
         foldRidgeMaterial
       );
       ridge.position.copy(start).add(end).multiplyScalar(0.5);
@@ -1182,26 +1244,97 @@ export class MenuIcon3D {
 
     createFoldRidge(
       flap,
-      new THREE.Vector3(-0.97, 0.54, 0.0105),
-      new THREE.Vector3(0, -0.15, 0.0105)
+      new THREE.Vector3(-0.97, 0.54, 0.0125),
+      new THREE.Vector3(-0.045, -0.135, 0.0125)
     );
     createFoldRidge(
       flap,
-      new THREE.Vector3(0.97, 0.54, 0.0105),
-      new THREE.Vector3(0, -0.15, 0.0105)
+      new THREE.Vector3(0.97, 0.54, 0.0125),
+      new THREE.Vector3(0.045, -0.135, 0.0125)
     );
 
     const foldShadowShape = new THREE.Shape();
     foldShadowShape.moveTo(-0.95, 0.52);
     foldShadowShape.lineTo(0.95, 0.52);
-    foldShadowShape.lineTo(0, -0.13);
+    foldShadowShape.lineTo(0.055, -0.1);
+    foldShadowShape.lineTo(-0.055, -0.1);
     foldShadowShape.closePath();
     const foldShadow = new THREE.Mesh(new THREE.ShapeGeometry(foldShadowShape), foldShadowMaterial);
-    foldShadow.position.set(0, 0, -0.011);
+    foldShadow.position.set(0, 0, 0.0095);
     flap.add(foldShadow);
 
     this.group.rotation.set(-0.1, 0.04, -0.09);
     this.group.scale.setScalar(0.9);
+  }
+
+  private updateGlobeOrbitNodes(elapsedSeconds: number): void {
+    if (this.globePacketNodes.length === 0) {
+      return;
+    }
+
+    for (let i = 0; i < this.globePacketNodes.length; i++) {
+      const packet = this.globePacketNodes[i];
+      const angle = elapsedSeconds * (packet.speed * 0.85) + packet.phase;
+      const radialJitter =
+        1 + Math.sin(elapsedSeconds * 0.45 + packet.phase * 1.7) * 0.03;
+
+      packet.mesh.position.set(
+        Math.cos(angle) * packet.radiusX * radialJitter,
+        Math.sin(angle) * packet.radiusY * radialJitter,
+        packet.zOffset + Math.sin(angle * 2.2 + packet.phase * 0.85) * 0.05
+      );
+
+      const material = packet.mesh.material;
+      if (material instanceof THREE.MeshBasicMaterial) {
+        material.opacity =
+          0.2 +
+          0.18 *
+            (0.5 +
+              0.5 * Math.sin(elapsedSeconds * (2.1 + packet.speed * 0.4) + packet.phase));
+      }
+    }
+  }
+
+  private updateInboxOrbitParticles(elapsedSeconds: number): void {
+    if (!this.inboxOrbitCenter || this.inboxOrbitParticles.length === 0) {
+      return;
+    }
+
+    for (let i = 0; i < this.inboxOrbitParticles.length; i++) {
+      const particle = this.inboxOrbitParticles[i];
+      const angle = elapsedSeconds * particle.speed + particle.phase;
+      const radialScale =
+        1 + Math.sin(elapsedSeconds * (1.2 + i * 0.22) + particle.phase * 1.15) * 0.035;
+      const x = Math.cos(angle) * particle.orbitRadiusX * radialScale;
+      const z = Math.sin(angle) * particle.orbitRadiusZ * radialScale;
+      const y =
+        Math.sin(elapsedSeconds * particle.yBobSpeed + angle * 1.9 + particle.phase) *
+        particle.yBobAmplitude;
+      particle.sprite.position.set(x, y, z);
+
+      const pulse =
+        0.9 +
+        0.1 * (0.5 + 0.5 * Math.sin(elapsedSeconds * particle.yBobSpeed + particle.opacityPhase));
+
+      const frontFactor = THREE.MathUtils.clamp(
+        (z / Math.max(0.0001, particle.orbitRadiusZ) + 1) * 0.5,
+        0,
+        1
+      );
+      const depthScale = 0.92 + frontFactor * 0.16;
+      particle.sprite.scale.setScalar(particle.baseScale * pulse * depthScale);
+
+      const material = particle.sprite.material as THREE.SpriteMaterial;
+      material.opacity =
+        0.14 +
+        0.1 * frontFactor +
+        0.12 *
+          (0.5 +
+            0.5 *
+              Math.sin(
+                elapsedSeconds * (particle.yBobSpeed + 0.56) + particle.opacityPhase
+              ));
+    }
   }
 
   private createMailEnvelopeTexture(): THREE.CanvasTexture {
@@ -1462,21 +1595,6 @@ export class MenuIcon3D {
     screenMaterial.depthWrite = false;
     this.group.add(screen);
 
-    // Speaker grille + controls under the top screen.
-    const speakerPanel = createRoundedPanel(0.58, 0.12, 0.02, 0.05, shellInsetMaterial);
-    speakerPanel.position.set(-0.64, 0.06, 0.1);
-    this.group.add(speakerPanel);
-
-    for (let i = 0; i < 7; i++) {
-      const slot = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.11, 0.016), bezelMaterial);
-      slot.position.set(-0.79 + i * 0.072, 0.06, 0.108);
-      this.group.add(slot);
-    }
-
-    const rightControlBase = createRoundedPanel(0.42, 0.12, 0.024, 0.05, shellInsetMaterial);
-    rightControlBase.position.set(0.69, 0.06, 0.1);
-    this.group.add(rightControlBase);
-
     const screwGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.012, 14);
     const topLeftScrew = new THREE.Mesh(screwGeo, screwMaterial);
     topLeftScrew.rotation.x = Math.PI * 0.5;
@@ -1501,13 +1619,23 @@ export class MenuIcon3D {
     bottomInset.position.set(0, -0.58, 0.084);
     this.group.add(bottomInset);
 
-    const keyboardWell = createRoundedPanel(1.36, 0.82, 0.03, 0.08, bezelMaterial);
-    keyboardWell.position.set(-0.38, -0.58, 0.11);
+    // Shared input tray ties keyboard and right controls into one hardware layer.
+    const inputTray = createRoundedPanel(1.9, 0.88, 0.022, 0.1, shellInsetMaterial);
+    inputTray.position.set(0.07, -0.66, 0.106);
+    this.group.add(inputTray);
+
+    const keyboardWell = createRoundedPanel(1.36, 0.82, 0.03, 0.08, keyboardDeckMaterial);
+    keyboardWell.position.set(-0.38, -0.58, 0.112);
     this.group.add(keyboardWell);
 
     const keyboardDeck = createRoundedPanel(1.24, 0.7, 0.016, 0.07, keyboardDeckMaterial);
     keyboardDeck.position.set(-0.38, -0.58, 0.132);
     this.group.add(keyboardDeck);
+
+    // Bridge panel removes the hard bezel break between keyboard and right controls.
+    const keyboardToControlBridge = createRoundedPanel(0.34, 0.88, 0.022, 0.09, keyboardDeckMaterial);
+    keyboardToControlBridge.position.set(0.3, -0.6, 0.126);
+    this.group.add(keyboardToControlBridge);
 
     const keyBodyGeometry = new THREE.BoxGeometry(0.084, 0.06, 0.024);
     const keyFaceGeometry = new THREE.BoxGeometry(0.056, 0.034, 0.01);
@@ -1547,8 +1675,8 @@ export class MenuIcon3D {
     spaceBarFace.position.set(-0.35, -0.858, 0.159);
     this.group.add(spaceBarFace);
 
-    const controlCluster = createRoundedPanel(0.62, 0.94, 0.028, 0.1, bezelMaterial);
-    controlCluster.position.set(0.55, -0.66, 0.114);
+    const controlCluster = createRoundedPanel(0.72, 0.94, 0.028, 0.1, keyboardDeckMaterial);
+    controlCluster.position.set(0.54, -0.66, 0.114);
     this.group.add(controlCluster);
 
     const trackpadFrame = createRoundedPanel(0.44, 0.56, 0.03, 0.09, keyboardDeckMaterial);
@@ -1562,10 +1690,6 @@ export class MenuIcon3D {
     const trackpadSheen = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.38, 0.006), keyFaceMaterial);
     trackpadSheen.position.set(0.69, -0.56, 0.158);
     this.group.add(trackpadSheen);
-
-    const trackpadDivider = new THREE.Mesh(new THREE.BoxGeometry(0.31, 0.012, 0.006), keycapMaterial);
-    trackpadDivider.position.set(0.55, -0.73, 0.157);
-    this.group.add(trackpadDivider);
 
     const dpadNest = createRoundedPanel(0.32, 0.24, 0.024, 0.07, keyboardDeckMaterial);
     dpadNest.position.set(0.55, -0.9, 0.128);
@@ -1873,7 +1997,7 @@ export class MenuIcon3D {
     ctx.font = `700 ${Math.round(height * 0.07)}px sans-serif`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText('FriendLink', 22, Math.round(topBarHeight * 0.72));
+    ctx.fillText('B-social', 22, Math.round(topBarHeight * 0.72));
 
     // Small reception bars in the top-right of the device screen.
     const signalBaseX = width - 84;
@@ -3273,6 +3397,7 @@ export class MenuIcon3D {
       if (this.globeOrbitalGroup) {
         this.globeOrbitalGroup.rotation.set(Math.PI * 0.43, 0.02, -0.08);
       }
+      this.updateGlobeOrbitNodes(this.elapsed);
       for (let i = 0; i < this.globeAuxPanels.length; i++) {
         const panel = this.globeAuxPanels[i];
         panel.group.position.set(panel.baseX, panel.baseY, panel.baseZ);
@@ -3292,6 +3417,7 @@ export class MenuIcon3D {
       this.group.position.set(0, 0, 0);
       this.group.scale.set(1, 1, 1);
     } else if (this.type === 'inbox') {
+      this.updateInboxOrbitParticles(this.elapsed);
       this.group.rotation.set(-0.1, 0.04, -0.09);
       this.group.position.set(0, 0, 0);
       this.group.scale.setScalar(0.9);
@@ -3406,6 +3532,8 @@ export class MenuIcon3D {
     this.globeAuxPanels = [];
     this.globePulseMaterials = [];
     this.globePacketNodes = [];
+    this.inboxOrbitCenter = null;
+    this.inboxOrbitParticles = [];
     this.friendsScreenTexture = null;
     this.friendsScreenContext = null;
     this.friendsSocialPanelTexture = null;

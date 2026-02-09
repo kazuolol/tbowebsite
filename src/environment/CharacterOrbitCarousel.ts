@@ -63,6 +63,8 @@ const BUTTON_GAP_BELOW_ICON_WORLD = BUTTON_GAP_BELOW_ICON_PX * PX_TO_WORLD;
 const ORBIT_RADIUS_X = 5.0;
 const ORBIT_RADIUS_Z = 2.8;
 const ORBIT_SPEED = 0.1;
+const HOVER_SCALE_BOOST = 0.14;
+const ACTIVE_SCALE_BOOST = 0.1;
 
 export class CharacterOrbitCarousel {
   private readonly scene: THREE.Scene;
@@ -189,8 +191,8 @@ export class CharacterOrbitCarousel {
         item.group.quaternion.copy(this.orbitWorldQuaternionInverse).multiply(this.itemWorldQuaternion);
       }
 
-      const hoverScale = hovered ? 0.04 : 0;
-      const activeScale = active ? 0.03 : 0;
+      const hoverScale = hovered ? HOVER_SCALE_BOOST : 0;
+      const activeScale = active ? ACTIVE_SCALE_BOOST : 0;
       const scale = THREE.MathUtils.lerp(0.9, 1.0, depth) + hoverScale + activeScale;
       item.group.scale.setScalar(scale);
 
@@ -246,7 +248,7 @@ export class CharacterOrbitCarousel {
       },
       {
         action: 'friends',
-        label: 'Social',
+        label: 'B-social',
         iconType: 'friends',
         iconTargetSizeWorld: ICON_WORLD_SIZE * SOCIAL_ICON_SCALE,
         buttonGapOffsetPx: SOCIAL_BUTTON_GAP_OFFSET_PX,

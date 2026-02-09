@@ -1456,7 +1456,6 @@ export class MenuIcon3D {
       })
     );
     screen.position.set(0, 0.64, 0.13);
-    screen.rotation.y = Math.PI;
     screen.renderOrder = 20;
     const screenMaterial = screen.material as THREE.MeshBasicMaterial;
     screenMaterial.depthTest = false;

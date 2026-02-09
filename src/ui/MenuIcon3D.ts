@@ -13,8 +13,6 @@ export class MenuIcon3D {
   private readonly directionalLight: THREE.DirectionalLight;
   private externalRoot: THREE.Group | null = null;
   private mountedExternally = false;
-  private readonly keySpinQuat = new THREE.Quaternion();
-  private readonly keyTiltQuat = new THREE.Quaternion();
   private globeCoreGroup: THREE.Group | null = null;
   private globeOrbitalGroup: THREE.Group | null = null;
   private globeAuxPanels: Array<{
@@ -121,6 +119,7 @@ export class MenuIcon3D {
   private static readonly FRIENDS_RIGHT_CHAT_TILT_Z = -0.2178;
   private static readonly FRIENDS_LEFT_CHAT_TILT_Z = 0.2178;
   private static readonly FRIENDS_CONVERSATION_INITIAL_DELAY = 0.6;
+  private static readonly FRIENDS_CONVERSATION_TIME_SCALE = 2.34;
   private static readonly FRIENDS_CONVERSATION_SCRIPT: ReadonlyArray<{
     side: 'left' | 'right';
     message: string;
@@ -244,9 +243,6 @@ export class MenuIcon3D {
     { side: 'right', message: 'barely' },
     { side: 'right', message: '\u{1F602}\u{1F480}' },
   ];
-  private static readonly AXIS_Y = new THREE.Vector3(0, 1, 0);
-  private static readonly AXIS_Z = new THREE.Vector3(0, 0, 1);
-
   constructor(canvas: HTMLCanvasElement, type: IconType) {
     this.type = type;
     this.ctx = canvas.getContext('2d')!;
@@ -1002,7 +998,7 @@ export class MenuIcon3D {
       map: texture,
       color: 0xffffff,
       emissive: 0xffffff,
-      emissiveIntensity: 0.08,
+      emissiveIntensity: 0.045,
       metalness: 0.0,
       roughness: 0.15,
       transmission: 0.0,
@@ -1017,7 +1013,7 @@ export class MenuIcon3D {
       map: texture,
       color: 0xffffff,
       emissive: 0xffffff,
-      emissiveIntensity: 0.09,
+      emissiveIntensity: 0.05,
       metalness: 0.0,
       roughness: 0.13,
       transmission: 0.0,
@@ -1033,7 +1029,7 @@ export class MenuIcon3D {
       map: texture,
       color: 0xffffff,
       emissive: 0xffffff,
-      emissiveIntensity: 0.06,
+      emissiveIntensity: 0.035,
       metalness: 0.0,
       roughness: 0.18,
       transmission: 0.0,
@@ -1204,7 +1200,7 @@ export class MenuIcon3D {
     foldShadow.position.set(0, 0, -0.011);
     flap.add(foldShadow);
 
-    this.group.rotation.set(-0.16, 0.08, -0.23);
+    this.group.rotation.set(-0.1, 0.04, -0.09);
     this.group.scale.setScalar(0.9);
   }
 
@@ -1620,6 +1616,7 @@ export class MenuIcon3D {
 
     // Chat bubble lives outside the device, floating over the right side.
     const floatingChatGroup = new THREE.Group();
+    floatingChatGroup.userData.carouselBoundsIgnore = true;
     floatingChatGroup.position.copy(MenuIcon3D.FRIENDS_RIGHT_CHAT_OFFSET);
     // Lean slightly right so it reads like the device is "speaking".
     floatingChatGroup.rotation.set(0, 0, MenuIcon3D.FRIENDS_RIGHT_CHAT_TILT_Z);
@@ -1653,6 +1650,7 @@ export class MenuIcon3D {
 
     // Secondary mirrored chat stack on the left side.
     const leftFloatingChatGroup = new THREE.Group();
+    leftFloatingChatGroup.userData.carouselBoundsIgnore = true;
     leftFloatingChatGroup.position.copy(MenuIcon3D.FRIENDS_LEFT_CHAT_OFFSET);
     leftFloatingChatGroup.rotation.set(0, 0, MenuIcon3D.FRIENDS_LEFT_CHAT_TILT_Z);
     leftFloatingChatGroup.scale.setScalar(MenuIcon3D.FRIENDS_FLOATING_CHAT_WORLD_SCALE);
@@ -2409,7 +2407,12 @@ export class MenuIcon3D {
   private getFriendsConversationTypingDuration(message: string): number {
     const glyphCount = Array.from(message).length;
     const duration = 0.35 + Math.min(1.05, glyphCount * 0.045);
-    return THREE.MathUtils.clamp(duration, 0.35, 1.4);
+    const scaledDuration = duration * MenuIcon3D.FRIENDS_CONVERSATION_TIME_SCALE;
+    return THREE.MathUtils.clamp(
+      scaledDuration,
+      0.35 * MenuIcon3D.FRIENDS_CONVERSATION_TIME_SCALE,
+      1.4 * MenuIcon3D.FRIENDS_CONVERSATION_TIME_SCALE
+    );
   }
 
   private getFriendsConversationGapAfter(stepIndex: number): number {
@@ -2428,7 +2431,12 @@ export class MenuIcon3D {
       gap -= 0.05;
     }
 
-    return THREE.MathUtils.clamp(gap, 0.2, 1.1);
+    const scaledGap = gap * MenuIcon3D.FRIENDS_CONVERSATION_TIME_SCALE;
+    return THREE.MathUtils.clamp(
+      scaledGap,
+      0.2 * MenuIcon3D.FRIENDS_CONVERSATION_TIME_SCALE,
+      1.1 * MenuIcon3D.FRIENDS_CONVERSATION_TIME_SCALE
+    );
   }
 
   private updateFriendsConversationScript(elapsedSeconds: number): void {
@@ -2438,7 +2446,9 @@ export class MenuIcon3D {
       this.friendsConversationActiveSide = null;
       this.friendsConversationTypingUntil = 0;
       this.friendsConversationNextActionAt =
-        elapsedSeconds + MenuIcon3D.FRIENDS_CONVERSATION_INITIAL_DELAY;
+        elapsedSeconds +
+        MenuIcon3D.FRIENDS_CONVERSATION_INITIAL_DELAY *
+          MenuIcon3D.FRIENDS_CONVERSATION_TIME_SCALE;
     }
 
     if (
@@ -3253,79 +3263,39 @@ export class MenuIcon3D {
     }
 
     if (this.type === 'globe') {
-      // Keep auxiliary terminal screens non-spinning; apply only a soft bob + wobble.
+      // Keep globe icon static in world space (no float/tilt/spin).
       this.group.rotation.set(-0.18, 0.46, 0.04);
-      this.group.position.set(0, Math.sin(this.elapsed * 1.1) * 0.042, 0);
+      this.group.position.set(0, 0, 0);
       this.group.scale.set(1, 1, 1);
-
       if (this.globeCoreGroup) {
-        this.globeCoreGroup.position.x = Math.sin(this.elapsed * 0.5) * 0.02;
-        this.globeCoreGroup.position.y = Math.sin(this.elapsed * 0.82) * 0.032;
-        this.globeCoreGroup.position.z = Math.sin(this.elapsed * 0.42) * 0.014;
-        this.globeCoreGroup.rotation.y = this.elapsed * 0.08;
-        this.globeCoreGroup.rotation.x = Math.sin(this.elapsed * 0.26) * 0.04;
-        this.globeCoreGroup.rotation.z = Math.sin(this.elapsed * 0.34) * 0.034;
+        this.globeCoreGroup.position.set(0, 0, 0);
+        this.globeCoreGroup.rotation.set(0, 0, 0);
       }
-
       if (this.globeOrbitalGroup) {
-        this.globeOrbitalGroup.rotation.y = Math.sin(this.elapsed * 0.22) * 0.08;
-        this.globeOrbitalGroup.rotation.z = -0.08 + Math.sin(this.elapsed * 0.28) * 0.05;
+        this.globeOrbitalGroup.rotation.set(Math.PI * 0.43, 0.02, -0.08);
       }
-
-      for (let i = 0; i < this.globePacketNodes.length; i++) {
-        const packet = this.globePacketNodes[i];
-        const angle = this.elapsed * packet.speed + packet.phase;
-        packet.mesh.position.set(
-          Math.cos(angle) * packet.radiusX,
-          Math.sin(angle) * packet.radiusY,
-          packet.zOffset + Math.sin(angle * 2.2) * 0.05
-        );
-        const packetScale = 0.86 + (Math.sin(angle * 3.1) + 1) * 0.11;
-        packet.mesh.scale.set(packetScale, packetScale, packetScale);
-      }
-
       for (let i = 0; i < this.globeAuxPanels.length; i++) {
         const panel = this.globeAuxPanels[i];
-        panel.group.position.set(
-          panel.baseX + Math.sin(this.elapsed * 0.68 + panel.phase) * 0.014,
-          panel.baseY + Math.sin(this.elapsed * 1.06 + panel.phase) * 0.026,
-          panel.baseZ + Math.sin(this.elapsed * 0.57 + panel.phase) * 0.009
-        );
-        panel.group.rotation.y = panel.baseRotY + Math.sin(this.elapsed * 0.42 + panel.phase) * 0.024;
-        panel.group.rotation.z = panel.baseRotZ + Math.sin(this.elapsed * 0.54 + panel.phase) * 0.012;
+        panel.group.position.set(panel.baseX, panel.baseY, panel.baseZ);
+        panel.group.rotation.y = panel.baseRotY;
+        panel.group.rotation.z = panel.baseRotZ;
       }
-
       for (let i = 0; i < this.globePulseMaterials.length; i++) {
         const pulse = this.globePulseMaterials[i];
-        const nextOpacity =
-          pulse.baseOpacity +
-          Math.sin(this.elapsed * pulse.speed + pulse.phase) * pulse.amplitude;
-        pulse.material.opacity = THREE.MathUtils.clamp(nextOpacity, 0.01, 0.6);
+        pulse.material.opacity = pulse.baseOpacity;
       }
     } else if (this.type === 'key') {
-      // Continuous full rotation so the key completes 360-degree spins.
-      const spinY = this.elapsed * 1.05 + Math.PI * 0.5;
-      const rightTilt = -0.14;
-      const pulse = 1 + Math.sin(this.elapsed * 2.0) * 0.03;
-      const spinQuat = this.keySpinQuat.setFromAxisAngle(MenuIcon3D.AXIS_Y, spinY);
-      const tiltQuat = this.keyTiltQuat.setFromAxisAngle(MenuIcon3D.AXIS_Z, rightTilt);
-      // Apply spin first, then a fixed screen-space right tilt.
-      this.group.quaternion.copy(tiltQuat).multiply(spinQuat);
+      this.group.rotation.set(0, Math.PI * 0.5, 0);
       this.group.position.set(0, 0, 0);
-      this.group.scale.set(pulse, pulse, pulse);
+      this.group.scale.set(1, 1, 1);
     } else if (this.type === 'info') {
-      this.group.rotation.y += delta * 1.0;
-      this.group.rotation.x = -0.45 + Math.sin(this.elapsed * 0.9) * 0.05;
-      this.group.rotation.z = -0.08 + Math.sin(this.elapsed * 0.8) * 0.03;
-      this.group.position.y = Math.sin(this.elapsed * 1.4) * 0.03;
+      this.group.rotation.set(-0.45, 0.18, -0.08);
+      this.group.position.set(0, 0, 0);
+      this.group.scale.set(1, 1, 1);
     } else if (this.type === 'inbox') {
-      // Match friends-style floating sway while keeping envelope base orientation.
-      this.group.rotation.x = -0.1 + Math.sin(this.elapsed * 0.9) * 0.038;
-      this.group.rotation.y = 0.04 + Math.sin(this.elapsed * 0.55) * 0.14;
-      this.group.rotation.z = -0.09 + Math.sin(this.elapsed * 0.7) * 0.048;
-      this.group.position.x = Math.sin(this.elapsed * 0.62) * 0.014;
-      this.group.position.y = Math.sin(this.elapsed * 1.3) * 0.022;
-      this.group.position.z = Math.sin(this.elapsed * 0.48) * 0.01;
+      this.group.rotation.set(-0.1, 0.04, -0.09);
+      this.group.position.set(0, 0, 0);
+      this.group.scale.setScalar(0.9);
     } else if (this.type === 'friends') {
       this.configureFriendsTextureSampling(renderer);
       this.updateFriendsConversationScript(this.elapsed);
@@ -3342,13 +3312,12 @@ export class MenuIcon3D {
         this.renderFriendsLeftFloatingChat(this.elapsed);
         this.friendsLeftFloatingChatTexture.needsUpdate = true;
       }
-      // Increase overall Friends icon floatiness.
-      this.group.rotation.x = -0.04 + Math.sin(this.elapsed * 1.0) * 0.045;
-      this.group.rotation.y = 0.2 + Math.sin(this.elapsed * 0.62) * 0.16;
-      this.group.rotation.z = 0.01 + Math.sin(this.elapsed * 0.84) * 0.03;
-      this.group.position.y = Math.sin(this.elapsed * 1.4) * 0.045;
+      this.group.rotation.set(-0.12, 0.3, 0.02);
+      this.group.position.set(0, 0, 0);
+      this.group.scale.setScalar(0.92);
     } else {
-      this.group.rotation.y += delta * 0.8;
+      this.group.position.set(0, 0, 0);
+      this.group.scale.set(1, 1, 1);
     }
 
     if (!renderToCanvas || !renderer) {

@@ -14,6 +14,7 @@ interface OrbitItemConfig {
   label: string;
   iconType: IconType;
   iconTargetSizeWorld: number;
+  buttonGapOffsetPx?: number;
 }
 
 interface OrbitItem {
@@ -36,15 +37,16 @@ interface OrbitItem {
 
 const MENU_ACTION_EVENT = 'tbo:menu-action';
 export const ORBIT_LAYER = 2;
-const ICON_DISPLAY_SIZE_PX = 216;
-const ICON_OUTSET_PX = 6;
-const BUTTON_WIDTH_PX = 136;
-const BUTTON_HEIGHT_PX = 48;
-const BUTTON_RADIUS_PX = 16;
-const BUTTON_FONT_PX = 16;
-const BUTTON_BORDER_PX = 1;
-const TEXT_SHADOW_X_PX = 1;
-const TEXT_SHADOW_Y_PX = 1;
+const ORBIT_UI_SCALE = 1.4;
+const ICON_DISPLAY_SIZE_PX = 216 * ORBIT_UI_SCALE;
+const BUTTON_WIDTH_PX = 136 * ORBIT_UI_SCALE;
+const BUTTON_HEIGHT_PX = 48 * ORBIT_UI_SCALE;
+const BUTTON_GAP_BELOW_ICON_PX = 14 * ORBIT_UI_SCALE;
+const BUTTON_RADIUS_PX = 16 * ORBIT_UI_SCALE;
+const BUTTON_FONT_PX = 16 * ORBIT_UI_SCALE;
+const BUTTON_BORDER_PX = 1 * ORBIT_UI_SCALE;
+const TEXT_SHADOW_X_PX = 1 * ORBIT_UI_SCALE;
+const TEXT_SHADOW_Y_PX = 1 * ORBIT_UI_SCALE;
 const TEXT_SHADOW_BLUR_PX = 0;
 
 const CANVAS_SCALE = 4;
@@ -53,20 +55,14 @@ const PX_TO_WORLD = 1 / 120;
 const BUTTON_WORLD_WIDTH = BUTTON_WIDTH_PX * PX_TO_WORLD;
 const BUTTON_WORLD_HEIGHT = BUTTON_HEIGHT_PX * PX_TO_WORLD;
 const ICON_WORLD_SIZE = ICON_DISPLAY_SIZE_PX * PX_TO_WORLD;
+const INBOX_ICON_SCALE = 0.85;
+const SOCIAL_ICON_SCALE = 0.8;
+const SOCIAL_BUTTON_GAP_OFFSET_PX = 30 * ORBIT_UI_SCALE;
+const BUTTON_GAP_BELOW_ICON_WORLD = BUTTON_GAP_BELOW_ICON_PX * PX_TO_WORLD;
 
-const ICON_CENTER_X_PX =
-  -BUTTON_WIDTH_PX * 0.5 - ICON_OUTSET_PX - ICON_DISPLAY_SIZE_PX * 0.5;
-const ICON_CENTER_X_WORLD = ICON_CENTER_X_PX * PX_TO_WORLD;
-
-const HIT_MIN_X_PX = ICON_CENTER_X_PX - ICON_DISPLAY_SIZE_PX * 0.5;
-const HIT_MAX_X_PX = BUTTON_WIDTH_PX * 0.5;
-const HIT_WIDTH_WORLD = (HIT_MAX_X_PX - HIT_MIN_X_PX) * PX_TO_WORLD;
-const HIT_CENTER_X_WORLD = ((HIT_MIN_X_PX + HIT_MAX_X_PX) * 0.5) * PX_TO_WORLD;
-const HIT_HEIGHT_WORLD = ICON_DISPLAY_SIZE_PX * PX_TO_WORLD;
-
-const ORBIT_RADIUS_X = 2.8;
-const ORBIT_RADIUS_Z = 1.45;
-const ORBIT_SPEED = 0.56;
+const ORBIT_RADIUS_X = 5.0;
+const ORBIT_RADIUS_Z = 2.8;
+const ORBIT_SPEED = 0.1;
 
 export class CharacterOrbitCarousel {
   private readonly scene: THREE.Scene;
@@ -81,8 +77,16 @@ export class CharacterOrbitCarousel {
   private readonly anchor = new THREE.Vector3();
   private readonly anchorOffset = new THREE.Vector3(0, 0.25, 0);
   private readonly hitMeshes: THREE.Object3D[] = [];
+  private readonly orbitWorldQuaternion = new THREE.Quaternion();
+  private readonly orbitWorldQuaternionInverse = new THREE.Quaternion();
+  private readonly itemWorldPosition = new THREE.Vector3();
+  private readonly itemWorldTarget = new THREE.Vector3();
+  private readonly itemWorldQuaternion = new THREE.Quaternion();
+  private readonly itemLookAtMatrix = new THREE.Matrix4();
+  private readonly worldUp = new THREE.Vector3(0, 1, 0);
 
   private readonly items: OrbitItem[] = [];
+  private readonly tempObjectBounds = new THREE.Box3();
 
   private rotation = 0;
   private hoveredIndex: number | null = null;
@@ -158,13 +162,15 @@ export class CharacterOrbitCarousel {
     this.root.visible = true;
     this.root.position.copy(anchor).add(this.anchorOffset);
     this.rotation += delta * ORBIT_SPEED;
+    this.orbitGroup.getWorldQuaternion(this.orbitWorldQuaternion);
+    this.orbitWorldQuaternionInverse.copy(this.orbitWorldQuaternion).invert();
 
     for (let i = 0; i < this.items.length; i += 1) {
       const item = this.items[i];
       const theta = this.rotation + item.phase;
       const x = Math.cos(theta) * ORBIT_RADIUS_X;
       const z = Math.sin(theta) * ORBIT_RADIUS_Z;
-      const y = Math.sin(theta * 2 + item.phase) * 0.08;
+      const y = 0;
       const depth = (z / ORBIT_RADIUS_Z + 1) * 0.5;
       const hovered = this.hoveredIndex === i;
       const active = this.activeIndex === i;
@@ -172,11 +178,20 @@ export class CharacterOrbitCarousel {
       item.icon.update(delta, renderer);
 
       item.group.position.set(x, y, z);
-      item.group.lookAt(this.camera.position);
+      // Keep items in world space while forcing an upright (no pitch/roll) facing.
+      item.group.getWorldPosition(this.itemWorldPosition);
+      this.itemWorldTarget.copy(this.camera.position);
+      this.itemWorldTarget.y = this.itemWorldPosition.y;
+      if (this.itemWorldTarget.distanceToSquared(this.itemWorldPosition) > 1e-8) {
+        // Match Object3D.lookAt() object semantics so front faces point toward camera.
+        this.itemLookAtMatrix.lookAt(this.itemWorldTarget, this.itemWorldPosition, this.worldUp);
+        this.itemWorldQuaternion.setFromRotationMatrix(this.itemLookAtMatrix);
+        item.group.quaternion.copy(this.orbitWorldQuaternionInverse).multiply(this.itemWorldQuaternion);
+      }
 
-      const hoverScale = hovered ? 0.08 : 0;
-      const activeScale = active ? 0.05 : 0;
-      const scale = THREE.MathUtils.lerp(0.78, 1.05, depth) + hoverScale + activeScale;
+      const hoverScale = hovered ? 0.04 : 0;
+      const activeScale = active ? 0.03 : 0;
+      const scale = THREE.MathUtils.lerp(0.9, 1.0, depth) + hoverScale + activeScale;
       item.group.scale.setScalar(scale);
 
       item.buttonMesh.renderOrder = 20 + Math.round(depth * 40);
@@ -227,13 +242,14 @@ export class CharacterOrbitCarousel {
         action: 'inbox',
         label: 'B-mail',
         iconType: 'inbox',
-        iconTargetSizeWorld: ICON_WORLD_SIZE,
+        iconTargetSizeWorld: ICON_WORLD_SIZE * INBOX_ICON_SCALE,
       },
       {
         action: 'friends',
         label: 'Social',
         iconType: 'friends',
-        iconTargetSizeWorld: ICON_WORLD_SIZE,
+        iconTargetSizeWorld: ICON_WORLD_SIZE * SOCIAL_ICON_SCALE,
+        buttonGapOffsetPx: SOCIAL_BUTTON_GAP_OFFSET_PX,
       },
     ];
 
@@ -247,11 +263,11 @@ export class CharacterOrbitCarousel {
       const icon = new MenuIcon3D(iconCanvas, config.iconType);
       const iconHost = new THREE.Group();
       const iconRoot = icon.mountToObject(iconHost, ORBIT_LAYER);
-      iconHost.position.set(ICON_CENTER_X_WORLD, 0, 0.02);
+      iconHost.position.set(0, 0, 0.02);
 
       const buttonCanvas = document.createElement('canvas');
-      buttonCanvas.width = BUTTON_WIDTH_PX * CANVAS_SCALE;
-      buttonCanvas.height = BUTTON_HEIGHT_PX * CANVAS_SCALE;
+      buttonCanvas.width = Math.round(BUTTON_WIDTH_PX * CANVAS_SCALE);
+      buttonCanvas.height = Math.round(BUTTON_HEIGHT_PX * CANVAS_SCALE);
       const buttonContext = buttonCanvas.getContext('2d');
       if (!buttonContext) {
         throw new Error('Failed to create button canvas context.');
@@ -285,7 +301,7 @@ export class CharacterOrbitCarousel {
       buttonMesh.layers.set(ORBIT_LAYER);
 
       const hitMesh = new THREE.Mesh(
-        new THREE.PlaneGeometry(HIT_WIDTH_WORLD, HIT_HEIGHT_WORLD),
+        new THREE.PlaneGeometry(1, 1),
         new THREE.MeshBasicMaterial({
           transparent: true,
           opacity: 0,
@@ -293,7 +309,7 @@ export class CharacterOrbitCarousel {
           side: THREE.DoubleSide,
         })
       );
-      hitMesh.position.set(HIT_CENTER_X_WORLD, 0, 0.03);
+      hitMesh.position.set(0, 0, 0.03);
       hitMesh.userData.orbitItemIndex = i;
       hitMesh.layers.set(ORBIT_LAYER);
 
@@ -329,7 +345,9 @@ export class CharacterOrbitCarousel {
   }
 
   private fitIconToTargetSize(item: OrbitItem): void {
-    item.iconBounds.setFromObject(item.iconRoot);
+    if (!this.measureIconBounds(item.iconRoot, item.iconBounds)) {
+      return;
+    }
     item.iconBounds.getSize(item.iconSize);
     const maxDimension = Math.max(item.iconSize.x, item.iconSize.y, item.iconSize.z);
     if (maxDimension <= 0) {
@@ -337,6 +355,70 @@ export class CharacterOrbitCarousel {
     }
     const scale = item.config.iconTargetSizeWorld / maxDimension;
     item.iconHost.scale.setScalar(scale);
+    const iconCenterX = (item.iconBounds.min.x + item.iconBounds.max.x) * 0.5;
+    const iconCenterY = (item.iconBounds.min.y + item.iconBounds.max.y) * 0.5;
+    item.iconHost.position.set(-iconCenterX * scale, -iconCenterY * scale, 0.02);
+    this.layoutItemForIconBounds(item);
+  }
+
+  private layoutItemForIconBounds(item: OrbitItem): void {
+    const iconHalfSize = item.config.iconTargetSizeWorld * 0.5;
+    const iconMinX = -iconHalfSize;
+    const iconMaxX = iconHalfSize;
+    const iconMinY = -iconHalfSize;
+    const iconMaxY = iconHalfSize;
+
+    const buttonCenterX = 0;
+    const buttonGapWorld =
+      BUTTON_GAP_BELOW_ICON_WORLD + (item.config.buttonGapOffsetPx ?? 0) * PX_TO_WORLD;
+    const buttonCenterY =
+      iconMinY - BUTTON_WORLD_HEIGHT * 0.5 - buttonGapWorld;
+    item.buttonMesh.position.set(buttonCenterX, buttonCenterY, 0);
+
+    const hitMinX = Math.min(iconMinX, buttonCenterX - BUTTON_WORLD_WIDTH * 0.5);
+    const hitMaxX = Math.max(iconMaxX, buttonCenterX + BUTTON_WORLD_WIDTH * 0.5);
+    const hitMinY = Math.min(iconMinY, buttonCenterY - BUTTON_WORLD_HEIGHT * 0.5);
+    const hitMaxY = Math.max(iconMaxY, buttonCenterY + BUTTON_WORLD_HEIGHT * 0.5);
+    const hitWidth = Math.max(0.0001, hitMaxX - hitMinX);
+    const hitHeight = Math.max(0.0001, hitMaxY - hitMinY);
+    item.hitMesh.position.set((hitMinX + hitMaxX) * 0.5, (hitMinY + hitMaxY) * 0.5, 0.03);
+    item.hitMesh.scale.set(hitWidth, hitHeight, 1);
+  }
+
+  private measureIconBounds(root: THREE.Object3D, target: THREE.Box3): boolean {
+    root.updateWorldMatrix(true, true);
+    target.makeEmpty();
+
+    const visit = (obj: THREE.Object3D, ignoreBranch: boolean): void => {
+      const shouldIgnore =
+        ignoreBranch || ((obj.userData as Record<string, unknown>).carouselBoundsIgnore === true);
+      if (shouldIgnore) {
+        return;
+      }
+
+      if (obj instanceof THREE.Mesh || obj instanceof THREE.Line || obj instanceof THREE.Points) {
+        const geometry = obj.geometry;
+        if (!geometry.boundingBox) {
+          geometry.computeBoundingBox();
+        }
+        if (geometry.boundingBox) {
+          this.tempObjectBounds.copy(geometry.boundingBox).applyMatrix4(obj.matrixWorld);
+          target.union(this.tempObjectBounds);
+        }
+      } else if (obj instanceof THREE.Sprite) {
+        this.tempObjectBounds.setFromObject(obj);
+        if (!this.tempObjectBounds.isEmpty()) {
+          target.union(this.tempObjectBounds);
+        }
+      }
+
+      for (const child of obj.children) {
+        visit(child, false);
+      }
+    };
+
+    visit(root, false);
+    return !target.isEmpty();
   }
 
   private drawButtonTexture(item: OrbitItem, hovered: boolean, active: boolean): void {

@@ -58,6 +58,12 @@ const DEFAULT_FRAGMENT_SPAWN_CHANCE = 0.02;
 const DEFAULT_MAX_FRAGMENTS = 80;
 const NEAR_CAMERA_FADE_START_Z_OFFSET = -75;
 const NEAR_CAMERA_FADE_END_Z_OFFSET = 6;
+const CUBE_BASE_COLOR = 0x0632d8;
+const CUBE_EMISSIVE_COLOR = 0x0b3be8;
+const NIGHT_BACKGROUND_TINT = new THREE.Color(0x08142f);
+const NIGHT_FOG_TINT = new THREE.Color(0x122a52);
+const NIGHT_CUBE_TINT = new THREE.Color(0x2a64dc);
+const NIGHT_CUBE_EMISSIVE_TINT = new THREE.Color(0x3b7fff);
 
 export class FallingScene {
   private scene: THREE.Scene;
@@ -101,8 +107,8 @@ export class FallingScene {
 
   private readonly targetFogColor = new THREE.Color(0xcccccc);
   private readonly targetBackgroundColor = new THREE.Color(0xcccccc);
-  private readonly targetCubeColor = new THREE.Color(0xddeeff);
-  private readonly targetCubeEmissiveColor = new THREE.Color(0xddeeff);
+  private readonly targetCubeColor = new THREE.Color(CUBE_BASE_COLOR);
+  private readonly targetCubeEmissiveColor = new THREE.Color(CUBE_EMISSIVE_COLOR);
 
   private stormMode = false;
   private stormFlashTimeLeft = 0;
@@ -160,8 +166,8 @@ export class FallingScene {
     this.onResize();
 
     this.cubeMaterial = new THREE.MeshStandardMaterial({
-      color: 0xddeeff,
-      emissive: 0xddeeff,
+      color: CUBE_BASE_COLOR,
+      emissive: CUBE_EMISSIVE_COLOR,
       emissiveIntensity: 1.2,
       roughness: 0.15,
       metalness: 0.0,
@@ -652,8 +658,8 @@ export class FallingScene {
 
     this.targetBackgroundColor.set(profile.backgroundColor);
     this.targetFogColor.set(profile.fogColor);
-    this.targetCubeColor.set(profile.cubeColor);
-    this.targetCubeEmissiveColor.set(profile.cubeEmissiveColor);
+    this.targetCubeColor.set(CUBE_BASE_COLOR);
+    this.targetCubeEmissiveColor.set(CUBE_EMISSIVE_COLOR);
 
     this.stormMode = profile.storm;
     this.weatherParticles.setWeatherState({
@@ -867,10 +873,18 @@ export class FallingScene {
   }
 
   private toNightProfile(dayProfile: WeatherSceneProfile): WeatherSceneProfile {
-    const background = new THREE.Color(dayProfile.backgroundColor).multiplyScalar(0.3);
-    const fog = new THREE.Color(dayProfile.fogColor).multiplyScalar(0.36);
-    const cube = new THREE.Color(dayProfile.cubeColor).multiplyScalar(0.68);
-    const emissive = new THREE.Color(dayProfile.cubeEmissiveColor).multiplyScalar(0.8);
+    const background = new THREE.Color(dayProfile.backgroundColor)
+      .multiplyScalar(0.22)
+      .lerp(NIGHT_BACKGROUND_TINT, 0.72);
+    const fog = new THREE.Color(dayProfile.fogColor)
+      .multiplyScalar(0.28)
+      .lerp(NIGHT_FOG_TINT, 0.66);
+    const cube = new THREE.Color(dayProfile.cubeColor)
+      .multiplyScalar(0.62)
+      .lerp(NIGHT_CUBE_TINT, 0.4);
+    const emissive = new THREE.Color(dayProfile.cubeEmissiveColor)
+      .multiplyScalar(0.72)
+      .lerp(NIGHT_CUBE_EMISSIVE_TINT, 0.45);
 
     return {
       ...dayProfile,
@@ -878,12 +892,12 @@ export class FallingScene {
       fogColor: fog.getHex(),
       cubeColor: cube.getHex(),
       cubeEmissiveColor: emissive.getHex(),
-      fogDensity: dayProfile.fogDensity * 0.92,
+      fogDensity: dayProfile.fogDensity * 1.08,
       worldSpeed: dayProfile.worldSpeed * 0.95,
-      ambientIntensity: dayProfile.ambientIntensity * 0.58,
-      keyIntensity: dayProfile.keyIntensity * 0.68,
-      fillIntensity: dayProfile.fillIntensity * 0.62,
-      glowOpacity: dayProfile.glowOpacity * 0.75,
+      ambientIntensity: dayProfile.ambientIntensity * 0.44,
+      keyIntensity: dayProfile.keyIntensity * 0.56,
+      fillIntensity: dayProfile.fillIntensity * 0.48,
+      glowOpacity: dayProfile.glowOpacity * 0.52,
     };
   }
 

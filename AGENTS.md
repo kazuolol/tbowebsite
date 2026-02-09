@@ -1,264 +1,125 @@
-﻿# Agent Guidelines for The Big One Website
+# Agent Bootstrap for The Big One Website
 
-This document provides architectural context and working rules for AI agents in this repo.
+Purpose: keep new-session startup cheap. This file is bootstrap-only and should stay concise.
 
-## Project Overview
+Last verified: 2026-02-09
+Line budget: keep this file under 160 lines.
 
-A 3D landing page for "The Big One" MMORPG early access. The current live experience is:
-- A Three.js falling scene with floating emissive cubes and rotating character variants
-- In-world orbiting action icons around the active character
+## Session Start Protocol
 
-## Tech Stack
+Read these files first and only expand scope when needed:
 
-- Vite (dev server and build)
-- TypeScript (strict mode)
-- Three.js
-- GLSL via `vite-plugin-glsl`
+1. `src/main.ts`
+2. `src/scene/FallingScene.ts`
+3. `src/environment/CharacterOrbitCarousel.ts`
+4. `src/environment/CharacterPool.ts`
+5. `src/environment/FallingCharacter.ts`
+6. `src/ui/HeaderOverlay.ts`
 
-## Current Runtime Snapshot
+Read `src/ui/MenuIcon3D.ts` only when icon visuals or icon animation are directly in scope.
 
-These details are important because older docs in the repo may describe a different flow.
+## Current Runtime Truth
 
-- `src/main.ts` instantiates `FallingScene`, `HeaderOverlay`, and `LocalWeatherService`
-- `HeaderOverlay` renders the top `dc-header` with date/time, weather, and `Claim Early Access`
-- `LocalWeatherService` publishes weather updates via `tbo:local-weather-update`, consumed by `FallingScene`
-- `FallingScene` also instantiates `CharacterOrbitCarousel` (in-world orbiting action buttons around the active character)
+- Entry point boots `FallingScene`, `HeaderOverlay`, and `LocalWeatherService`.
+- Active scene is `FallingScene` (falling cubes + rotating character variants).
+- In-world menu is `CharacterOrbitCarousel` (not DOM menu buttons).
+- Header shows date/time/weather and `Claim Early Access`.
 
-## Architecture Principles
+## Critical Contracts (Do Not Drift)
 
-### Scene and Environment Pattern
+- Event `tbo:menu-action` payload: `{ action, label }`.
+- Event `tbo:local-weather-update` feeds weather state into `FallingScene`.
+- Environment component pattern:
+  - Constructor accepts `THREE.Scene`.
+  - Implements `update(delta: number)`.
+  - Implements `dispose()`.
+  - Owns and disposes geometry/material/texture resources.
 
-The codebase follows a clear separation:
+## Orbit Carousel Fast Facts
 
-`Scene (orchestrator) -> Environment components (individual 3D elements)`
+- File: `src/environment/CharacterOrbitCarousel.ts`.
+- Uses `MenuIcon3D.mountToObject()` to render icons directly in the main scene.
+- Layer contract: `ORBIT_LAYER = 2` must be enabled on camera, carousel meshes, and raycaster.
+- Actions/labels currently shipped:
+  - `play` -> `GlobaNet` (`globe`)
+  - `inbox` -> `B-mail` (`inbox`)
+  - `friends` -> `B-social` (`friends`)
+- Hit detection uses invisible hit meshes + `THREE.Raycaster`.
+- Selection is sticky (`activeIndex`) until another click or dispose.
+- In-world icon/button size constants live in `CharacterOrbitCarousel`:
+  - `ICON_DISPLAY_SIZE_PX`
+  - `BUTTON_WIDTH_PX`
+  - `BUTTON_HEIGHT_PX`
+  - related gap/radius/hitbox constants
 
-- Scenes in `src/scene/` manage camera, lights, animation loop, and high-level coordination
-- Environment components in `src/environment/` encapsulate object logic and lifecycle
+## Task Routing (Open Only What You Need)
 
-Each environment component should:
-1. Accept a `THREE.Scene` in the constructor
-2. Expose `update(delta: number)` for animation work
-3. Expose `dispose()` for cleanup
-4. Manage its own materials, geometry, and texture disposal
+- Carousel behavior, hover/click, sizing:
+  - `src/environment/CharacterOrbitCarousel.ts`
+  - `src/ui/MenuIcon3D.ts` (only relevant icon sections)
+- Character orbit anchor and transitions:
+  - `src/environment/CharacterPool.ts`
+  - `src/environment/FallingCharacter.ts`
+- Header actions, key icon, weather readout:
+  - `src/ui/HeaderOverlay.ts`
+- Scene wiring, render loop, lifecycle:
+  - `src/scene/FallingScene.ts`
+  - `src/main.ts`
+- Weather sourcing:
+  - `src/utils/LocalWeatherService.ts`
+  - `src/utils/LocalWeather.ts`
 
-### UI Layer
+## Ignore By Default
 
-HTML/CSS overlays in `src/ui/` are separate from the WebGL canvas. The UI root sits above the scene canvas.
+Do not scan these unless the task explicitly requires them:
 
-### Menu Icon Rendering Pattern
+- Legacy or inactive environment experiments in `src/environment/` (wireframe/alt sky/alt clouds files).
+- Dormant icon helper paths in `MenuIcon3D`:
+  - `createFriendsSocialPanelTexture`
+  - `renderFriendsSocialPanel`
+  - `createPortalStreakTexture`
+  - `createPortalVortexTexture`
+- Legacy DOM icon sizing classes (`.dc-menu-btn-icon*`) when working on in-world carousel behavior.
 
-`MenuIcon3D` currently has two render paths:
+## Known Caveats
 
-- Offscreen canvas path: used by `HeaderOverlay` (for example the `Claim Early Access` key icon), where `MenuIcon3D.update()` renders via a shared offscreen renderer and blits into DOM canvases.
-- Mounted scene path: `CharacterOrbitCarousel` calls `MenuIcon3D.mountToObject()` so icon meshes/lights are mounted directly into the main scene and animated by `MenuIcon3D.update()` without offscreen canvas blitting.
+- `main.ts` does not register a default global `tbo:menu-action` listener.
+- Both header and carousel dispatch `tbo:menu-action` with `{ action, label }`.
+- Build commonly warns about chunk size (`>500 kB`); informational unless bundling is in scope.
 
-- In-world carousel icon/button size constants: `src/environment/CharacterOrbitCarousel.ts` (`ICON_DISPLAY_SIZE_PX`, `BUTTON_WIDTH_PX`, `BUTTON_HEIGHT_PX`)
-- CSS display size (legacy/overlay menu path): `.dc-menu-btn-icon` and `.dc-menu-btn-icon canvas` in `src/style.css`. The active in-world carousel is world-space Three.js and does not use those DOM classes.
-- In-world icon sizing is world-space driven: carousel creates a tiny placeholder canvas for `MenuIcon3D` and then fits mounted icon bounds to target world size in `CharacterOrbitCarousel.fitIconToTargetSize()`
+## Verification
 
-When resizing in-world icons, update `CharacterOrbitCarousel` size and hitbox constants together.
-
-### Asset Loading
-
-- Models: `public/models/` (FBX)
-- Textures: `public/textures/` (JPG/PNG)
-- Use Three.js loaders (`FBXLoader`, `TextureLoader`)
-
-## Active Scene Notes
-
-### FallingScene
-
-- Spawns and recycles many emissive cubes moving toward the camera
-- Uses ACES tone mapping, fog, and fragment-like cube particles near the camera
-- Delegates character logic to `CharacterPool`
-- Updates `CharacterOrbitCarousel` each frame and disposes it during scene teardown
-
-### CharacterOrbitCarousel
-
-- Lives at `src/environment/CharacterOrbitCarousel.ts`
-- Anchors to `CharacterPool.getActiveCharacterOrbitAnchor()` and hides itself until a character is active
-- Renders three in-world orbiting action buttons (`play`, `inbox`, `friends`) with labels `GlobaNet`, `B-mail`, `Social`
-- Uses `MenuIcon3D.mountToObject()` so icons render directly in the main scene (layer-gated to `ORBIT_LAYER = 2`)
-- Uses invisible hit meshes + `THREE.Raycaster` from scene canvas pointer events for hover/click
-- Dispatches `tbo:menu-action` with `{ action, label }` on click
-- Clicked item highlight state is sticky (`activeIndex`) and stays active until another item is clicked or the carousel is disposed
-
-### CharacterPool
-
-- Preloads female and male models, textures, and animation clips
-- Creates a pool of 10 preconfigured variants (gender + hair + outfit + hair color)
-- Cycles characters after a minimum rotation count
-- Uses clip-plane dissolve plus disintegration particles for transitions
-
-## Key Gotchas
-
-### FBX Texture Mapping
-
-When loading FBX materials:
-
-1. `texture.flipY = true` is required for FBX UVs in this project
-2. Preserve UV transform fields when replacing maps
-3. Normalize names with `.toLowerCase()` for matching
-
-```typescript
-texture.flipY = true;
-texture.colorSpace = THREE.SRGBColorSpace;
-```
-
-### Material Replacement
-
-When cloning/replacing maps, preserve UV transforms:
-
-```typescript
-if (origMat.map) {
-  newTexture.offset.copy(origMat.map.offset);
-  newTexture.repeat.copy(origMat.map.repeat);
-  newTexture.rotation = origMat.map.rotation;
-  newTexture.center.copy(origMat.map.center);
-}
-```
-
-### Character Variants
-
-`FallingCharacter` supports:
-- Hair variants `001` through `005`
-- Female outfits `001` through `006`
-- Male outfits currently selected from `001`, `002`, `004`, `005` in pool generation
-- Body cut meshes that must match selected outfit IDs
-
-### Memory Management
-
-Always ensure `dispose()` methods:
-- Remove objects from scene
-- Dispose geometries
-- Dispose materials and textures
-- Clear arrays and references
-
-### Orbit Layer Wiring
-
-`CharacterOrbitCarousel` depends on consistent layer setup for both rendering and pointer picking:
-
-- Camera must have `ORBIT_LAYER` enabled
-- Carousel meshes/hit meshes must be on `ORBIT_LAYER`
-- Raycaster used for hover/click must target `ORBIT_LAYER`
-
-If these drift, orbit buttons can disappear, render incorrectly, or stop receiving hover/click hits.
-
-## File Organization
-
-```text
-src/
-  main.ts
-  style.css
-  scene/
-    FallingScene.ts          # Active scene
-  environment/
-    CharacterPool.ts         # Active character orchestration
-    CharacterOrbitCarousel.ts # In-world orbiting action menu
-    FallingCharacter.ts      # Active character variant/material logic
-    *.ts                     # Other components, some unused by current entrypoint
-  ui/
-    HeaderOverlay.ts         # Active header overlay (`dc-header`)
-    MenuIcon3D.ts            # 3D icon renderer + icon models/animation
-    WeatherIcons2D.ts        # Weather icon canvas renderer
-  shaders/
-    *.glsl
-  utils/
-    *.ts
-```
-
-## Testing and Verification
+Run:
 
 ```bash
-npm run dev
 npm run build
 ```
 
-Check browser console for:
+Optional interactive check:
+
+```bash
+npm run dev
+```
+
+Console checks:
+
 - `No texture for material:` warnings
 - Three.js disposal warnings
 - WebGL errors
 
-## Common Tasks
-
-### Add a New Environment Component
-
-1. Create class in `src/environment/`
-2. Accept `THREE.Scene` in constructor
-3. Implement `update(delta)` and `dispose()`
-4. Instantiate from the active scene (`FallingScene` unless entrypoint changes)
-5. Wire `update()` in the render loop
-6. Wire `dispose()` in cleanup
-
-### Add Character Textures
-
-1. Add texture under `public/textures/`
-2. Add a material map entry in `src/environment/FallingCharacter.ts`:
-   - `femaleTextureFiles` for female materials
-   - `maleTextureFiles` for male materials
-3. Ensure FBX material name and mapping key match in lowercase
-
-### Modify Character Variant Rules
-
-- Update visibility and matching logic in `FallingCharacter.applyVariantConfig()`
-- Update allowed generated combinations in `CharacterPool.generateConfigs()`
-
-### Modify Carousel Icons
-
-- Edit models and animation in `src/ui/MenuIcon3D.ts`
-- Keep label-to-icon mapping explicit:
-  - `globe` type represents the `GlobaNet` icon
-  - `inbox` type represents the `B-mail` icon
-  - `friends` type represents the `Social` icon
-  - `key` is used by the header `Claim Early Access` button
-  - `info` is currently inactive in runtime
-- If changing in-world orbit icon size, also sync related constants in `CharacterOrbitCarousel` (`ICON_DISPLAY_SIZE_PX`, `BUTTON_WIDTH_PX`, `BUTTON_HEIGHT_PX`, hitbox constants)
-
-### Modify Paper Icon Look
-
-Paper appearance is generated procedurally in `MenuIcon3D.createPaperTexture()`.
-
-- Current approach uses `MeshBasicMaterial` for the paper mesh to avoid scene-light hotspots
-- Texture intentionally carries line-art/details; base tone is driven by paper material tint
-- If you see uneven lighting artifacts on paper, verify material type has not regressed to a lit material
-
-### Modify Shaders
-
-Shaders live in `src/shaders/` and are imported directly:
-
-```typescript
-import vertexShader from '../shaders/example.vert.glsl';
-import fragmentShader from '../shaders/example.frag.glsl';
-```
-
-## Known Caveats
-
-- `main.ts` does not attach a default `tbo:menu-action` listener. Add a global listener if you need button behavior.
-- Both `HeaderOverlay` and `CharacterOrbitCarousel` dispatch `tbo:menu-action` with `{ action, label }` payloads (header uses `early-access`; carousel uses `play` / `inbox` / `friends`).
-- The icon type name for Early Access is `key`. Keep label/icon mapping explicit if refactoring.
-- `MenuIcon3D` currently contains dormant helper paths that are not wired into active icon construction (`createFriendsSocialPanelTexture` / `renderFriendsSocialPanel`, `createPortalStreakTexture`, `createPortalVortexTexture`).
-- Build commonly emits a Vite chunk-size warning (`>500 kB`); treat as informational unless bundling work is in scope.
-
 ## Exact Parity Mode (BigCorpp Imports)
 
-Use this mode when asked to match behavior or visuals from `BigCorpp/TheBigOne` "exactly".
+When asked to match `BigCorpp/TheBigOne` exactly:
 
-- Source from canonical files first and treat them as the single source of truth:
-  `UXML`, `USS`, screen/controller scripts, and required shared style dependencies
-  (for example `GlobalStyles.uss` and `Inventory.uss`).
-- Copy numeric values, spacing, radii, colors, and timing values exactly from source files.
-- Do not add creative styling in parity mode:
-  no extra gradients, glows, motion, color shifts, or layout changes unless they exist upstream.
-- Social panel parity checklist:
-  preserve transparent/minimal visual style, use `basic-button` token values from USS, and preserve canonical panel sizing/layout.
-- Resolution vs size rule:
-  if asked to improve quality, increase texture backing resolution only; keep world-space size unchanged unless size change is explicitly requested.
-- Repo hygiene:
-  do not commit scratch/context files (for example `context.md`) unless explicitly requested.
-- PowerShell command compatibility:
-  use separate commands or `;` as a command separator instead of `&&`.
+- Treat upstream `UXML`/`USS`/controller scripts as source of truth.
+- Copy numeric values exactly (spacing, radii, timing, color).
+- Do not add visual embellishments unless present upstream.
+- If improving quality, increase backing resolution only unless size change is requested.
+- Do not commit scratch context files unless requested.
+- In PowerShell, use `;` or separate commands, not `&&`.
 
-## External References
+## Deep Reference (Read On Demand)
 
-Character assets originate from Unity project `BigCorpp/TheBigOne`. Use that source for material and mesh naming truth when mappings drift.
-
+- `docs/agent/reference.md` (full long-form project reference)
+- `docs/agent/carousel.md` (carousel-focused implementation notes)
+- If details conflict, treat this bootstrap file and current source code as authoritative.

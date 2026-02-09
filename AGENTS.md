@@ -49,11 +49,11 @@ HTML/CSS overlays in `src/ui/` are separate from the WebGL canvas. The UI root s
 
 `MenuIcon3D` currently has two render paths:
 
-- Offscreen canvas path: supported by `MenuIcon3D`, but not used by the active runtime entry flow.
+- Offscreen canvas path: used by `HeaderOverlay` (for example the `Claim Early Access` key icon), where `MenuIcon3D.update()` renders via a shared offscreen renderer and blits into DOM canvases.
 - Mounted scene path: `CharacterOrbitCarousel` calls `MenuIcon3D.mountToObject()` so icon meshes/lights are mounted directly into the main scene and animated by `MenuIcon3D.update()` without offscreen canvas blitting.
 
 - In-world carousel icon/button size constants: `src/environment/CharacterOrbitCarousel.ts` (`ICON_DISPLAY_SIZE_PX`, `BUTTON_WIDTH_PX`, `BUTTON_HEIGHT_PX`)
-- CSS display size: `.dc-menu-btn-icon` and `.dc-menu-btn-icon canvas` in `src/style.css`
+- CSS display size (legacy/overlay menu path): `.dc-menu-btn-icon` and `.dc-menu-btn-icon canvas` in `src/style.css`. The active in-world carousel is world-space Three.js and does not use those DOM classes.
 - In-world icon sizing is world-space driven: carousel creates a tiny placeholder canvas for `MenuIcon3D` and then fits mounted icon bounds to target world size in `CharacterOrbitCarousel.fitIconToTargetSize()`
 
 When resizing in-world icons, update `CharacterOrbitCarousel` size and hitbox constants together.
@@ -210,7 +210,8 @@ Check browser console for:
   - `globe` type represents the `GlobaNet` icon
   - `inbox` type represents the `B-mail` icon
   - `friends` type represents the `Social` icon
-  - `key` and `info` are currently inactive in runtime
+  - `key` is used by the header `Claim Early Access` button
+  - `info` is currently inactive in runtime
 - If changing in-world orbit icon size, also sync related constants in `CharacterOrbitCarousel` (`ICON_DISPLAY_SIZE_PX`, `BUTTON_WIDTH_PX`, `BUTTON_HEIGHT_PX`, hitbox constants)
 
 ### Modify Paper Icon Look
@@ -233,6 +234,7 @@ import fragmentShader from '../shaders/example.frag.glsl';
 ## Known Caveats
 
 - `main.ts` does not attach a default `tbo:menu-action` listener. Add a global listener if you need button behavior.
+- Both `HeaderOverlay` and `CharacterOrbitCarousel` dispatch `tbo:menu-action` with `{ action, label }` payloads (header uses `early-access`; carousel uses `play` / `inbox` / `friends`).
 - The icon type name for Early Access is `key`. Keep label/icon mapping explicit if refactoring.
 - `MenuIcon3D` currently contains dormant helper paths that are not wired into active icon construction (`createFriendsSocialPanelTexture` / `renderFriendsSocialPanel`, `createPortalStreakTexture`, `createPortalVortexTexture`).
 - Build commonly emits a Vite chunk-size warning (`>500 kB`); treat as informational unless bundling work is in scope.

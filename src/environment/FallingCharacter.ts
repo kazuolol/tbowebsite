@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { withFbxWarningFilter } from './fbxWarningFilter';
 
 export interface CharacterConfig {
   gender: 'male' | 'female';
@@ -232,20 +233,23 @@ export class FallingCharacter {
 
   static async loadAnimationClip(animPath: string): Promise<THREE.AnimationClip> {
     const loader = new FBXLoader();
-    return new Promise((resolve, reject) => {
-      loader.load(
-        animPath,
-        (animFbx) => {
-          if (animFbx.animations && animFbx.animations.length > 0) {
-            resolve(animFbx.animations[0]);
-          } else {
-            reject(new Error('No animations found in FBX'));
-          }
-        },
-        undefined,
-        (error) => reject(error)
-      );
-    });
+    return withFbxWarningFilter(
+      () =>
+        new Promise((resolve, reject) => {
+          loader.load(
+            animPath,
+            (animFbx) => {
+              if (animFbx.animations && animFbx.animations.length > 0) {
+                resolve(animFbx.animations[0]);
+              } else {
+                reject(new Error('No animations found in FBX'));
+              }
+            },
+            undefined,
+            (error) => reject(error)
+          );
+        })
+    );
   }
 
   // ── Clone-based initialization (used by CharacterPool) ──────────
@@ -374,45 +378,48 @@ export class FallingCharacter {
 
     const fbxLoader = new FBXLoader();
 
-    return new Promise((resolve, reject) => {
-      fbxLoader.load(
-        modelPath,
-        (fbx) => {
-          this.model = fbx;
-          this.model.scale.setScalar(scale);
-          this.model.position.set(0, 0, 0);
+    return withFbxWarningFilter(
+      () =>
+        new Promise((resolve, reject) => {
+          fbxLoader.load(
+            modelPath,
+            (fbx) => {
+              this.model = fbx;
+              this.model.scale.setScalar(scale);
+              this.model.position.set(0, 0, 0);
 
-          this.applyVariantConfig(textureMap);
+              this.applyVariantConfig(textureMap);
 
-          this.scene.add(this.model);
-          this.mixer = new THREE.AnimationMixer(this.model);
+              this.scene.add(this.model);
+              this.mixer = new THREE.AnimationMixer(this.model);
 
-          if (animationPath) {
-            this.loadAnimation(animationPath).then(() => {
-              this.loaded = true;
-              resolve();
-            }).catch((err) => {
-              console.error('Animation load failed:', err);
-              this.loaded = true;
-              resolve();
-            });
-          } else if (fbx.animations && fbx.animations.length > 0) {
-            const action = this.mixer.clipAction(fbx.animations[0]);
-            action.play();
-            this.loaded = true;
-            resolve();
-          } else {
-            this.loaded = true;
-            resolve();
-          }
-        },
-        undefined,
-        (error) => {
-          console.error('Error loading FBX model:', error);
-          reject(error);
-        }
-      );
-    });
+              if (animationPath) {
+                this.loadAnimation(animationPath).then(() => {
+                  this.loaded = true;
+                  resolve();
+                }).catch((err) => {
+                  console.error('Animation load failed:', err);
+                  this.loaded = true;
+                  resolve();
+                });
+              } else if (fbx.animations && fbx.animations.length > 0) {
+                const action = this.mixer.clipAction(fbx.animations[0]);
+                action.play();
+                this.loaded = true;
+                resolve();
+              } else {
+                this.loaded = true;
+                resolve();
+              }
+            },
+            undefined,
+            (error) => {
+              console.error('Error loading FBX model:', error);
+              reject(error);
+            }
+          );
+        })
+    );
   }
 
   private createMaterialForName(
@@ -440,15 +447,20 @@ export class FallingCharacter {
     const needsTransparency = matName.includes('eyelid') ||
                               matName.includes('eyelash');
 
-    const material = new THREE.MeshStandardMaterial({
+    const materialParams: THREE.MeshStandardMaterialParameters = {
       map: materialTexture,
       roughness: 0.8,
       metalness: 0.0,
       side: THREE.DoubleSide,
       transparent: needsTransparency,
       alphaTest: (isHair || needsTransparency) ? 0.5 : 0,
-      color: isHair ? this.hairColor : undefined,
-    });
+    };
+
+    if (isHair) {
+      materialParams.color = this.hairColor;
+    }
+
+    const material = new THREE.MeshStandardMaterial(materialParams);
 
     this.materials.push(material);
     return material;
@@ -610,25 +622,28 @@ export class FallingCharacter {
 
     const loader = new FBXLoader();
 
-    return new Promise((resolve, reject) => {
-      loader.load(
-        animationPath,
-        (animFbx) => {
-          if (animFbx.animations && animFbx.animations.length > 0) {
-            const clip = animFbx.animations[0];
-            const retargetedClip = this.retargetAnimation(clip);
-            const action = this.mixer!.clipAction(retargetedClip);
-            action.play();
-          }
-          resolve();
-        },
-        undefined,
-        (error) => {
-          console.error('Error loading animation:', error);
-          reject(error);
-        }
-      );
-    });
+    return withFbxWarningFilter(
+      () =>
+        new Promise((resolve, reject) => {
+          loader.load(
+            animationPath,
+            (animFbx) => {
+              if (animFbx.animations && animFbx.animations.length > 0) {
+                const clip = animFbx.animations[0];
+                const retargetedClip = this.retargetAnimation(clip);
+                const action = this.mixer!.clipAction(retargetedClip);
+                action.play();
+              }
+              resolve();
+            },
+            undefined,
+            (error) => {
+              console.error('Error loading animation:', error);
+              reject(error);
+            }
+          );
+        })
+    );
   }
 
   private retargetAnimation(clip: THREE.AnimationClip): THREE.AnimationClip {

@@ -6,6 +6,7 @@ import {
   CharacterConfig,
   type CharacterTextureLoadOptions,
 } from './FallingCharacter';
+import { withFbxWarningFilter } from './fbxWarningFilter';
 
 const POOL_SIZE = 10;
 const SPIN_SPEED = 0.45; // rad/s — must match FallingCharacter
@@ -129,9 +130,12 @@ export class CharacterPool {
 
   private async loadBaseModel(modelPath: string): Promise<THREE.Group> {
     const loader = new FBXLoader();
-    return new Promise((resolve, reject) => {
-      loader.load(modelPath, resolve, undefined, reject);
-    });
+    return withFbxWarningFilter(
+      () =>
+        new Promise((resolve, reject) => {
+          loader.load(modelPath, resolve, undefined, reject);
+        })
+    );
   }
 
   private generateConfigs(): CharacterConfig[] {

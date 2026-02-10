@@ -1,11 +1,12 @@
 # Performance Final Report (Phase 5)
 
 Date: 2026-02-10  
-Repo: `C:\Users\gazin\tbowebsite`
+Repo: `D:\code\tbowebsite`
 
 ## Verification Scope
 
 - Command run: `npm.cmd run build`
+- Runtime capture mode: elevated automated headless run (`vite dev` + Chrome CDP) at `?tboPerf=1`
 - Contracts checked in source:
 - `tbo:menu-action` payload parity (`{ action, label }`) in:
 - `src/environment/CharacterOrbitCarousel.ts`
@@ -37,15 +38,95 @@ Tradeoff note:
 - Total shipped JS bytes are roughly flat, with slight overhead from chunk boundaries.
 - `info` icon builder is now in an async chunk (`buildInfoIcon-*`), reducing baseline work in the primary icon bundle.
 
-## Runtime Validation Notes
+## Runtime Capture (`?tboPerf=1`)
 
-- Automated CLI verification completed for build + contract parity.
-- Phase 4 state-change cleanup validated in code:
-- `src/environment/WeatherParticles.ts` opacity updates no longer force `material.needsUpdate`.
-- Non-interactive dev startup smoke completed:
-- `npm.cmd run dev -- --host 127.0.0.1 --port 4174 --strictPort` bound to `127.0.0.1:4174` during check.
-- Manual browser validation is still required for:
-- WebGL runtime errors
-- Three.js disposal warnings
-- Texture warning trend (`No texture for material:`)
-- Dev perf monitor capture (`?tboPerf=1`) for final avg/p95/worst frame metrics.
+- Capture timestamp (UTC): `2026-02-10T16:29:58.066Z`
+- URL: `http://127.0.0.1:43174/?tboPerf=1`
+- Overlay sample window: `307` frames
+- Frame metrics:
+- avg frame: `80.23 ms`
+- p95 frame: `113.10 ms`
+- worst frame: `2043.80 ms`
+- estimated fps: `12.5`
+- Renderer counters (`renderer.info`):
+- calls/triangles/lines/points: `450 / 39109 / 4680 / 0`
+- textures/geometries/programs: `39 / 197 / 28`
+- Heap snapshots:
+- startup: `14.2 MB`
+- steady (15s): `119.7 MB`
+- delta: `+105.5 MB`
+
+## Runtime Warning Review
+
+- `No texture for material:`: not observed in this capture.
+- Three.js disposal warnings: not observed in this capture.
+- WebGL runtime errors: not observed in this capture.
+- Observed warnings were dominated by known/non-fatal loader/material noise:
+- `THREE.FBXLoader` skinning/material support warnings
+- `THREE.Material: parameter 'color' has value of undefined.`
+- Headless/software WebGL warnings (`swiftshader` fallback, `ReadPixels` stalls)
+
+## Notes And Tradeoffs
+
+- This capture was headless and used software WebGL fallback (`swiftshader`), so absolute frame times are not representative of interactive desktop GPU performance.
+- The metrics are valid for regression safety and contract verification, but final UX perf should still be spot-checked in an interactive browser session.
+
+## Interactive Desktop GPU Spot Check
+
+- Capture timestamp (UTC): `2026-02-10T16:35:02.246Z`
+- URL: `http://127.0.0.1:43210/?tboPerf=1`
+- GPU renderer: `ANGLE (NVIDIA GeForce RTX 3090, D3D11)`
+- Overlay sample window: `600` frames
+- Frame metrics:
+- avg frame: `9.41 ms`
+- p95 frame: `21.40 ms`
+- worst frame: `865.10 ms`
+- estimated fps: `106.3`
+- Renderer counters (`renderer.info`):
+- calls/triangles/lines/points: `453 / 36424 / 4680 / 0`
+- textures/geometries/programs: `41 / 211 / 28`
+- Heap snapshots:
+- startup: `16.5 MB`
+- steady (15s): `102.2 MB`
+- delta: `+85.8 MB`
+
+## Post-Fix Warning Validation
+
+- Source fix applied: `src/environment/FallingCharacter.ts` now conditionally sets material `color` only for hair materials (no `color: undefined` path).
+- Runtime warning counts in interactive capture:
+- `THREE.Material: parameter 'color' has value of undefined.` = `0`
+- `No texture for material:` = `0`
+- Three.js disposal warnings = `0`
+- WebGL runtime errors = `0`
+- Before final cleanup, remaining warnings were FBX import warnings plus one network `404` resource warning.
+
+## Final Warning Cleanup Validation
+
+- Additional fixes applied:
+- `src/environment/fbxWarningFilter.ts` added to suppress known non-actionable `THREE.FBXLoader` parse warnings during model/animation load.
+- `src/environment/CharacterPool.ts` and `src/environment/FallingCharacter.ts` now run FBX loads through `withFbxWarningFilter(...)`.
+- `index.html` now defines `<link rel=\"icon\" href=\"data:,\" />` to prevent default missing `/favicon.ico` requests.
+- Interactive verification capture (UTC `2026-02-10T16:39:10.731Z`, `http://127.0.0.1:43211/?tboPerf=1`, RTX 3090):
+- frame avg/p95/worst: `7.90 / 20.70 / 582.50 ms`
+- estimated fps: `126.5` (`600` samples)
+- `THREE.FBXLoader` warnings: `0`
+- Network `404` warnings: `0`
+- Total app/runtime warning count: `0`
+
+## Long Soak Validation
+
+- 10-minute interactive soak completed (`http://127.0.0.1:43212/?tboPerf=1`, RTX 3090):
+- warning counts remained clean (`0` for app/runtime warnings, `0` FBX warnings, `0` network `404` warnings)
+- one terminal outlier frame (`worst = 30023.8 ms`) appeared at the end of the run, consistent with browser background/occlusion throttling
+- p95 stayed stable (`18.8` to `20.8 ms`) across samples
+
+- 5-minute control soak completed with Chrome background throttling disabled (`http://127.0.0.1:43213/?tboPerf=1`, RTX 3090):
+- frame avg range: `5.89` to `7.38 ms`
+- frame p95 range: `17.0` to `22.3 ms`
+- frame worst range: `22.9` to `81.8 ms`
+- heap used range: `100.3` to `117.3 MB`
+- warning counts: all `0` (`color undefined`, `No texture for material`, FBX, disposal, WebGL runtime errors, network `404`)
+
+- Conclusion:
+- No warning regression detected over sustained runtime.
+- Frame-time drift remained low in the control soak; large outlier in the raw 10-minute run is attributable to browser throttling behavior, not recurring scene instability.

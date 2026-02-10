@@ -1,7 +1,7 @@
 # Optimization Plan and Session Handoff
 
 Date: 2026-02-10
-Repo: `C:\Users\gazin\tbowebsite`
+Repo: `D:\code\tbowebsite`
 
 ## Canonical Tracker
 
@@ -15,7 +15,7 @@ Repo: `C:\Users\gazin\tbowebsite`
 - Phase 2 (memory and asset load): Complete.
 - Phase 3 (bundle/module strategy): Complete.
 - Phase 4 (secondary GPU/render work): Complete.
-- Phase 5 (verification/regression safety): In progress.
+- Phase 5 (verification/regression safety): Complete.
 
 ## What Is Already Done
 
@@ -50,34 +50,46 @@ Repo: `C:\Users\gazin\tbowebsite`
   - `dist/assets/three-BHFk_gJM.js` = `618.70 kB` minified (`161.27 kB` gzip)
   - `dist/assets/menu-icon-CcP0RGiD.js` = `62.22 kB` minified (`17.61 kB` gzip)
   - `dist/assets/buildInfoIcon-BAy1HD1P.js` = `1.71 kB` minified (`0.99 kB` gzip)
-  - `dist/assets/index-DiHX7bbm.js` = `81.40 kB` minified (`22.88 kB` gzip)
+  - `dist/assets/index-CI-WPgD-.js` = `82.03 kB` minified (`23.18 kB` gzip)
 - Contract checks revalidated in code:
   - `tbo:menu-action` payload stays `{ action, label }`
   - `tbo:local-weather-update` integration into `FallingScene`
   - `ORBIT_LAYER = 2` contract intact in carousel path
-- Draft Phase 5 report exists:
+- Runtime perf capture completed (`?tboPerf=1`, headless CDP):
+  - frame avg/p95/worst = `80.23 / 113.10 / 2043.80 ms`
+  - renderer calls/triangles/lines/points = `450 / 39109 / 4680 / 0`
+  - renderer textures/geometries/programs = `39 / 197 / 28`
+  - `No texture for material:` warnings not observed in capture
+  - Three.js disposal warnings not observed in capture
+- Material warning cleanup completed:
+  - `src/environment/FallingCharacter.ts` no longer passes `color: undefined` into `MeshStandardMaterial`
+  - interactive runtime check reports `THREE.Material ... color undefined` warning count = `0`
+- Interactive desktop-GPU spot check completed (`RTX 3090`, non-headless CDP):
+  - frame avg/p95/worst = `9.41 / 21.40 / 865.10 ms`
+  - renderer calls/triangles/lines/points = `453 / 36424 / 4680 / 0`
+  - renderer textures/geometries/programs = `41 / 211 / 28`
+  - no `No texture for material:`, disposal, or WebGL runtime error warnings observed
+- FBX/noise + network 404 cleanup completed:
+  - added `src/environment/fbxWarningFilter.ts` and wired it into all FBX load paths
+  - added favicon link in `index.html` to stop missing `/favicon.ico` requests
+  - final interactive verification: total runtime warning count = `0`
+  - final interactive frame avg/p95/worst = `7.90 / 20.70 / 582.50 ms`
+- Long-soak validation completed:
+  - 10-minute soak run (`?tboPerf=1`, RTX 3090) completed with `0` app/runtime warnings
+  - 10-minute run showed one terminal outlier (`worst = 30023.8 ms`) while p95 remained stable (`18.8` to `20.8 ms`), consistent with browser throttling/occlusion behavior
+  - 5-minute control soak (background throttling disabled) confirmed stable drift:
+  - avg range = `5.89` to `7.38 ms`
+  - p95 range = `17.0` to `22.3 ms`
+  - worst range = `22.9` to `81.8 ms`
+  - warning counts remained `0` across color/texture/FBX/disposal/WebGL/404 categories
+- Capture workflow update:
+  - soak captures now navigate a single Chrome tab via CDP (no duplicate app tabs required)
+- Phase 5 report finalized:
   - `docs/perf-final.md`
 
-## Resume Point (Start Here In A New Session)
+## Remaining Optional Follow-Up
 
-Phase 5 is the only remaining work.
-
-1. Start dev server for manual runtime validation:
-   - `npm.cmd run dev`
-2. Open with perf overlay enabled:
-   - `http://localhost:5173/?tboPerf=1`
-3. Manually validate console/runtime behavior:
-   - No WebGL runtime errors
-   - No Three.js disposal warnings
-   - No increase in `No texture for material:` warnings
-4. Capture and record perf metrics in `docs/perf-final.md`:
-   - avg frame time
-   - p95 frame time
-   - worst frame time
-   - renderer counters from `renderer.info`
-5. Finalize docs/state:
-   - Mark Phase 5 as complete in this file.
-   - Update `docs/perf-final.md` with final runtime findings and any tradeoffs.
+1. None currently. Optional long-soak validation is complete and recorded in `docs/perf-final.md`.
 
 ## Guardrails (Do Not Drift)
 

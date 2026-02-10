@@ -31,6 +31,8 @@ interface OrbitItem {
   hitMesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   group: THREE.Group;
   phase: number;
+  focusStrength: number;
+  hoverScaleStrength: number;
   lastHovered: boolean;
   lastActive: boolean;
 }
@@ -63,8 +65,18 @@ const BUTTON_GAP_BELOW_ICON_WORLD = BUTTON_GAP_BELOW_ICON_PX * PX_TO_WORLD;
 const ORBIT_RADIUS_X = 5.0;
 const ORBIT_RADIUS_Z = 2.8;
 const ORBIT_SPEED = 0.1;
-const HOVER_SCALE_BOOST = 0.14;
+const HOVER_SCALE_MAX_BOOST = 0.06;
 const ACTIVE_SCALE_BOOST = 0.1;
+const HOVER_SCALE_IN_LAMBDA = 24;
+const HOVER_SCALE_OUT_LAMBDA = 16;
+const HOVER_SCALE_SNAP_DELTA = 0.25;
+const HOVER_SCALE_SNAP_EPSILON = 0.001;
+const HOVER_FOCUS_DEPTH_BOOST = 0.09;
+const HOVER_FOCUS_DISTANCE = ORBIT_RADIUS_Z * HOVER_FOCUS_DEPTH_BOOST;
+const HOVER_FOCUS_IN_LAMBDA = 20;
+const HOVER_FOCUS_OUT_LAMBDA = 12;
+const HOVER_FOCUS_SNAP_DELTA = 0.25;
+const HOVER_FOCUS_SNAP_EPSILON = 0.001;
 
 export class CharacterOrbitCarousel {
   private readonly scene: THREE.Scene;
@@ -86,6 +98,8 @@ export class CharacterOrbitCarousel {
   private readonly itemWorldQuaternion = new THREE.Quaternion();
   private readonly itemLookAtMatrix = new THREE.Matrix4();
   private readonly worldUp = new THREE.Vector3(0, 1, 0);
+  private readonly itemFocusDirection = new THREE.Vector3();
+  private readonly itemFocusLocalPosition = new THREE.Vector3();
 
   private readonly items: OrbitItem[] = [];
   private readonly tempObjectBounds = new THREE.Box3();
@@ -163,7 +177,10 @@ export class CharacterOrbitCarousel {
 
     this.root.visible = true;
     this.root.position.copy(anchor).add(this.anchorOffset);
-    this.rotation += delta * ORBIT_SPEED;
+    const orbitPaused = this.hoveredIndex !== null;
+    if (!orbitPaused) {
+      this.rotation += delta * ORBIT_SPEED;
+    }
     this.orbitGroup.getWorldQuaternion(this.orbitWorldQuaternion);
     this.orbitWorldQuaternionInverse.copy(this.orbitWorldQuaternion).invert();
 
@@ -176,10 +193,65 @@ export class CharacterOrbitCarousel {
       const depth = (z / ORBIT_RADIUS_Z + 1) * 0.5;
       const hovered = this.hoveredIndex === i;
       const active = this.activeIndex === i;
+      const hoverScaleTarget = hovered ? 1 : 0;
+      const focusTarget = hovered ? 1 : 0;
+      if (delta >= HOVER_SCALE_SNAP_DELTA) {
+        item.hoverScaleStrength = hoverScaleTarget;
+      } else {
+        const hoverScaleLambda =
+          hoverScaleTarget > item.hoverScaleStrength
+            ? HOVER_SCALE_IN_LAMBDA
+            : HOVER_SCALE_OUT_LAMBDA;
+        item.hoverScaleStrength = THREE.MathUtils.damp(
+          item.hoverScaleStrength,
+          hoverScaleTarget,
+          hoverScaleLambda,
+          delta
+        );
+        if (Math.abs(item.hoverScaleStrength - hoverScaleTarget) <= HOVER_SCALE_SNAP_EPSILON) {
+          item.hoverScaleStrength = hoverScaleTarget;
+        }
+      }
+      if (delta >= HOVER_FOCUS_SNAP_DELTA) {
+        item.focusStrength = focusTarget;
+      } else {
+        const focusLambda =
+          focusTarget > item.focusStrength ? HOVER_FOCUS_IN_LAMBDA : HOVER_FOCUS_OUT_LAMBDA;
+        item.focusStrength = THREE.MathUtils.damp(
+          item.focusStrength,
+          focusTarget,
+          focusLambda,
+          delta
+        );
+        if (Math.abs(item.focusStrength - focusTarget) <= HOVER_FOCUS_SNAP_EPSILON) {
+          item.focusStrength = focusTarget;
+        }
+      }
 
       item.icon.update(delta, renderer);
 
       item.group.position.set(x, y, z);
+      const focusOffset = item.focusStrength * HOVER_FOCUS_DISTANCE;
+      if (focusOffset > 0.0001) {
+        item.group.getWorldPosition(this.itemWorldPosition);
+        this.itemFocusDirection.copy(this.camera.position).sub(this.itemWorldPosition);
+        const focusDirectionLength = this.itemFocusDirection.length();
+        if (focusDirectionLength > 1e-6) {
+          this.itemWorldPosition.addScaledVector(
+            this.itemFocusDirection,
+            focusOffset / focusDirectionLength
+          );
+          this.itemFocusLocalPosition.copy(this.itemWorldPosition);
+          this.orbitGroup.worldToLocal(this.itemFocusLocalPosition);
+          item.group.position.copy(this.itemFocusLocalPosition);
+        }
+      }
+
+      const focusedDepth = THREE.MathUtils.clamp(
+        depth + item.focusStrength * HOVER_FOCUS_DEPTH_BOOST,
+        0,
+        1
+      );
       // Keep items in world space while forcing an upright (no pitch/roll) facing.
       item.group.getWorldPosition(this.itemWorldPosition);
       this.itemWorldTarget.copy(this.camera.position);
@@ -191,12 +263,12 @@ export class CharacterOrbitCarousel {
         item.group.quaternion.copy(this.orbitWorldQuaternionInverse).multiply(this.itemWorldQuaternion);
       }
 
-      const hoverScale = hovered ? HOVER_SCALE_BOOST : 0;
+      const hoverScale = item.hoverScaleStrength * HOVER_SCALE_MAX_BOOST;
       const activeScale = active ? ACTIVE_SCALE_BOOST : 0;
-      const scale = THREE.MathUtils.lerp(0.9, 1.0, depth) + hoverScale + activeScale;
+      const scale = THREE.MathUtils.lerp(0.9, 1.0, focusedDepth) + hoverScale + activeScale;
       item.group.scale.setScalar(scale);
 
-      item.buttonMesh.renderOrder = 20 + Math.round(depth * 40);
+      item.buttonMesh.renderOrder = 20 + Math.round(focusedDepth * 40);
       item.hitMesh.renderOrder = item.buttonMesh.renderOrder + 3;
 
       if (hovered !== item.lastHovered || active !== item.lastActive) {
@@ -336,6 +408,8 @@ export class CharacterOrbitCarousel {
         hitMesh,
         group,
         phase,
+        focusStrength: 0,
+        hoverScaleStrength: 0,
         lastHovered: false,
         lastActive: false,
       };

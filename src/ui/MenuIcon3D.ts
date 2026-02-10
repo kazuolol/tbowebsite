@@ -95,6 +95,7 @@ export class MenuIcon3D {
   private friendsConversationTypingUntil = 0;
   private friendsTextureSamplingConfigured = false;
   private readonly rendererSize = new THREE.Vector2();
+  private static readonly KEY_SPIN_SPEED = 1.05;
   private static readonly FRIENDS_DOT_APPEAR_DURATION = 0.3;
   private static readonly FRIENDS_DOT_PAUSE_DURATION = 0.2;
   private static readonly FRIENDS_TYPING_SIGN_DURATION = 5.0;
@@ -832,7 +833,7 @@ export class MenuIcon3D {
         opacity: 0.26,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
-        depthTest: false,
+        depthTest: true,
         side: THREE.DoubleSide,
         toneMapped: false,
       });
@@ -845,7 +846,7 @@ export class MenuIcon3D {
         opacity: 0.04,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
-        depthTest: false,
+        depthTest: true,
         side: THREE.DoubleSide,
         toneMapped: false,
       });
@@ -859,7 +860,7 @@ export class MenuIcon3D {
         opacity: 0.34,
         blending: THREE.NormalBlending,
         depthWrite: false,
-        depthTest: false,
+        depthTest: true,
         toneMapped: false,
       });
       const frame = new THREE.LineLoop(
@@ -1550,7 +1551,7 @@ export class MenuIcon3D {
           opacity,
           blending: THREE.AdditiveBlending,
           depthWrite: false,
-          depthTest: false,
+          depthTest: true,
           toneMapped: false,
         })
       );
@@ -3413,7 +3414,8 @@ export class MenuIcon3D {
         pulse.material.opacity = pulse.baseOpacity;
       }
     } else if (this.type === 'key') {
-      this.group.rotation.set(0, Math.PI * 0.5, 0);
+      const spinY = this.elapsed * MenuIcon3D.KEY_SPIN_SPEED + Math.PI * 0.5;
+      this.group.rotation.set(0, spinY, 0);
       this.group.position.set(0, 0, 0);
       this.group.scale.set(1, 1, 1);
     } else if (this.type === 'info') {

@@ -595,8 +595,10 @@ export class MenuIcon3D {
       const lon = (line / longitudeLines) * Math.PI * 2;
       const points: THREE.Vector3[] = [];
       const segments = 72;
+      const startLat = -Math.PI * 0.5;
+      const latSpan = Math.PI;
       for (let segment = 0; segment <= segments; segment++) {
-        const lat = -Math.PI * 0.46 + (segment / segments) * Math.PI * 0.92;
+        const lat = startLat + (segment / segments) * latSpan;
         points.push(
           new THREE.Vector3(
             Math.cos(lat) * Math.cos(lon) * radius,
@@ -1242,15 +1244,17 @@ export class MenuIcon3D {
       parent.add(ridge);
     };
 
+    const flapApex = new THREE.Vector3(0, -0.16, 0.0125);
+
     createFoldRidge(
       flap,
       new THREE.Vector3(-0.97, 0.54, 0.0125),
-      new THREE.Vector3(-0.045, -0.135, 0.0125)
+      flapApex
     );
     createFoldRidge(
       flap,
       new THREE.Vector3(0.97, 0.54, 0.0125),
-      new THREE.Vector3(0.045, -0.135, 0.0125)
+      flapApex
     );
 
     const foldShadowShape = new THREE.Shape();

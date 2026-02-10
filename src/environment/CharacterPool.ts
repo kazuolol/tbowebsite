@@ -1,7 +1,11 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { FallingCharacter, CharacterConfig } from './FallingCharacter';
+import {
+  FallingCharacter,
+  CharacterConfig,
+  type CharacterTextureLoadOptions,
+} from './FallingCharacter';
 
 const POOL_SIZE = 10;
 const SPIN_SPEED = 0.45; // rad/s — must match FallingCharacter
@@ -44,9 +48,13 @@ export class CharacterPool {
   private disintegrationMaterial: THREE.MeshStandardMaterial;
   private particleGeometry: THREE.BoxGeometry;
   private disintegrationCursor = 0;
+  private femaleTextureMap: { [matName: string]: THREE.Texture } | null = null;
+  private maleTextureMap: { [matName: string]: THREE.Texture } | null = null;
+  private readonly textureLoadOptions: CharacterTextureLoadOptions;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
+    this.textureLoadOptions = this.resolveTextureLoadOptions();
 
     this.disintegrationMaterial = new THREE.MeshStandardMaterial({
       color: 0xddeeff,
@@ -69,46 +77,54 @@ export class CharacterPool {
     maleAnimPath: string,
     scale: number
   ): Promise<void> {
+    this.disposeTextureMap(this.femaleTextureMap);
+    this.disposeTextureMap(this.maleTextureMap);
+    this.femaleTextureMap = null;
+    this.maleTextureMap = null;
+
     // Load shared resources for both genders in parallel
     const [
       femaleTextureMap, maleTextureMap,
       femaleAnimClip, maleAnimClip,
       femaleBaseModel, maleBaseModel
     ] = await Promise.all([
-      FallingCharacter.loadTextures('female'),
-      FallingCharacter.loadTextures('male'),
+      FallingCharacter.loadTextures('female', this.textureLoadOptions),
+      FallingCharacter.loadTextures('male', this.textureLoadOptions),
       FallingCharacter.loadAnimationClip(femaleAnimPath),
       FallingCharacter.loadAnimationClip(maleAnimPath),
       this.loadBaseModel(femaleModelPath),
       this.loadBaseModel(maleModelPath),
     ]);
 
-    try {
-      // Generate 10 unique configs from mixed-gender combos
-      const configs = this.generateConfigs();
-
-      // Create pool
-      for (let i = 0; i < POOL_SIZE; i++) {
-        const isMale = configs[i].gender === 'male';
-        const clonedModel = SkeletonUtils.clone(isMale ? maleBaseModel : femaleBaseModel) as THREE.Group;
-        const character = new FallingCharacter(this.scene, configs[i]);
-        character.initFromClone(
-          clonedModel,
-          isMale ? maleTextureMap : femaleTextureMap,
-          isMale ? maleAnimClip : femaleAnimClip,
-          scale
-        );
-        this.scene.add(clonedModel);
-        this.characters.push(character);
-      }
-
-      // Show the first character
-      this.characters[0].setVisible(true);
-      this.loaded = true;
-    } finally {
-      this.disposeTextureMap(femaleTextureMap);
-      this.disposeTextureMap(maleTextureMap);
+    this.femaleTextureMap = femaleTextureMap;
+    this.maleTextureMap = maleTextureMap;
+    const femaleTextures = this.femaleTextureMap;
+    const maleTextures = this.maleTextureMap;
+    if (!femaleTextures || !maleTextures) {
+      throw new Error('Character textures failed to initialize.');
     }
+
+    // Generate 10 unique configs from mixed-gender combos
+    const configs = this.generateConfigs();
+
+    // Create pool
+    for (let i = 0; i < POOL_SIZE; i++) {
+      const isMale = configs[i].gender === 'male';
+      const clonedModel = SkeletonUtils.clone(isMale ? maleBaseModel : femaleBaseModel) as THREE.Group;
+      const character = new FallingCharacter(this.scene, configs[i]);
+      character.initFromClone(
+        clonedModel,
+        isMale ? maleTextures : femaleTextures,
+        isMale ? maleAnimClip : femaleAnimClip,
+        scale
+      );
+      this.scene.add(clonedModel);
+      this.characters.push(character);
+    }
+
+    // Show the first character
+    this.characters[0].setVisible(true);
+    this.loaded = true;
   }
 
   private async loadBaseModel(modelPath: string): Promise<THREE.Group> {
@@ -162,7 +178,40 @@ export class CharacterPool {
     });
   }
 
-  private disposeTextureMap(textureMap: { [matName: string]: THREE.Texture }): void {
+  private resolveTextureLoadOptions(): CharacterTextureLoadOptions {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+      return {};
+    }
+
+    const nav = navigator as Navigator & { deviceMemory?: number };
+    const deviceMemory = nav.deviceMemory;
+    const isTouchDevice = navigator.maxTouchPoints > 0;
+    const isCompactViewport = window.innerWidth <= 900 || window.innerHeight <= 900;
+
+    if (typeof deviceMemory === 'number' && deviceMemory <= 2) {
+      return {
+        downscaleFactor: 0.5,
+        maxTextureSize: 1024,
+      };
+    }
+
+    if (
+      (typeof deviceMemory === 'number' && deviceMemory <= 4) ||
+      (isTouchDevice && isCompactViewport)
+    ) {
+      return {
+        downscaleFactor: 0.75,
+        maxTextureSize: 1536,
+      };
+    }
+
+    return {};
+  }
+
+  private disposeTextureMap(textureMap: { [matName: string]: THREE.Texture } | null): void {
+    if (!textureMap) {
+      return;
+    }
     const disposed = new Set<string>();
     for (const texture of Object.values(textureMap)) {
       if (disposed.has(texture.uuid)) continue;
@@ -436,6 +485,10 @@ export class CharacterPool {
     }
     this.characters = [];
     this.loaded = false;
+    this.disposeTextureMap(this.femaleTextureMap);
+    this.disposeTextureMap(this.maleTextureMap);
+    this.femaleTextureMap = null;
+    this.maleTextureMap = null;
 
     // Clean up disintegration particles
     for (const p of this.disintegrationParticles) {

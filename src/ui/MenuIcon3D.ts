@@ -94,6 +94,9 @@ export class MenuIcon3D {
   private friendsConversationActiveSide: 'left' | 'right' | null = null;
   private friendsConversationTypingUntil = 0;
   private friendsTextureSamplingConfigured = false;
+  private friendsLastRenderStateKey = '';
+  private friendsNextTextureUpdateAt = 0;
+  private friendsPhoneTextureDirty = true;
   private readonly rendererSize = new THREE.Vector2();
   private static readonly KEY_SPIN_SPEED = 1.05;
   private static readonly FRIENDS_DOT_APPEAR_DURATION = 0.3;
@@ -140,6 +143,7 @@ export class MenuIcon3D {
   private static readonly FRIENDS_LEFT_CHAT_TILT_Z = -MenuIcon3D.FRIENDS_RIGHT_CHAT_TILT_Z;
   private static readonly FRIENDS_CONVERSATION_INITIAL_DELAY = 0.6;
   private static readonly FRIENDS_CONVERSATION_TIME_SCALE = 2.34;
+  private static readonly FRIENDS_TEXTURE_UPLOAD_FPS = 30;
   private static readonly FRIENDS_CONVERSATION_SCRIPT: ReadonlyArray<{
     side: 'left' | 'right';
     message: string;
@@ -1975,6 +1979,7 @@ export class MenuIcon3D {
     this.friendsScreenTexture = texture;
     this.renderFriendsPhoneScreen(0);
     texture.needsUpdate = true;
+    this.friendsPhoneTextureDirty = false;
     return texture;
   }
 
@@ -2608,6 +2613,50 @@ export class MenuIcon3D {
     this.updateFriendsMessageTranslate(elapsedSeconds);
     this.updateFriendsLeftOverheadBubbles(elapsedSeconds);
     this.updateFriendsLeftMessageTranslate(elapsedSeconds);
+  }
+
+  private hasFriendsFadingBubbles(
+    bubbles: Array<{ id: number; text: string; createdAt: number }>,
+    elapsedSeconds: number
+  ): boolean {
+    const fadeStart = MenuIcon3D.FRIENDS_MESSAGE_DISPLAY_DURATION;
+    const fadeEnd = fadeStart + MenuIcon3D.FRIENDS_MESSAGE_FADE_DURATION;
+    for (const bubble of bubbles) {
+      const age = elapsedSeconds - bubble.createdAt;
+      if (age > fadeStart && age <= fadeEnd) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private shouldAnimateFriendsTextures(elapsedSeconds: number): boolean {
+    if (this.friendsTypingIndicatorActive || this.friendsLeftTypingIndicatorActive) {
+      return true;
+    }
+    if (this.friendsMessageTranslateAnimating || this.friendsLeftMessageTranslateAnimating) {
+      return true;
+    }
+    if (this.hasFriendsFadingBubbles(this.friendsOverheadBubbles, elapsedSeconds)) {
+      return true;
+    }
+    if (this.hasFriendsFadingBubbles(this.friendsLeftOverheadBubbles, elapsedSeconds)) {
+      return true;
+    }
+    return false;
+  }
+
+  private getFriendsVisualStateKey(): string {
+    const rightBubbleIds = this.friendsOverheadBubbles.map((bubble) => bubble.id).join(',');
+    const leftBubbleIds = this.friendsLeftOverheadBubbles.map((bubble) => bubble.id).join(',');
+    return [
+      this.friendsTypingIndicatorActive ? '1' : '0',
+      this.friendsLeftTypingIndicatorActive ? '1' : '0',
+      Math.round(this.friendsMessageTranslateY * 1000),
+      Math.round(this.friendsLeftMessageTranslateY * 1000),
+      rightBubbleIds,
+      leftBubbleIds,
+    ].join('|');
   }
 
   private renderFriendsLeftFloatingChat(elapsedSeconds: number): void {
@@ -3431,17 +3480,34 @@ export class MenuIcon3D {
       this.configureFriendsTextureSampling(renderer);
       this.updateFriendsConversationScript(this.elapsed);
 
-      if (this.friendsScreenTexture) {
+      const visualStateKey = this.getFriendsVisualStateKey();
+      const visualStateChanged = visualStateKey !== this.friendsLastRenderStateKey;
+      if (visualStateChanged) {
+        this.friendsLastRenderStateKey = visualStateKey;
+      }
+
+      if (this.friendsScreenTexture && this.friendsPhoneTextureDirty) {
         this.renderFriendsPhoneScreen(this.elapsed);
         this.friendsScreenTexture.needsUpdate = true;
+        this.friendsPhoneTextureDirty = false;
       }
-      if (this.friendsFloatingChatTexture) {
-        this.renderFriendsFloatingChat(this.elapsed);
-        this.friendsFloatingChatTexture.needsUpdate = true;
-      }
-      if (this.friendsLeftFloatingChatTexture) {
-        this.renderFriendsLeftFloatingChat(this.elapsed);
-        this.friendsLeftFloatingChatTexture.needsUpdate = true;
+
+      const shouldRenderAnimatedTextures =
+        visualStateChanged ||
+        (this.shouldAnimateFriendsTextures(this.elapsed) &&
+          this.elapsed >= this.friendsNextTextureUpdateAt);
+
+      if (shouldRenderAnimatedTextures) {
+        if (this.friendsFloatingChatTexture) {
+          this.renderFriendsFloatingChat(this.elapsed);
+          this.friendsFloatingChatTexture.needsUpdate = true;
+        }
+        if (this.friendsLeftFloatingChatTexture) {
+          this.renderFriendsLeftFloatingChat(this.elapsed);
+          this.friendsLeftFloatingChatTexture.needsUpdate = true;
+        }
+        this.friendsNextTextureUpdateAt =
+          this.elapsed + 1 / MenuIcon3D.FRIENDS_TEXTURE_UPLOAD_FPS;
       }
       this.group.rotation.set(-0.12, 0.3, 0.02);
       this.group.position.set(0, 0, 0);
@@ -3557,6 +3623,9 @@ export class MenuIcon3D {
     this.friendsConversationActiveSide = null;
     this.friendsConversationTypingUntil = 0;
     this.friendsTextureSamplingConfigured = false;
+    this.friendsLastRenderStateKey = '';
+    this.friendsNextTextureUpdateAt = 0;
+    this.friendsPhoneTextureDirty = true;
     this.externalRoot = null;
     this.mountedExternally = false;
   }

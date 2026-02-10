@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CharacterPool } from '../environment/CharacterPool';
 import { CharacterOrbitCarousel } from '../environment/CharacterOrbitCarousel';
 import { WeatherParticles } from '../environment/WeatherParticles';
+import type { DevPerformanceMonitor } from '../utils/DevPerformanceMonitor';
 import {
   LOCAL_WEATHER_UPDATE_EVENT,
   classifyOpenMeteoWeatherCode,
@@ -58,8 +59,12 @@ const DEFAULT_FRAGMENT_SPAWN_CHANCE = 0.02;
 const DEFAULT_MAX_FRAGMENTS = 80;
 const NEAR_CAMERA_FADE_START_Z_OFFSET = -75;
 const NEAR_CAMERA_FADE_END_Z_OFFSET = 6;
+const RESIZE_GUARD_INTERVAL_SECONDS = 0.5;
+const FOV_UPDATE_EPSILON = 0.01;
 const CUBE_BASE_COLOR = 0x0632d8;
 const CUBE_EMISSIVE_COLOR = 0x0b3be8;
+const CUBE_GEOMETRY_BUCKET = 0.25;
+const FRAGMENT_GEOMETRY_BUCKET = 0.2;
 const NIGHT_BACKGROUND_TINT = new THREE.Color(0x08142f);
 const NIGHT_FOG_TINT = new THREE.Color(0x122a52);
 const NIGHT_CUBE_TINT = new THREE.Color(0x2a64dc);
@@ -117,11 +122,14 @@ export class FallingScene {
 
   private animationFrameId: number | null = null;
   private disposed = false;
+  private perfMonitor: DevPerformanceMonitor | null = null;
   private glowTexture: THREE.CanvasTexture | null = null;
   private glowMaterial: THREE.SpriteMaterial | null = null;
   private glowSprite: THREE.Sprite | null = null;
   private viewportWidth = 0;
   private viewportHeight = 0;
+  private nextResizeGuardAt = RESIZE_GUARD_INTERVAL_SECONDS;
+  private readonly sharedBoxGeometryCache = new Map<string, THREE.BoxGeometry>();
 
   private readonly onResizeHandler = (): void => {
     this.onResize();
@@ -164,6 +172,18 @@ export class FallingScene {
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.localClippingEnabled = true;
     this.onResize();
+    if (__TBO_DEV__) {
+      void import('../utils/DevPerformanceMonitor')
+        .then(({ DevPerformanceMonitor }) => {
+          if (this.disposed) {
+            return;
+          }
+          this.perfMonitor = DevPerformanceMonitor.tryCreate(this.renderer);
+        })
+        .catch((error) => {
+          console.warn('Failed to initialize dev performance monitor:', error);
+        });
+    }
 
     this.cubeMaterial = new THREE.MeshStandardMaterial({
       color: CUBE_BASE_COLOR,
@@ -287,7 +307,7 @@ export class FallingScene {
 
   private spawnCube(z: number): void {
     const cubeSize = this.randomCubeSize();
-    const geometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+    const geometry = this.getSharedBoxGeometry('cube', cubeSize, CUBE_GEOMETRY_BUCKET);
     const material = this.createCubeMaterial();
     const values = this.applyRandomCubeMaterialValues(material);
 
@@ -318,6 +338,21 @@ export class FallingScene {
     });
   }
 
+  private getSharedBoxGeometry(
+    type: 'cube' | 'fragment',
+    size: number,
+    bucketSize: number
+  ): THREE.BoxGeometry {
+    const bucketedSize = Math.max(bucketSize, Math.round(size / bucketSize) * bucketSize);
+    const key = `${type}:${bucketedSize.toFixed(2)}`;
+    let geometry = this.sharedBoxGeometryCache.get(key);
+    if (!geometry) {
+      geometry = new THREE.BoxGeometry(bucketedSize, bucketedSize, bucketedSize);
+      this.sharedBoxGeometryCache.set(key, geometry);
+    }
+    return geometry;
+  }
+
   private createInitialCubes(): void {
     for (let i = 0; i < CUBE_COUNT; i += 1) {
       const z = -10 - i * (Math.abs(RESET_Z) / CUBE_COUNT);
@@ -325,13 +360,13 @@ export class FallingScene {
     }
   }
 
-  private spawnFragment(sourcePosition: THREE.Vector3): void {
+  private spawnFragment(sourceX: number, sourceY: number, sourceZ: number): void {
     if (this.fragments.length >= this.maxFragments) {
       return;
     }
 
     const shardSize = 0.2 + Math.random() * 1.5;
-    const geometry = new THREE.BoxGeometry(shardSize, shardSize, shardSize);
+    const geometry = this.getSharedBoxGeometry('fragment', shardSize, FRAGMENT_GEOMETRY_BUCKET);
     const material = this.createCubeMaterial();
     const values = this.applyRandomCubeMaterialValues(material);
     values.opacity *= 0.5;
@@ -339,9 +374,11 @@ export class FallingScene {
     material.emissiveIntensity = values.emissiveIntensity * this.cubeEmissiveMultiplier;
 
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.copy(sourcePosition);
-    mesh.position.x += (Math.random() - 0.5) * 10;
-    mesh.position.y += (Math.random() - 0.5) * 10;
+    mesh.position.set(
+      sourceX + (Math.random() - 0.5) * 10,
+      sourceY + (Math.random() - 0.5) * 10,
+      sourceZ
+    );
 
     this.scene.add(mesh);
 
@@ -391,8 +428,11 @@ export class FallingScene {
     const delta = this.clock.getDelta();
     const elapsed = this.clock.getElapsedTime();
 
-    this.camera.fov = 75 + Math.sin(elapsed * 0.15) * 2;
-    this.camera.updateProjectionMatrix();
+    const nextFov = 75 + Math.sin(elapsed * 0.15) * 2;
+    if (Math.abs(this.camera.fov - nextFov) > FOV_UPDATE_EPSILON) {
+      this.camera.fov = nextFov;
+      this.camera.updateProjectionMatrix();
+    }
 
     this.updateWeatherTransition(delta);
     this.weatherParticles.setWind(this.cubeDrift.x, this.cubeDrift.y, this.worldSpeed);
@@ -404,8 +444,12 @@ export class FallingScene {
 
     this.camera.position.set(0, 3, 8);
     this.camera.lookAt(0, 0, -50);
-    this.onResize();
+    if (elapsed >= this.nextResizeGuardAt) {
+      this.nextResizeGuardAt = elapsed + RESIZE_GUARD_INTERVAL_SECONDS;
+      this.onResize();
+    }
     this.renderer.render(this.scene, this.camera);
+    this.perfMonitor?.recordFrame(delta);
   }
 
   private updateWeatherTransition(delta: number): void {
@@ -539,14 +583,12 @@ export class FallingScene {
         cube.mesh.position.z < 15 &&
         Math.random() < this.fragmentSpawnChance
       ) {
-        this.spawnFragment(cube.mesh.position.clone());
+        this.spawnFragment(cube.mesh.position.x, cube.mesh.position.y, cube.mesh.position.z);
       }
 
       if (cube.mesh.position.z > RECYCLE_Z) {
-        cube.mesh.geometry.dispose();
-
         const cubeSize = this.randomCubeSize();
-        cube.mesh.geometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+        cube.mesh.geometry = this.getSharedBoxGeometry('cube', cubeSize, CUBE_GEOMETRY_BUCKET);
 
         const refreshed = this.applyRandomCubeMaterialValues(material);
         cube.baseOpacity = refreshed.opacity;
@@ -577,7 +619,9 @@ export class FallingScene {
     for (let i = this.fragments.length - 1; i >= 0; i -= 1) {
       const fragment = this.fragments[i];
 
-      fragment.mesh.position.add(fragment.velocity.clone().multiplyScalar(delta));
+      fragment.mesh.position.x += fragment.velocity.x * delta;
+      fragment.mesh.position.y += fragment.velocity.y * delta;
+      fragment.mesh.position.z += fragment.velocity.z * delta;
       fragment.mesh.position.x += this.cubeDrift.x * delta * 0.65;
       fragment.mesh.position.y += this.cubeDrift.y * delta * 0.65;
 
@@ -601,7 +645,6 @@ export class FallingScene {
 
       if (fragment.life > fragment.maxLife || fragment.mesh.position.z > 50) {
         this.scene.remove(fragment.mesh);
-        fragment.mesh.geometry.dispose();
         (fragment.mesh.material as THREE.Material).dispose();
         this.fragments.splice(i, 1);
       }
@@ -929,17 +972,20 @@ export class FallingScene {
 
     for (const cube of this.cubes) {
       this.scene.remove(cube.mesh);
-      cube.mesh.geometry.dispose();
       (cube.mesh.material as THREE.Material).dispose();
     }
     this.cubes = [];
 
     for (const fragment of this.fragments) {
       this.scene.remove(fragment.mesh);
-      fragment.mesh.geometry.dispose();
       (fragment.mesh.material as THREE.Material).dispose();
     }
     this.fragments = [];
+
+    for (const geometry of this.sharedBoxGeometryCache.values()) {
+      geometry.dispose();
+    }
+    this.sharedBoxGeometryCache.clear();
 
     if (this.glowSprite) {
       this.scene.remove(this.glowSprite);
@@ -955,6 +1001,8 @@ export class FallingScene {
     }
 
     this.cubeMaterial.dispose();
+    this.perfMonitor?.dispose();
+    this.perfMonitor = null;
     this.renderer.dispose();
   }
 }

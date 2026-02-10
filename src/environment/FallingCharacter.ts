@@ -8,13 +8,28 @@ export interface CharacterConfig {
   hairColor: THREE.Color;
 }
 
+export interface CharacterTextureLoadOptions {
+  downscaleFactor?: number;
+  maxTextureSize?: number;
+}
+
+type CharacterTextureMap = Record<string, THREE.Texture>;
+
+interface SharedTextureVariantEntry {
+  texture: THREE.Texture;
+  refCount: number;
+  disposeWithEntry: boolean;
+}
+
 export class FallingCharacter {
   private scene: THREE.Scene;
   private mixer: THREE.AnimationMixer | null = null;
   private model: THREE.Group | null = null;
   private loaded: boolean = false;
   private materials: THREE.Material[] = [];
-  private textures: THREE.Texture[] = [];
+  private ownsBaseTextures = false;
+  private ownedBaseTextures = new Set<THREE.Texture>();
+  private acquiredTextureVariantRefCounts = new Map<string, number>();
   private clipMinY = 0;
   private clipMaxY = 0;
   private clipBoundsReady = false;
@@ -95,25 +110,124 @@ export class FallingCharacter {
     { matName: 'm_youghmale_outfit_005', path: '/textures/T_YoughMale_Outfit_005_Basecolor.png' },
   ];
 
-  static async loadTextures(gender: 'male' | 'female' = 'female'): Promise<{ [matName: string]: THREE.Texture }> {
-    const textureLoader = new THREE.TextureLoader();
-    const textureMap: { [matName: string]: THREE.Texture } = {};
-    const files = gender === 'male' ? FallingCharacter.maleTextureFiles : FallingCharacter.femaleTextureFiles;
+  private static readonly TEXTURE_SOURCE_PATH_KEY = '__tboSourcePath';
+  private static readonly DEFAULT_TEXTURE_VARIANT_KEY = '0,0|1,1|0,0|0|1001|1001';
+  private static readonly sharedTextureVariants = new Map<string, SharedTextureVariantEntry>();
 
-    await Promise.all(files.map(async ({ matName, path }) => {
-      try {
-        const texture = await new Promise<THREE.Texture>((resolve, reject) => {
-          textureLoader.load(path, resolve, undefined, reject);
-        });
-        texture.flipY = true;
-        texture.colorSpace = THREE.SRGBColorSpace;
+  static async loadTextures(
+    gender: 'male' | 'female' = 'female',
+    options?: CharacterTextureLoadOptions
+  ): Promise<CharacterTextureMap> {
+    const textureLoader = new THREE.TextureLoader();
+    const textureMap: CharacterTextureMap = {};
+    const files = gender === 'male' ? FallingCharacter.maleTextureFiles : FallingCharacter.femaleTextureFiles;
+    const uniquePaths = [...new Set(files.map((file) => file.path))];
+    const texturesByPath = new Map<string, THREE.Texture>();
+
+    await Promise.all(
+      uniquePaths.map(async (path) => {
+        try {
+          const loadedTexture = await new Promise<THREE.Texture>((resolve, reject) => {
+            textureLoader.load(path, resolve, undefined, reject);
+          });
+          loadedTexture.flipY = true;
+          loadedTexture.colorSpace = THREE.SRGBColorSpace;
+          (loadedTexture.userData as Record<string, unknown>)[
+            FallingCharacter.TEXTURE_SOURCE_PATH_KEY
+          ] = path;
+          const optimizedTexture = FallingCharacter.optimizeTextureForTier(
+            loadedTexture,
+            options
+          );
+          (optimizedTexture.userData as Record<string, unknown>)[
+            FallingCharacter.TEXTURE_SOURCE_PATH_KEY
+          ] = path;
+          texturesByPath.set(path, optimizedTexture);
+        } catch (error) {
+          console.warn(`Failed to load texture: ${path}`, error);
+        }
+      })
+    );
+
+    for (const { matName, path } of files) {
+      const texture = texturesByPath.get(path);
+      if (texture) {
         textureMap[matName] = texture;
-      } catch (e) {
-        console.warn(`Failed to load texture: ${path}`);
       }
-    }));
+    }
 
     return textureMap;
+  }
+
+  private static optimizeTextureForTier(
+    texture: THREE.Texture,
+    options?: CharacterTextureLoadOptions
+  ): THREE.Texture {
+    if (typeof document === 'undefined') {
+      return texture;
+    }
+
+    const downscaleFactor = THREE.MathUtils.clamp(options?.downscaleFactor ?? 1, 0.05, 1);
+    const maxTextureSizeOption = options?.maxTextureSize;
+    const maxTextureSize =
+      typeof maxTextureSizeOption === 'number' && Number.isFinite(maxTextureSizeOption)
+        ? Math.max(1, Math.floor(maxTextureSizeOption))
+        : Number.POSITIVE_INFINITY;
+    if (downscaleFactor >= 0.999 && !Number.isFinite(maxTextureSize)) {
+      return texture;
+    }
+
+    const image = texture.image as { width?: number; height?: number } | undefined;
+    const sourceWidth = image?.width;
+    const sourceHeight = image?.height;
+    if (
+      typeof sourceWidth !== 'number' ||
+      typeof sourceHeight !== 'number' ||
+      sourceWidth <= 0 ||
+      sourceHeight <= 0
+    ) {
+      return texture;
+    }
+
+    let targetWidth = Math.max(1, Math.floor(sourceWidth * downscaleFactor));
+    let targetHeight = Math.max(1, Math.floor(sourceHeight * downscaleFactor));
+
+    if (Number.isFinite(maxTextureSize) && (targetWidth > maxTextureSize || targetHeight > maxTextureSize)) {
+      const clampScale = maxTextureSize / Math.max(targetWidth, targetHeight);
+      targetWidth = Math.max(1, Math.floor(targetWidth * clampScale));
+      targetHeight = Math.max(1, Math.floor(targetHeight * clampScale));
+    }
+
+    if (targetWidth === sourceWidth && targetHeight === sourceHeight) {
+      return texture;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      return texture;
+    }
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(texture.image as CanvasImageSource, 0, 0, targetWidth, targetHeight);
+
+    const optimized = new THREE.CanvasTexture(canvas);
+    optimized.name = texture.name;
+    optimized.flipY = texture.flipY;
+    optimized.colorSpace = texture.colorSpace;
+    optimized.wrapS = texture.wrapS;
+    optimized.wrapT = texture.wrapT;
+    optimized.magFilter = texture.magFilter;
+    optimized.minFilter = texture.minFilter;
+    optimized.generateMipmaps = texture.generateMipmaps;
+    optimized.anisotropy = texture.anisotropy;
+    optimized.needsUpdate = true;
+
+    texture.dispose();
+    return optimized;
   }
 
   static async loadAnimationClip(animPath: string): Promise<THREE.AnimationClip> {
@@ -138,10 +252,12 @@ export class FallingCharacter {
 
   initFromClone(
     clonedModel: THREE.Group,
-    textureMap: { [matName: string]: THREE.Texture },
+    textureMap: CharacterTextureMap,
     animClip: THREE.AnimationClip,
     scale: number
   ): void {
+    this.releaseTextureVariants();
+    this.resetTextureOwnership();
     this.model = clonedModel;
     this.model.scale.setScalar(scale);
     this.model.position.set(0, 0, 0);
@@ -178,7 +294,7 @@ export class FallingCharacter {
 
   // ── Variant configuration (mesh traversal) ──────────────────────
 
-  private applyVariantConfig(textureMap: { [matName: string]: THREE.Texture }): void {
+  private applyVariantConfig(textureMap: CharacterTextureMap): void {
     if (!this.model) return;
 
     this.model.traverse((child) => {
@@ -249,8 +365,11 @@ export class FallingCharacter {
     scale: number = 0.025
   ): Promise<void> {
     const textureMap = await FallingCharacter.loadTextures(this.gender);
-    for (const tex of Object.values(textureMap)) {
-      this.textures.push(tex);
+    this.releaseTextureVariants();
+    this.resetTextureOwnership();
+    this.ownsBaseTextures = true;
+    for (const texture of Object.values(textureMap)) {
+      this.ownedBaseTextures.add(texture);
     }
 
     const fbxLoader = new FBXLoader();
@@ -298,28 +417,23 @@ export class FallingCharacter {
 
   private createMaterialForName(
     matName: string,
-    textureMap: { [key: string]: THREE.Texture },
+    textureMap: CharacterTextureMap,
     originalMat?: THREE.Material
   ): THREE.MeshStandardMaterial {
-    const texture = textureMap[matName] || null;
+    const baseTexture = textureMap[matName] || null;
 
-    if (!texture) {
+    if (!baseTexture) {
       console.warn('No texture for material:', matName);
     }
 
     let materialTexture: THREE.Texture | null = null;
-    if (texture) {
-      materialTexture = texture.clone();
-
-      if (originalMat) {
-        const origMat = originalMat as THREE.MeshStandardMaterial | THREE.MeshPhongMaterial | THREE.MeshBasicMaterial;
-        if (origMat.map) {
-          materialTexture.offset.copy(origMat.map.offset);
-          materialTexture.repeat.copy(origMat.map.repeat);
-          materialTexture.rotation = origMat.map.rotation;
-          materialTexture.center.copy(origMat.map.center);
-        }
-      }
+    if (baseTexture) {
+      const sourceMaterial = originalMat as
+        | THREE.MeshStandardMaterial
+        | THREE.MeshPhongMaterial
+        | THREE.MeshBasicMaterial
+        | undefined;
+      materialTexture = this.acquireTextureVariant(baseTexture, sourceMaterial?.map ?? null);
     }
 
     const isHair = matName.includes('hair');
@@ -338,6 +452,155 @@ export class FallingCharacter {
 
     this.materials.push(material);
     return material;
+  }
+
+  private acquireTextureVariant(
+    baseTexture: THREE.Texture,
+    sourceMap: THREE.Texture | null
+  ): THREE.Texture {
+    const textureId = FallingCharacter.getTextureIdentity(baseTexture);
+    const variantKey = `${textureId}|${FallingCharacter.getTextureVariantKey(sourceMap)}`;
+
+    let entry = FallingCharacter.sharedTextureVariants.get(variantKey);
+    if (!entry) {
+      if (FallingCharacter.isDefaultTextureTransform(sourceMap)) {
+        entry = {
+          texture: baseTexture,
+          refCount: 0,
+          disposeWithEntry: false,
+        };
+      } else if (sourceMap) {
+        const variant = baseTexture.clone();
+        FallingCharacter.applyTextureTransform(sourceMap, variant);
+        variant.needsUpdate = true;
+        const sourcePath = FallingCharacter.getTextureSourcePath(baseTexture);
+        if (sourcePath) {
+          (variant.userData as Record<string, unknown>)[
+            FallingCharacter.TEXTURE_SOURCE_PATH_KEY
+          ] = sourcePath;
+        }
+        entry = {
+          texture: variant,
+          refCount: 0,
+          disposeWithEntry: true,
+        };
+      } else {
+        entry = {
+          texture: baseTexture,
+          refCount: 0,
+          disposeWithEntry: false,
+        };
+      }
+      FallingCharacter.sharedTextureVariants.set(variantKey, entry);
+    }
+
+    entry.refCount += 1;
+    this.acquiredTextureVariantRefCounts.set(
+      variantKey,
+      (this.acquiredTextureVariantRefCounts.get(variantKey) ?? 0) + 1
+    );
+    return entry.texture;
+  }
+
+  private releaseTextureVariants(): void {
+    for (const [key, count] of this.acquiredTextureVariantRefCounts) {
+      FallingCharacter.releaseTextureVariant(key, count);
+    }
+    this.acquiredTextureVariantRefCounts.clear();
+  }
+
+  private resetTextureOwnership(): void {
+    if (this.ownsBaseTextures) {
+      for (const texture of this.ownedBaseTextures) {
+        texture.dispose();
+      }
+    }
+    this.ownedBaseTextures.clear();
+    this.ownsBaseTextures = false;
+  }
+
+  private static releaseTextureVariant(key: string, count: number): void {
+    const entry = FallingCharacter.sharedTextureVariants.get(key);
+    if (!entry) {
+      return;
+    }
+
+    entry.refCount = Math.max(0, entry.refCount - Math.max(1, count));
+    if (entry.refCount > 0) {
+      return;
+    }
+
+    if (entry.disposeWithEntry) {
+      entry.texture.dispose();
+    }
+    FallingCharacter.sharedTextureVariants.delete(key);
+  }
+
+  private static getTextureSourcePath(texture: THREE.Texture): string | null {
+    const sourcePath = (texture.userData as Record<string, unknown>)[
+      FallingCharacter.TEXTURE_SOURCE_PATH_KEY
+    ];
+    if (typeof sourcePath === 'string' && sourcePath.length > 0) {
+      return sourcePath;
+    }
+    return null;
+  }
+
+  private static getTextureIdentity(texture: THREE.Texture): string {
+    return FallingCharacter.getTextureSourcePath(texture) ?? texture.uuid;
+  }
+
+  private static getTextureVariantKey(sourceMap: THREE.Texture | null): string {
+    if (!sourceMap) {
+      return FallingCharacter.DEFAULT_TEXTURE_VARIANT_KEY;
+    }
+
+    return [
+      sourceMap.offset.x.toFixed(4),
+      sourceMap.offset.y.toFixed(4),
+      sourceMap.repeat.x.toFixed(4),
+      sourceMap.repeat.y.toFixed(4),
+      sourceMap.center.x.toFixed(4),
+      sourceMap.center.y.toFixed(4),
+      sourceMap.rotation.toFixed(4),
+      String(sourceMap.wrapS),
+      String(sourceMap.wrapT),
+    ].join('|');
+  }
+
+  private static isDefaultTextureTransform(sourceMap: THREE.Texture | null): boolean {
+    if (!sourceMap) {
+      return true;
+    }
+
+    const epsilon = 1e-6;
+    return (
+      Math.abs(sourceMap.offset.x) <= epsilon &&
+      Math.abs(sourceMap.offset.y) <= epsilon &&
+      Math.abs(sourceMap.repeat.x - 1) <= epsilon &&
+      Math.abs(sourceMap.repeat.y - 1) <= epsilon &&
+      Math.abs(sourceMap.center.x) <= epsilon &&
+      Math.abs(sourceMap.center.y) <= epsilon &&
+      Math.abs(sourceMap.rotation) <= epsilon &&
+      sourceMap.wrapS === THREE.ClampToEdgeWrapping &&
+      sourceMap.wrapT === THREE.ClampToEdgeWrapping
+    );
+  }
+
+  private static applyTextureTransform(source: THREE.Texture, target: THREE.Texture): void {
+    target.offset.copy(source.offset);
+    target.repeat.copy(source.repeat);
+    target.center.copy(source.center);
+    target.rotation = source.rotation;
+    target.wrapS = source.wrapS;
+    target.wrapT = source.wrapT;
+    target.flipY = source.flipY;
+    target.anisotropy = source.anisotropy;
+    target.minFilter = source.minFilter;
+    target.magFilter = source.magFilter;
+    target.generateMipmaps = source.generateMipmaps;
+    target.matrixAutoUpdate = source.matrixAutoUpdate;
+    target.matrix.copy(source.matrix);
   }
 
   private async loadAnimation(animationPath: string): Promise<void> {
@@ -608,17 +871,12 @@ export class FallingCharacter {
         }
       });
     }
+    this.releaseTextureVariants();
+    this.resetTextureOwnership();
     for (const mat of this.materials) {
-      if (mat instanceof THREE.MeshStandardMaterial && mat.map) {
-        mat.map.dispose();
-      }
       mat.dispose();
     }
-    for (const tex of this.textures) {
-      tex.dispose();
-    }
     this.materials = [];
-    this.textures = [];
     this.mixer = null;
     this.model = null;
     this.clipBoundsReady = false;

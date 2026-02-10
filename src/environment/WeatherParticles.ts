@@ -584,8 +584,10 @@ export class WeatherParticles {
 
   private applyLayerOpacities(): void {
     for (const layer of this.layers) {
-      layer.material.opacity = layer.baseOpacity * layer.opacityMultiplier;
-      layer.material.needsUpdate = true;
+      const targetOpacity = layer.baseOpacity * layer.opacityMultiplier;
+      if (Math.abs(layer.material.opacity - targetOpacity) > 1e-4) {
+        layer.material.opacity = targetOpacity;
+      }
     }
   }
 

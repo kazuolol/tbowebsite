@@ -1,201 +1,96 @@
-# Optimization Plan
+# Optimization Plan and Session Handoff
 
 Date: 2026-02-10
 Repo: `C:\Users\gazin\tbowebsite`
 
-## Implementation Status (Updated 2026-02-10)
+## Canonical Tracker
 
-- Phase 0: Complete.
-- Phase 1: Complete.
-- Phase 2: Complete.
-- Phase 3: In progress.
-- Phase 4: In progress.
-- Phase 5: Pending.
+- This file is now the single source of truth for optimization status and resume steps.
+- `progress.md` is intentionally reduced to a pointer to prevent status drift.
 
-### Completed This Cycle
+## Current Status
 
-- Added dev-only perf monitor + toggle:
-- `src/utils/DevPerformanceMonitor.ts`
-- `src/scene/FallingScene.ts`
-- `docs/perf-baseline.md`
-- Implemented frame-time quick wins:
-- Removed per-frame allocation hotspots in fragment paths.
-- Added shared box geometry buckets for cubes/fragments.
-- Made resize checks event-driven with periodic guard fallback.
-- Avoided projection updates when FOV change is negligible.
-- Optimized friends icon updates in `src/ui/MenuIcon3D.ts`:
-- Added visual-state invalidation and animation-aware upload throttling.
-- Reworked texture ownership and sharing:
-- `src/environment/FallingCharacter.ts` now uses shared texture variants with ref-counted release.
-- `src/environment/CharacterPool.ts` now owns pooled base textures for pool lifetime.
-- Added constrained-device texture tier policy (downscale + max size caps).
-- Added initial bundle chunk strategy:
-- `vite.config.ts` manual chunking for `three` and `menu-icon`.
-- Added build-time dev constant:
-- `src/vite-env.d.ts`
-- `vite.config.ts`
-- Added secondary render optimizations:
-- `src/environment/WeatherParticles.ts` lightning now uses pooled reusable line resources.
-- `src/ui/HeaderOverlay.ts` icon RAF loop is visibility-aware and update-rate limited.
+- Phase 0 (measurement + guardrails): Complete.
+- Phase 1 (frame-time quick wins): Complete.
+- Phase 2 (memory and asset load): Complete.
+- Phase 3 (bundle/module strategy): Complete.
+- Phase 4 (secondary GPU/render work): Complete.
+- Phase 5 (verification/regression safety): In progress.
 
-### Latest Build Snapshot
+## What Is Already Done
 
-- Build command: `npm.cmd run build`
-- Build status: pass
-- Chunk outputs:
-- `dist/assets/three-VwuSmR44.js` = `618.70 kB` minified, `161.27 kB` gzip.
-- `dist/assets/menu-icon-Dvd44qaZ.js` = `66.15 kB` minified, `17.63 kB` gzip.
-- `dist/assets/index-DRb2ixh3.js` = `79.58 kB` minified, `22.40 kB` gzip.
+- Performance instrumentation and baseline capture setup:
+  - `src/utils/DevPerformanceMonitor.ts`
+  - `docs/perf-baseline.md`
+- Scene hot-loop optimizations and allocation reduction:
+  - `src/scene/FallingScene.ts`
+- Texture ownership/memory strategy for character assets:
+  - `src/environment/FallingCharacter.ts`
+  - `src/environment/CharacterPool.ts`
+- Weather lightning pooling + opacity/state-change cleanup:
+  - `src/environment/WeatherParticles.ts`
+- Header icon loop throttling/visibility gating:
+  - `src/ui/HeaderOverlay.ts`
+- `MenuIcon3D` split into focused modules with lazy-loaded info icon:
+  - `src/ui/MenuIcon3D.ts`
+  - `src/ui/menu-icon/buildKeyIcon.ts`
+  - `src/ui/menu-icon/buildGlobeIcon.ts`
+  - `src/ui/menu-icon/buildInboxIcon.ts`
+  - `src/ui/menu-icon/buildFriendsIcon.ts`
+  - `src/ui/menu-icon/buildInfoIcon.ts`
+  - `src/ui/menu-icon/friendsConstants.ts`
+  - `src/ui/menu-icon/friendsConversationScript.ts`
+- Chunking strategy applied:
+  - `vite.config.ts` (`manualChunks` for `three` and `menu-icon`)
 
-## Goals
+## Verified So Far
 
-- Improve frame stability and average frame time.
-- Reduce startup load cost (network, parse, GPU upload, initialization).
-- Reduce runtime memory pressure (JS heap + GPU textures/materials/geometries).
-- Reduce bundle size and improve code-splitting.
-- Preserve current visual behavior and runtime contracts from `AGENTS.md`.
+- Latest local build result: pass (`npm.cmd run build`).
+- Latest chunk snapshot:
+  - `dist/assets/three-BHFk_gJM.js` = `618.70 kB` minified (`161.27 kB` gzip)
+  - `dist/assets/menu-icon-CcP0RGiD.js` = `62.22 kB` minified (`17.61 kB` gzip)
+  - `dist/assets/buildInfoIcon-BAy1HD1P.js` = `1.71 kB` minified (`0.99 kB` gzip)
+  - `dist/assets/index-DiHX7bbm.js` = `81.40 kB` minified (`22.88 kB` gzip)
+- Contract checks revalidated in code:
+  - `tbo:menu-action` payload stays `{ action, label }`
+  - `tbo:local-weather-update` integration into `FallingScene`
+  - `ORBIT_LAYER = 2` contract intact in carousel path
+- Draft Phase 5 report exists:
+  - `docs/perf-final.md`
 
-## Current Baseline
+## Resume Point (Start Here In A New Session)
 
-- Build command: `npm.cmd run build`
-- Build status: pass
-- Main JS chunk: `dist/assets/index-D1ADIi8o.js` = `757.44 kB` minified, `198.66 kB` gzip.
-- Character assets actively loaded at startup:
-- Models used by `CharacterPool.preload(...)`: about `15.194 MB` on disk.
-- Textures referenced by `FallingCharacter` texture maps: about `20.291 MB` on disk.
-- Approx decoded texture VRAM footprint (single copy each map): about `640 MB`.
+Phase 5 is the only remaining work.
 
-## Key Hotspots (Observed)
+1. Start dev server for manual runtime validation:
+   - `npm.cmd run dev`
+2. Open with perf overlay enabled:
+   - `http://localhost:5173/?tboPerf=1`
+3. Manually validate console/runtime behavior:
+   - No WebGL runtime errors
+   - No Three.js disposal warnings
+   - No increase in `No texture for material:` warnings
+4. Capture and record perf metrics in `docs/perf-final.md`:
+   - avg frame time
+   - p95 frame time
+   - worst frame time
+   - renderer counters from `renderer.info`
+5. Finalize docs/state:
+   - Mark Phase 5 as complete in this file.
+   - Update `docs/perf-final.md` with final runtime findings and any tradeoffs.
 
-- `src/ui/MenuIcon3D.ts`
-- Friends icon path redraws and re-uploads canvas textures each frame.
-- Very large module with both active and dormant helper paths.
-- `src/scene/FallingScene.ts`
-- Hot loop has avoidable allocations (`clone()` paths) and geometry churn.
-- Camera/projection/resize work runs every frame.
-- `src/environment/FallingCharacter.ts`
-- Per-material texture cloning inflates memory.
-- `src/environment/CharacterPool.ts`
-- Eager preload of large model + texture sets at startup.
-- `src/environment/WeatherParticles.ts`
-- Lightning allocates short-lived geometry/material instances.
+## Guardrails (Do Not Drift)
 
-## Execution Plan
+- Preserve contracts from `AGENTS.md`:
+  - `tbo:menu-action` payload shape is `{ action, label }`
+  - `tbo:local-weather-update` must continue feeding `FallingScene`
+  - `ORBIT_LAYER = 2` must remain enabled for camera, carousel meshes, and raycaster
+- Keep dormant/legacy `MenuIcon3D` helper paths out of scope unless explicitly requested.
 
-### Phase 0: Measurement and Guardrails
+## Verification Commands
 
-- Add lightweight perf instrumentation toggles (dev only):
-- Frame timing (avg, p95, worst).
-- Draw calls / triangles / texture count from `renderer.info`.
-- Heap sampling points during startup and steady state.
-- Capture baseline on desktop and mobile viewport.
-- Define target budgets:
-- Stable 60 FPS desktop, no major spikes during steady state.
-- Improve p95 frame time by at least 20%.
-- Reduce startup time to first stable render by at least 20%.
+- Required:
+  - `npm.cmd run build`
+- Optional interactive:
+  - `npm.cmd run dev`
 
-Deliverables:
-- `docs/perf-baseline.md` (metrics table and capture conditions).
-
-Status: Complete.
-
-### Phase 1: Frame-time Quick Wins
-
-- Optimize `FallingScene` hot loop:
-- Remove per-frame vector clones in fragment updates.
-- Reuse temp vectors for spawn/update operations.
-- Avoid unnecessary `camera.updateProjectionMatrix()` unless FOV changes.
-- Keep resize checks event-driven first, fallback periodic guard if needed.
-- Reduce geometry churn:
-- Replace frequent `new BoxGeometry(...)` on recycle with pooled/reused geometries by size buckets.
-- Optimize icon updates:
-- In `MenuIcon3D` friends path, redraw canvases only when visible content changes.
-- Keep animation cadence but avoid full texture upload every frame when state is unchanged.
-
-Deliverables:
-- Updated `src/scene/FallingScene.ts`.
-- Updated `src/ui/MenuIcon3D.ts` (friends update throttling/on-change invalidation).
-- Perf delta report vs Phase 0 baseline.
-
-Status: Complete (perf delta report capture pending runtime measurement pass).
-
-### Phase 2: Memory and Asset Load Optimization
-
-- Rework texture ownership in `FallingCharacter`:
-- Avoid cloning map textures per material when not required.
-- Share immutable textures where UV transform compatibility allows.
-- Preserve contract for independent disposal safety.
-- Improve load strategy in `CharacterPool`:
-- Keep preload behavior functionally equivalent, but defer non-critical work if possible.
-- Add optional lower-tier texture resolution policy for constrained devices.
-- Audit and confirm disposal correctness under scene teardown + HMR.
-
-Deliverables:
-- Updated `src/environment/FallingCharacter.ts`.
-- Updated `src/environment/CharacterPool.ts`.
-- Memory report: startup heap + GPU texture count before/after.
-
-Status: Complete (memory report capture pending runtime measurement pass).
-
-### Phase 3: Bundle and Module Strategy
-
-- Split large icon logic:
-- Break `MenuIcon3D` into type-specific modules (`key`, `globe`, `inbox`, `friends`, `info`).
-- Lazy-load heavy icon builders where safe.
-- Keep public API and behavior stable for `HeaderOverlay` and `CharacterOrbitCarousel`.
-- Configure Vite chunking (`manualChunks`) to isolate heavy paths.
-- Rebuild and validate source maps/chunk outputs.
-
-Deliverables:
-- Refactored `src/ui/MenuIcon3D*` modules.
-- Updated `vite.config.ts` chunk strategy.
-- Bundle report with before/after numbers.
-
-Status: In progress (`manualChunks` applied; module split/lazy-load still pending).
-
-### Phase 4: Secondary GPU/Render Improvements
-
-- Weather particles:
-- Reuse lightning resources via small pool instead of create/dispose per bolt.
-- Validate material flags to minimize state changes.
-- Header/UI loop:
-- Ensure no redundant work between scene RAF and header RAF.
-- Keep UX identical while reducing offscreen render overhead.
-
-Deliverables:
-- Updated `src/environment/WeatherParticles.ts`.
-- Updated `src/ui/HeaderOverlay.ts` if needed.
-
-Status: In progress (lightning pooling + header icon loop throttling complete).
-
-### Phase 5: Verification and Regression Safety
-
-- Functional checks:
-- `tbo:menu-action` payload parity (`{ action, label }`).
-- `tbo:local-weather-update` integration into `FallingScene`.
-- Carousel layer contract (`ORBIT_LAYER = 2`) intact.
-- Technical checks:
-- `npm.cmd run build` passes.
-- No new WebGL errors/disposal warnings.
-- No increase in texture warnings (`No texture for material:`).
-
-Deliverables:
-- `docs/perf-final.md` with final metrics and tradeoff notes.
-
-Status: Pending.
-
-## Prioritized Implementation Order
-
-1. Phase 0 instrumentation.
-2. Phase 1 quick wins in `FallingScene` and friends icon updates.
-3. Phase 2 texture/memory ownership.
-4. Phase 3 bundle split and chunking.
-5. Phase 4 secondary optimizations.
-6. Phase 5 final verification.
-
-## Risks and Constraints
-
-- Visual parity risk in icon refactors (`MenuIcon3D`) if geometry/material setup drifts.
-- Disposal regressions can cause GPU leaks or broken HMR if ownership boundaries are unclear.
-- Texture sharing changes must preserve UV transforms and clipping behavior.
-- Performance changes must not break current interaction contracts or weather-driven scene behavior.

@@ -9,7 +9,7 @@ Repo: `C:\Users\gazin\tbowebsite`
 - Phase 1: Complete.
 - Phase 2: Complete.
 - Phase 3: In progress.
-- Phase 4: Pending.
+- Phase 4: In progress.
 - Phase 5: Pending.
 
 ### Completed This Cycle
@@ -34,6 +34,9 @@ Repo: `C:\Users\gazin\tbowebsite`
 - Added build-time dev constant:
 - `src/vite-env.d.ts`
 - `vite.config.ts`
+- Added secondary render optimizations:
+- `src/environment/WeatherParticles.ts` lightning now uses pooled reusable line resources.
+- `src/ui/HeaderOverlay.ts` icon RAF loop is visibility-aware and update-rate limited.
 
 ### Latest Build Snapshot
 
@@ -163,7 +166,7 @@ Deliverables:
 - Updated `src/environment/WeatherParticles.ts`.
 - Updated `src/ui/HeaderOverlay.ts` if needed.
 
-Status: Pending.
+Status: In progress (lightning pooling + header icon loop throttling complete).
 
 ### Phase 5: Verification and Regression Safety
 

@@ -61,6 +61,10 @@ interface ParticleLayer extends LayerConfig {
 
 interface LightningBolt {
   line: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>;
+  geometry: THREE.BufferGeometry;
+  material: THREE.LineBasicMaterial;
+  positions: Float32Array;
+  active: boolean;
   life: number;
   maxLife: number;
 }
@@ -80,6 +84,8 @@ const SNOW_DENSITY_MULTIPLIER = 1.5;
 const HAIL_DENSITY_MULTIPLIER = 1.35;
 const STORM_DENSITY_EXTRA_MULTIPLIER = 1.2;
 const PRECIPITATION_OPACITY_MULTIPLIER = 1.12;
+const LIGHTNING_POOL_SIZE = 10;
+const LIGHTNING_MAX_SEGMENTS = 10;
 
 export class WeatherParticles {
   private scene: THREE.Scene;
@@ -196,6 +202,7 @@ export class WeatherParticles {
       this.mistLayer,
       this.motesLayer,
     ];
+    this.initializeLightningPool();
   }
 
   public setWeatherState(state: WeatherParticleState): void {
@@ -266,9 +273,12 @@ export class WeatherParticles {
   public dispose(): void {
     this.scene.remove(this.group);
 
-    for (let i = this.bolts.length - 1; i >= 0; i -= 1) {
-      this.removeLightningBolt(i);
+    for (const bolt of this.bolts) {
+      this.group.remove(bolt.line);
+      bolt.geometry.dispose();
+      bolt.material.dispose();
     }
+    this.bolts.length = 0;
 
     for (const layer of this.layers) {
       this.group.remove(layer.points);
@@ -325,6 +335,40 @@ export class WeatherParticles {
     }
 
     return layer;
+  }
+
+  private initializeLightningPool(): void {
+    for (let i = 0; i < LIGHTNING_POOL_SIZE; i += 1) {
+      const positions = new Float32Array(LIGHTNING_MAX_SEGMENTS * 3);
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setDrawRange(0, 0);
+
+      const material = new THREE.LineBasicMaterial({
+        color: 0xf5fbff,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        depthTest: false,
+        fog: true,
+      });
+
+      const line = new THREE.Line(geometry, material);
+      line.visible = false;
+      line.frustumCulled = false;
+      line.renderOrder = DRAW_ORDER + 2;
+      this.group.add(line);
+
+      this.bolts.push({
+        line,
+        geometry,
+        material,
+        positions,
+        active: false,
+        life: 0,
+        maxLife: 0,
+      });
+    }
   }
 
   private updateLayerActiveCount(layer: ParticleLayer, delta: number): void {
@@ -429,63 +473,99 @@ export class WeatherParticles {
       }
     }
 
-    for (let i = this.bolts.length - 1; i >= 0; i -= 1) {
-      const bolt = this.bolts[i];
+    for (const bolt of this.bolts) {
+      if (!bolt.active) {
+        continue;
+      }
       bolt.life = Math.max(0, bolt.life - delta);
       const alpha = bolt.life / bolt.maxLife;
-      bolt.line.material.opacity = alpha * 0.95;
+      bolt.material.opacity = alpha * 0.95;
       if (bolt.life <= 0) {
-        this.removeLightningBolt(i);
+        this.deactivateLightningBolt(bolt);
       }
     }
   }
 
   private spawnLightningBolt(): void {
+    const bolt = this.acquireLightningBolt();
+    if (!bolt) {
+      return;
+    }
+
     const segments = 6 + Math.floor(Math.random() * 4);
-    const points: THREE.Vector3[] = [];
 
     let x = this.randomRange(-36, 36) + this.wind.x * 2.2;
     let y = VOLUME.maxY + 8 + Math.random() * 10;
     let z = this.randomRange(-120, -22);
 
-    points.push(new THREE.Vector3(x, y, z));
+    let writeIndex = 0;
+    bolt.positions[writeIndex] = x;
+    bolt.positions[writeIndex + 1] = y;
+    bolt.positions[writeIndex + 2] = z;
+    writeIndex += 3;
 
     for (let i = 1; i < segments; i += 1) {
       const horizontalScale = 1 + i / segments;
       x += this.randomRange(-5.2, 5.2) * horizontalScale + this.wind.x * 0.35;
       y -= this.randomRange(9, 17);
       z += this.randomRange(-1.8, 2.6) + this.wind.y * 0.12;
-      points.push(new THREE.Vector3(x, y, z));
+      bolt.positions[writeIndex] = x;
+      bolt.positions[writeIndex + 1] = y;
+      bolt.positions[writeIndex + 2] = z;
+      writeIndex += 3;
     }
 
-    const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    const material = new THREE.LineBasicMaterial({
-      color: 0xf5fbff,
-      transparent: true,
-      opacity: 0.95,
-      depthWrite: false,
-      depthTest: false,
-      fog: true,
-    });
-    const line = new THREE.Line(geometry, material);
-    line.frustumCulled = false;
-    line.renderOrder = DRAW_ORDER + 2;
-    this.group.add(line);
+    const drawCount = Math.min(segments, LIGHTNING_MAX_SEGMENTS);
+    if (drawCount > 0) {
+      const lastPointOffset = (drawCount - 1) * 3;
+      for (let i = drawCount; i < LIGHTNING_MAX_SEGMENTS; i += 1) {
+        const offset = i * 3;
+        bolt.positions[offset] = bolt.positions[lastPointOffset];
+        bolt.positions[offset + 1] = bolt.positions[lastPointOffset + 1];
+        bolt.positions[offset + 2] = bolt.positions[lastPointOffset + 2];
+      }
+    }
+
+    const positionAttr = bolt.geometry.attributes.position as THREE.BufferAttribute;
+    positionAttr.needsUpdate = true;
+    bolt.geometry.setDrawRange(0, drawCount);
+    bolt.material.opacity = 0.95;
+    bolt.line.visible = true;
+    bolt.active = true;
 
     const maxLife = 0.08 + Math.random() * 0.14;
-    this.bolts.push({
-      line,
-      life: maxLife,
-      maxLife,
-    });
+    bolt.life = maxLife;
+    bolt.maxLife = maxLife;
   }
 
-  private removeLightningBolt(index: number): void {
-    const bolt = this.bolts[index];
-    this.group.remove(bolt.line);
-    bolt.line.geometry.dispose();
-    bolt.line.material.dispose();
-    this.bolts.splice(index, 1);
+  private acquireLightningBolt(): LightningBolt | null {
+    for (const bolt of this.bolts) {
+      if (!bolt.active) {
+        return bolt;
+      }
+    }
+
+    let weakestActiveBolt: LightningBolt | null = null;
+    let smallestLife = Number.POSITIVE_INFINITY;
+    for (const bolt of this.bolts) {
+      if (!bolt.active) {
+        return bolt;
+      }
+      if (bolt.life < smallestLife) {
+        smallestLife = bolt.life;
+        weakestActiveBolt = bolt;
+      }
+    }
+    return weakestActiveBolt;
+  }
+
+  private deactivateLightningBolt(bolt: LightningBolt): void {
+    bolt.active = false;
+    bolt.life = 0;
+    bolt.maxLife = 0;
+    bolt.line.visible = false;
+    bolt.material.opacity = 0;
+    bolt.geometry.setDrawRange(0, 0);
   }
 
   private clampCount(value: number, maxCount: number): number {

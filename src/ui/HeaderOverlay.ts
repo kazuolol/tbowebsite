@@ -9,6 +9,8 @@ import {
 const ICON_RENDER_SIZE = 216;
 const WEATHER_ICON_SIZE = 34;
 const MENU_ACTION_EVENT = 'tbo:menu-action';
+const ICON_UPDATE_FPS = 30;
+const ICON_MAX_FRAME_DELTA_SECONDS = 0.1;
 
 type HeaderAction = 'early-access';
 
@@ -42,6 +44,8 @@ export class HeaderOverlay {
   private buttonCleanup: Array<() => void> = [];
   private destroyed = false;
   private onAction?: (detail: HeaderActionDetail) => void;
+  private iconLastFrameAt = 0;
+  private iconAccumulatedDelta = 0;
 
   private readonly onResizeHandler = (): void => {
     this.updateDateTime();
@@ -56,6 +60,42 @@ export class HeaderOverlay {
     this.weatherCode = customEvent.detail.weatherCode;
     this.weatherIsDay = customEvent.detail.isDay;
     this.updateDateTime();
+  };
+
+  private readonly onVisibilityChangeHandler = (): void => {
+    if (document.hidden) {
+      this.stopIconLoop();
+      return;
+    }
+    this.startIconLoop();
+  };
+
+  private readonly animateIconFrame = (now: number): void => {
+    if (this.destroyed || document.hidden) {
+      this.animationFrameId = null;
+      return;
+    }
+
+    if (this.iconLastFrameAt <= 0) {
+      this.iconLastFrameAt = now;
+    }
+
+    const rawDelta = (now - this.iconLastFrameAt) / 1000;
+    this.iconLastFrameAt = now;
+    const delta = THREE.MathUtils.clamp(rawDelta, 0, ICON_MAX_FRAME_DELTA_SECONDS);
+    this.iconAccumulatedDelta += delta;
+
+    const step = 1 / ICON_UPDATE_FPS;
+    if (this.iconAccumulatedDelta >= step) {
+      const updateDelta = this.iconAccumulatedDelta;
+      this.iconAccumulatedDelta = 0;
+
+      for (const icon of this.icons) {
+        icon.update(updateDelta, this.iconRenderer);
+      }
+    }
+
+    this.animationFrameId = requestAnimationFrame(this.animateIconFrame);
   };
 
   constructor(container: HTMLElement, onAction?: (detail: HeaderActionDetail) => void) {
@@ -76,6 +116,7 @@ export class HeaderOverlay {
 
     this.render();
     this.startIconLoop();
+    document.addEventListener('visibilitychange', this.onVisibilityChangeHandler);
     window.addEventListener('resize', this.onResizeHandler);
     window.addEventListener(
       LOCAL_WEATHER_UPDATE_EVENT,
@@ -210,20 +251,21 @@ export class HeaderOverlay {
   }
 
   private startIconLoop(): void {
-    let lastTime = performance.now();
+    if (this.animationFrameId !== null || document.hidden || this.destroyed) {
+      return;
+    }
+    this.iconLastFrameAt = performance.now();
+    this.iconAccumulatedDelta = 0;
+    this.animationFrameId = requestAnimationFrame(this.animateIconFrame);
+  }
 
-    const loop = (now: number) => {
-      const delta = (now - lastTime) / 1000;
-      lastTime = now;
-
-      for (const icon of this.icons) {
-        icon.update(delta, this.iconRenderer);
-      }
-
-      this.animationFrameId = requestAnimationFrame(loop);
-    };
-
-    this.animationFrameId = requestAnimationFrame(loop);
+  private stopIconLoop(): void {
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+    this.iconLastFrameAt = 0;
+    this.iconAccumulatedDelta = 0;
   }
 
   private updateDateTime(): void {
@@ -314,11 +356,9 @@ export class HeaderOverlay {
       window.clearInterval(this.clockInterval);
       this.clockInterval = null;
     }
-    if (this.animationFrameId !== null) {
-      cancelAnimationFrame(this.animationFrameId);
-      this.animationFrameId = null;
-    }
+    this.stopIconLoop();
 
+    document.removeEventListener('visibilitychange', this.onVisibilityChangeHandler);
     window.removeEventListener('resize', this.onResizeHandler);
     window.removeEventListener(
       LOCAL_WEATHER_UPDATE_EVENT,

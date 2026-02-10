@@ -1,0 +1,24 @@
+{
+  "timestampUtc": "2026-02-10T21:49:59.694Z",
+  "url": "http://127.0.0.1:43234/?tboPerf=1",
+  "warmupMs": 22000,
+  "protocolVersion": "1.3",
+  "browser": "Edg/144.0.3719.115",
+  "mode": "edge-cdp-headless-warm-after-cull",
+  "gpuRenderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+  "metrics": {
+    "avgMs": 4.64,
+    "p95Ms": 8.6,
+    "worstMs": 17.6,
+    "fps": 215.3,
+    "samples": 600,
+    "calls": 126,
+    "triangles": 41294,
+    "lines": 4680,
+    "points": 0,
+    "textures": 30,
+    "geometries": 79,
+    "programs": 26
+  },
+  "overlayRaw": "TBO Perf Monitor (dev)\nframe avg/p95/worst: 4.64 / 8.60 / 17.60 ms\nfps (estimated): 215.3  samples: 600\nrender calls/triangles/lines/points: 126 / 41294 / 4680 / 0\nmemory textures/geometries/programs: 30 / 79 / 26\nheap used/total/limit MB: 97.4 / 166.5 / 4096.0\nheap snapshot startup @0.0s: 12.2 MB\nheap snapshot steady: waiting (15s warmup)"
+}

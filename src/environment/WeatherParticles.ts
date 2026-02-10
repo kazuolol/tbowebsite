@@ -272,6 +272,10 @@ export class WeatherParticles {
     this.targetWorldSpeed = worldSpeed;
   }
 
+  public setVisible(visible: boolean): void {
+    this.group.visible = visible;
+  }
+
   public update(delta: number): void {
     this.time += delta;
 

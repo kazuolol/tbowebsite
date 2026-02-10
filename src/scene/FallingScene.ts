@@ -11,14 +11,18 @@ import {
 } from '../utils/LocalWeather';
 
 interface FloatingCube {
-  mesh: THREE.Mesh;
+  size: number;
+  position: THREE.Vector3;
+  rotation: THREE.Euler;
   rotationSpeed: THREE.Vector3;
   baseOpacity: number;
   baseEmissiveIntensity: number;
 }
 
 interface CubeFragment {
-  mesh: THREE.Mesh;
+  size: number;
+  position: THREE.Vector3;
+  rotation: THREE.Euler;
   velocity: THREE.Vector3;
   rotationSpeed: THREE.Vector3;
   life: number;
@@ -48,6 +52,12 @@ interface WeatherSceneProfile {
   storm: boolean;
 }
 
+interface PerfSceneToggles {
+  orbitIcons: boolean;
+  cubesAndFragments: boolean;
+  weatherParticles: boolean;
+}
+
 const CUBE_COUNT = 150;
 const RECYCLE_Z = 25;
 const RESET_Z = -500;
@@ -58,14 +68,26 @@ const DEFAULT_WORLD_SPEED = 12;
 const DEFAULT_FOG_DENSITY = 0.005;
 const DEFAULT_FRAGMENT_SPAWN_CHANCE = 0.02;
 const DEFAULT_MAX_FRAGMENTS = 80;
+const ADAPTIVE_FRAME_EMA_ALPHA = 0.08;
+const ADAPTIVE_DEGRADE_FRAME_MS = 22;
+const ADAPTIVE_RECOVER_FRAME_MS = 14;
+const ADAPTIVE_DEGRADE_HOLD_SECONDS = 2;
+const ADAPTIVE_RECOVER_HOLD_SECONDS = 7;
+const ADAPTIVE_FRAGMENT_MIN_SCALE = 0.4;
+const ADAPTIVE_FRAGMENT_DOWN_STEP = 0.15;
+const ADAPTIVE_FRAGMENT_UP_STEP = 0.05;
+const ADAPTIVE_CUBE_MIN_SCALE = 0.6;
+const ADAPTIVE_CUBE_DOWN_STEP = 0.1;
+const ADAPTIVE_CUBE_UP_STEP = 0.05;
 const NEAR_CAMERA_FADE_START_Z_OFFSET = -75;
 const NEAR_CAMERA_FADE_END_Z_OFFSET = 6;
+const NEAR_CAMERA_RECYCLE_MARGIN_Z = 0.5;
 const RESIZE_GUARD_INTERVAL_SECONDS = 0.5;
 const FOV_UPDATE_EPSILON = 0.01;
 const CUBE_BASE_COLOR = 0x0632d8;
 const CUBE_EMISSIVE_COLOR = 0x0b3be8;
-const CUBE_GEOMETRY_BUCKET = 0.25;
 const FRAGMENT_GEOMETRY_BUCKET = 0.2;
+const MAX_FRAGMENT_POOL = 160;
 const NIGHT_BACKGROUND_TINT = new THREE.Color(0x08142f);
 const NIGHT_FOG_TINT = new THREE.Color(0x122a52);
 const NIGHT_CUBE_TINT = new THREE.Color(0x2a64dc);
@@ -82,6 +104,16 @@ export class FallingScene {
   private orbitCarousel: CharacterOrbitCarousel;
   private weatherParticles: WeatherParticles;
   private cubeMaterial: THREE.MeshStandardMaterial;
+  private cubeInstancedMaterial: THREE.MeshStandardMaterial;
+  private cubeInstancedMesh: THREE.InstancedMesh<THREE.BoxGeometry, THREE.MeshStandardMaterial>;
+  private cubeOpacityAttribute: THREE.InstancedBufferAttribute;
+  private cubeEmissiveIntensityAttribute: THREE.InstancedBufferAttribute;
+  private fragmentInstancedMaterial: THREE.MeshStandardMaterial;
+  private fragmentInstancedMesh: THREE.InstancedMesh<THREE.BoxGeometry, THREE.MeshStandardMaterial>;
+  private fragmentOpacityAttribute: THREE.InstancedBufferAttribute;
+  private fragmentEmissiveIntensityAttribute: THREE.InstancedBufferAttribute;
+  private readonly cubeTransform = new THREE.Object3D();
+  private readonly fragmentTransform = new THREE.Object3D();
 
   private ambientLight: THREE.AmbientLight;
   private keyLight: THREE.DirectionalLight;
@@ -133,7 +165,13 @@ export class FallingScene {
   private viewportWidth = 0;
   private viewportHeight = 0;
   private nextResizeGuardAt = RESIZE_GUARD_INTERVAL_SECONDS;
-  private readonly sharedBoxGeometryCache = new Map<string, THREE.BoxGeometry>();
+  private smoothedFrameMs = 16.7;
+  private lowPerfSeconds = 0;
+  private highPerfSeconds = 0;
+  private adaptiveFragmentScale = 1;
+  private adaptiveCubeScale = 1;
+  private renderedCubeCount = CUBE_COUNT;
+  private readonly perfToggles: PerfSceneToggles;
 
   private readonly onResizeHandler = (): void => {
     this.onResize();
@@ -157,6 +195,7 @@ export class FallingScene {
     this.scene.background = new THREE.Color(0xcccccc);
     this.scene.fog = new THREE.FogExp2(0xcccccc, DEFAULT_FOG_DENSITY);
     this.clock = new THREE.Clock();
+    this.perfToggles = this.resolvePerfSceneToggles();
 
     this.camera = new THREE.PerspectiveCamera(
       75,
@@ -199,6 +238,58 @@ export class FallingScene {
       depthWrite: false,
       opacity: 0.9,
     });
+    this.cubeInstancedMaterial = this.cubeMaterial.clone();
+    this.cubeInstancedMaterial.opacity = 1;
+    this.cubeInstancedMaterial.emissiveIntensity = 1;
+    this.configureInstancedCubeMaterial(this.cubeInstancedMaterial);
+
+    this.cubeInstancedMesh = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      this.cubeInstancedMaterial,
+      CUBE_COUNT
+    );
+    this.cubeInstancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.cubeInstancedMesh.frustumCulled = false;
+    this.cubeOpacityAttribute = new THREE.InstancedBufferAttribute(new Float32Array(CUBE_COUNT), 1);
+    this.cubeEmissiveIntensityAttribute = new THREE.InstancedBufferAttribute(
+      new Float32Array(CUBE_COUNT),
+      1
+    );
+    this.cubeInstancedMesh.geometry.setAttribute('instanceOpacity', this.cubeOpacityAttribute);
+    this.cubeInstancedMesh.geometry.setAttribute(
+      'instanceEmissiveIntensity',
+      this.cubeEmissiveIntensityAttribute
+    );
+    this.scene.add(this.cubeInstancedMesh);
+
+    this.fragmentInstancedMaterial = this.cubeMaterial.clone();
+    this.fragmentInstancedMaterial.opacity = 1;
+    this.fragmentInstancedMaterial.emissiveIntensity = 1;
+    this.configureInstancedCubeMaterial(this.fragmentInstancedMaterial);
+    this.fragmentInstancedMesh = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      this.fragmentInstancedMaterial,
+      MAX_FRAGMENT_POOL
+    );
+    this.fragmentInstancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.fragmentInstancedMesh.frustumCulled = false;
+    this.fragmentOpacityAttribute = new THREE.InstancedBufferAttribute(
+      new Float32Array(MAX_FRAGMENT_POOL),
+      1
+    );
+    this.fragmentEmissiveIntensityAttribute = new THREE.InstancedBufferAttribute(
+      new Float32Array(MAX_FRAGMENT_POOL),
+      1
+    );
+    this.fragmentInstancedMesh.geometry.setAttribute(
+      'instanceOpacity',
+      this.fragmentOpacityAttribute
+    );
+    this.fragmentInstancedMesh.geometry.setAttribute(
+      'instanceEmissiveIntensity',
+      this.fragmentEmissiveIntensityAttribute
+    );
+    this.scene.add(this.fragmentInstancedMesh);
 
     this.ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     this.scene.add(this.ambientLight);
@@ -246,9 +337,17 @@ export class FallingScene {
       this.characterPool
     );
     this.weatherParticles = new WeatherParticles(this.scene);
+    if (!this.perfToggles.weatherParticles) {
+      this.weatherParticles.setVisible(false);
+    }
     void this.loadCharacter();
 
     this.createInitialCubes();
+    this.initializeFragmentPool();
+    if (!this.perfToggles.cubesAndFragments) {
+      this.cubeInstancedMesh.visible = false;
+      this.fragmentInstancedMesh.visible = false;
+    }
 
     window.addEventListener('resize', this.onResizeHandler);
     window.addEventListener(
@@ -290,135 +389,169 @@ export class FallingScene {
     return 8 + Math.random() * 20;
   }
 
-  private createCubeMaterial(): THREE.MeshStandardMaterial {
-    return this.cubeMaterial.clone();
+  private configureInstancedCubeMaterial(material: THREE.MeshStandardMaterial): void {
+    material.onBeforeCompile = (shader) => {
+      shader.vertexShader = `
+attribute float instanceOpacity;
+attribute float instanceEmissiveIntensity;
+varying float vInstanceOpacity;
+varying float vInstanceEmissiveIntensity;
+${shader.vertexShader}`;
+
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+vInstanceOpacity = instanceOpacity;
+vInstanceEmissiveIntensity = instanceEmissiveIntensity;`
+      );
+
+      shader.fragmentShader = `
+varying float vInstanceOpacity;
+varying float vInstanceEmissiveIntensity;
+${shader.fragmentShader}`;
+
+      shader.fragmentShader = shader.fragmentShader.replace(
+        'vec3 totalEmissiveRadiance = emissive;',
+        'vec3 totalEmissiveRadiance = emissive * vInstanceEmissiveIntensity;'
+      );
+      shader.fragmentShader = shader.fragmentShader.replace(
+        'gl_FragColor = vec4( outgoingLight, diffuseColor.a );',
+        'gl_FragColor = vec4( outgoingLight, diffuseColor.a * vInstanceOpacity );'
+      );
+    };
+    material.customProgramCacheKey = () => 'tbo-instanced-cube-v1';
   }
 
-  private applyRandomCubeMaterialValues(material: THREE.MeshStandardMaterial): {
+  private createRandomCubeVisualValues(): {
     opacity: number;
     emissiveIntensity: number;
   } {
-    const opacity = 0.7 + Math.random() * 0.3;
-    const emissiveIntensity = 0.8 + Math.random() * 0.6;
-
-    material.color.copy(this.cubeMaterial.color);
-    material.emissive.copy(this.cubeMaterial.emissive);
-    material.opacity = opacity * this.cubeOpacityMultiplier;
-    material.emissiveIntensity = emissiveIntensity * this.cubeEmissiveMultiplier;
-
-    return { opacity, emissiveIntensity };
+    return {
+      opacity: 0.7 + Math.random() * 0.3,
+      emissiveIntensity: 0.8 + Math.random() * 0.6,
+    };
   }
 
-  private spawnCube(z: number): void {
-    const cubeSize = this.randomCubeSize();
-    const geometry = this.getSharedBoxGeometry('cube', cubeSize, CUBE_GEOMETRY_BUCKET);
-    const material = this.createCubeMaterial();
-    const values = this.applyRandomCubeMaterialValues(material);
+  private createCubeState(z: number): FloatingCube {
+    const values = this.createRandomCubeVisualValues();
+    const cube: FloatingCube = {
+      size: 1,
+      position: new THREE.Vector3(),
+      rotation: new THREE.Euler(),
+      rotationSpeed: new THREE.Vector3(),
+      baseOpacity: values.opacity,
+      baseEmissiveIntensity: values.emissiveIntensity,
+    };
+    this.resetCubeState(cube, z);
+    return cube;
+  }
 
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(
+  private resetCubeState(cube: FloatingCube, z: number): void {
+    const cubeSize = this.randomCubeSize();
+    const values = this.createRandomCubeVisualValues();
+    cube.size = cubeSize;
+    cube.baseOpacity = values.opacity;
+    cube.baseEmissiveIntensity = values.emissiveIntensity;
+
+    cube.position.set(
       (Math.random() - 0.5) * XY_SPREAD * 2,
       (Math.random() - 0.5) * XY_SPREAD * 2,
       z
     );
-    mesh.rotation.set(
+    cube.rotation.set(
       Math.random() * Math.PI * 2,
       Math.random() * Math.PI * 2,
       Math.random() * Math.PI * 2
     );
 
-    this.scene.add(mesh);
-
     const speedScale = Math.max(0.05, 1 - cubeSize / 30);
-    this.cubes.push({
-      mesh,
-      baseOpacity: values.opacity,
-      baseEmissiveIntensity: values.emissiveIntensity,
-      rotationSpeed: new THREE.Vector3(
-        (Math.random() - 0.5) * 0.6 * speedScale,
-        (Math.random() - 0.5) * 0.6 * speedScale,
-        (Math.random() - 0.5) * 0.3 * speedScale
-      ),
-    });
-  }
-
-  private getSharedBoxGeometry(
-    type: 'cube' | 'fragment',
-    size: number,
-    bucketSize: number
-  ): THREE.BoxGeometry {
-    const bucketedSize = Math.max(bucketSize, Math.round(size / bucketSize) * bucketSize);
-    const key = `${type}:${bucketedSize.toFixed(2)}`;
-    let geometry = this.sharedBoxGeometryCache.get(key);
-    if (!geometry) {
-      geometry = new THREE.BoxGeometry(bucketedSize, bucketedSize, bucketedSize);
-      this.sharedBoxGeometryCache.set(key, geometry);
-    }
-    return geometry;
+    cube.rotationSpeed.set(
+      (Math.random() - 0.5) * 0.6 * speedScale,
+      (Math.random() - 0.5) * 0.6 * speedScale,
+      (Math.random() - 0.5) * 0.3 * speedScale
+    );
   }
 
   private createInitialCubes(): void {
     for (let i = 0; i < CUBE_COUNT; i += 1) {
       const z = -10 - i * (Math.abs(RESET_Z) / CUBE_COUNT);
-      this.spawnCube(z);
+      this.cubes.push(this.createCubeState(z));
     }
   }
 
-  private acquireFragment(): CubeFragment {
+  private initializeFragmentPool(): void {
+    const fragmentOpacities = this.fragmentOpacityAttribute.array as Float32Array;
+    const fragmentEmissive = this.fragmentEmissiveIntensityAttribute.array as Float32Array;
+
+    for (let index = 0; index < MAX_FRAGMENT_POOL; index += 1) {
+      const fragment: CubeFragment = {
+        size: FRAGMENT_GEOMETRY_BUCKET,
+        position: new THREE.Vector3(),
+        rotation: new THREE.Euler(),
+        velocity: new THREE.Vector3(),
+        rotationSpeed: new THREE.Vector3(),
+        life: 0,
+        maxLife: 0,
+        baseOpacity: 0,
+        baseEmissiveIntensity: 0,
+        active: false,
+      };
+      this.fragments.push(fragment);
+
+      fragmentOpacities[index] = 0;
+      fragmentEmissive[index] = 0;
+      this.fragmentTransform.position.set(0, 0, -1000);
+      this.fragmentTransform.rotation.set(0, 0, 0);
+      this.fragmentTransform.scale.setScalar(0.0001);
+      this.fragmentTransform.updateMatrix();
+      this.fragmentInstancedMesh.setMatrixAt(index, this.fragmentTransform.matrix);
+    }
+
+    this.fragmentInstancedMesh.instanceMatrix.needsUpdate = true;
+    this.fragmentOpacityAttribute.needsUpdate = true;
+    this.fragmentEmissiveIntensityAttribute.needsUpdate = true;
+  }
+
+  private acquireFragment(): CubeFragment | null {
     for (const fragment of this.fragments) {
       if (!fragment.active) {
         return fragment;
       }
     }
-
-    const material = this.createCubeMaterial();
-    const mesh = new THREE.Mesh(
-      this.getSharedBoxGeometry('fragment', FRAGMENT_GEOMETRY_BUCKET, FRAGMENT_GEOMETRY_BUCKET),
-      material
-    );
-    mesh.visible = false;
-    this.scene.add(mesh);
-
-    const fragment: CubeFragment = {
-      mesh,
-      velocity: new THREE.Vector3(),
-      rotationSpeed: new THREE.Vector3(),
-      life: 0,
-      maxLife: 0,
-      baseOpacity: 0,
-      baseEmissiveIntensity: 0,
-      active: false,
-    };
-    this.fragments.push(fragment);
-    return fragment;
+    return null;
   }
 
   private spawnFragment(sourceX: number, sourceY: number, sourceZ: number): void {
-    if (this.activeFragmentCount >= this.maxFragments) {
+    if (this.activeFragmentCount >= this.getAdaptiveMaxFragments()) {
       return;
     }
 
     const fragment = this.acquireFragment();
-    const material = fragment.mesh.material as THREE.MeshStandardMaterial;
+    if (!fragment) {
+      return;
+    }
 
     const shardSize = 0.2 + Math.random() * 1.5;
-    fragment.mesh.geometry = this.getSharedBoxGeometry(
-      'fragment',
-      shardSize,
-      FRAGMENT_GEOMETRY_BUCKET
+    fragment.size = Math.max(
+      FRAGMENT_GEOMETRY_BUCKET,
+      Math.round(shardSize / FRAGMENT_GEOMETRY_BUCKET) * FRAGMENT_GEOMETRY_BUCKET
     );
 
-    const values = this.applyRandomCubeMaterialValues(material);
+    const values = this.createRandomCubeVisualValues();
     values.opacity *= 0.5;
-    material.opacity = values.opacity * this.cubeOpacityMultiplier;
-    material.emissiveIntensity = values.emissiveIntensity * this.cubeEmissiveMultiplier;
+    fragment.baseOpacity = values.opacity;
+    fragment.baseEmissiveIntensity = values.emissiveIntensity;
 
-    fragment.mesh.position.set(
+    fragment.position.set(
       sourceX + (Math.random() - 0.5) * 10,
       sourceY + (Math.random() - 0.5) * 10,
       sourceZ
     );
-    fragment.mesh.visible = true;
+    fragment.rotation.set(
+      Math.random() * Math.PI * 2,
+      Math.random() * Math.PI * 2,
+      Math.random() * Math.PI * 2
+    );
 
     fragment.velocity.set(
       (Math.random() - 0.5) * 4,
@@ -432,8 +565,6 @@ export class FallingScene {
     );
     fragment.life = 0;
     fragment.maxLife = 2 + Math.random() * 2;
-    fragment.baseOpacity = values.opacity;
-    fragment.baseEmissiveIntensity = values.emissiveIntensity;
 
     if (!fragment.active) {
       fragment.active = true;
@@ -467,6 +598,7 @@ export class FallingScene {
     this.animationFrameId = requestAnimationFrame(this.animateFrame);
     const delta = this.clock.getDelta();
     const elapsed = this.clock.getElapsedTime();
+    this.updateAdaptiveQuality(delta);
 
     const nextFov = 75 + Math.sin(elapsed * 0.15) * 2;
     if (Math.abs(this.camera.fov - nextFov) > FOV_UPDATE_EPSILON) {
@@ -475,10 +607,14 @@ export class FallingScene {
     }
 
     this.updateWeatherTransition(delta);
-    this.weatherParticles.setWind(this.cubeDrift.x, this.cubeDrift.y, this.worldSpeed);
-    this.weatherParticles.update(delta);
+    if (this.perfToggles.weatherParticles) {
+      this.weatherParticles.setWind(this.cubeDrift.x, this.cubeDrift.y, this.worldSpeed);
+      this.weatherParticles.update(delta);
+    }
     this.characterPool.update(delta);
-    this.orbitCarousel.update(delta, this.renderer);
+    if (this.perfToggles.orbitIcons) {
+      this.orbitCarousel.update(delta, this.renderer);
+    }
     const cubeColorHex = this.cubeMaterial.color.getHex();
     const cubeEmissiveHex = this.cubeMaterial.emissive.getHex();
     const tintChanged =
@@ -486,12 +622,16 @@ export class FallingScene {
     if (tintChanged) {
       this.lastCubeColorHex = cubeColorHex;
       this.lastCubeEmissiveHex = cubeEmissiveHex;
+      this.cubeInstancedMaterial.color.copy(this.cubeMaterial.color);
+      this.cubeInstancedMaterial.emissive.copy(this.cubeMaterial.emissive);
     }
 
     const fadeStartZ = this.camera.position.z + NEAR_CAMERA_FADE_START_Z_OFFSET;
     const fadeEndZ = this.camera.position.z + NEAR_CAMERA_FADE_END_Z_OFFSET;
-    this.updateCubes(delta, fadeStartZ, fadeEndZ, tintChanged);
-    this.updateFragments(delta, fadeStartZ, fadeEndZ, tintChanged);
+    if (this.perfToggles.cubesAndFragments) {
+      this.updateCubes(delta, fadeStartZ, fadeEndZ);
+      this.updateFragments(delta, fadeStartZ, fadeEndZ, tintChanged);
+    }
 
     if (elapsed >= this.nextResizeGuardAt) {
       this.nextResizeGuardAt = elapsed + RESIZE_GUARD_INTERVAL_SECONDS;
@@ -597,80 +737,74 @@ export class FallingScene {
   private updateCubes(
     delta: number,
     fadeStartZ: number,
-    fadeEndZ: number,
-    tintChanged: boolean
+    fadeEndZ: number
   ): void {
     const moveAmount = this.worldSpeed * delta;
     const driftX = this.cubeDrift.x * delta;
     const driftY = this.cubeDrift.y * delta;
     const horizontalBounds = XY_SPREAD * 2.4;
+    const opacities = this.cubeOpacityAttribute.array as Float32Array;
+    const emissiveIntensities = this.cubeEmissiveIntensityAttribute.array as Float32Array;
+    const activeCubeCount = this.getAdaptiveCubeCount();
+    const nearCameraRecycleZ = fadeEndZ - NEAR_CAMERA_RECYCLE_MARGIN_Z;
 
-    for (const cube of this.cubes) {
-      cube.mesh.position.z += moveAmount;
-      cube.mesh.position.x += driftX;
-      cube.mesh.position.y += driftY;
-
-      cube.mesh.rotation.x += cube.rotationSpeed.x * delta;
-      cube.mesh.rotation.y += cube.rotationSpeed.y * delta;
-      cube.mesh.rotation.z += cube.rotationSpeed.z * delta;
-
-      const material = cube.mesh.material as THREE.MeshStandardMaterial;
-      const nearCameraFade = 1 - THREE.MathUtils.smoothstep(cube.mesh.position.z, fadeStartZ, fadeEndZ);
-      if (tintChanged) {
-        material.color.copy(this.cubeMaterial.color);
-        material.emissive.copy(this.cubeMaterial.emissive);
+    if (activeCubeCount > this.renderedCubeCount) {
+      for (let index = this.renderedCubeCount; index < activeCubeCount; index += 1) {
+        this.resetCubeState(this.cubes[index], -100 - Math.random() * (Math.abs(RESET_Z) - 100));
       }
-      material.opacity = cube.baseOpacity * this.cubeOpacityMultiplier * nearCameraFade;
-      material.emissiveIntensity =
-        cube.baseEmissiveIntensity * this.cubeEmissiveMultiplier * nearCameraFade;
+    }
+    this.renderedCubeCount = activeCubeCount;
+    this.cubeInstancedMesh.count = activeCubeCount;
 
-      if (cube.mesh.position.x > horizontalBounds) {
-        cube.mesh.position.x = -horizontalBounds;
-      } else if (cube.mesh.position.x < -horizontalBounds) {
-        cube.mesh.position.x = horizontalBounds;
+    for (let index = 0; index < activeCubeCount; index += 1) {
+      const cube = this.cubes[index];
+      cube.position.z += moveAmount;
+      cube.position.x += driftX;
+      cube.position.y += driftY;
+
+      cube.rotation.x += cube.rotationSpeed.x * delta;
+      cube.rotation.y += cube.rotationSpeed.y * delta;
+      cube.rotation.z += cube.rotationSpeed.z * delta;
+
+      if (cube.position.x > horizontalBounds) {
+        cube.position.x = -horizontalBounds;
+      } else if (cube.position.x < -horizontalBounds) {
+        cube.position.x = horizontalBounds;
       }
 
-      if (cube.mesh.position.y > horizontalBounds) {
-        cube.mesh.position.y = -horizontalBounds;
-      } else if (cube.mesh.position.y < -horizontalBounds) {
-        cube.mesh.position.y = horizontalBounds;
+      if (cube.position.y > horizontalBounds) {
+        cube.position.y = -horizontalBounds;
+      } else if (cube.position.y < -horizontalBounds) {
+        cube.position.y = horizontalBounds;
       }
 
       if (
-        cube.mesh.position.z > -5 &&
-        cube.mesh.position.z < 15 &&
+        cube.position.z > -5 &&
+        cube.position.z < nearCameraRecycleZ &&
         Math.random() < this.fragmentSpawnChance
       ) {
-        this.spawnFragment(cube.mesh.position.x, cube.mesh.position.y, cube.mesh.position.z);
+        this.spawnFragment(cube.position.x, cube.position.y, cube.position.z);
       }
 
-      if (cube.mesh.position.z > RECYCLE_Z) {
-        const cubeSize = this.randomCubeSize();
-        cube.mesh.geometry = this.getSharedBoxGeometry('cube', cubeSize, CUBE_GEOMETRY_BUCKET);
-
-        const refreshed = this.applyRandomCubeMaterialValues(material);
-        cube.baseOpacity = refreshed.opacity;
-        cube.baseEmissiveIntensity = refreshed.emissiveIntensity;
-
-        cube.mesh.position.set(
-          (Math.random() - 0.5) * XY_SPREAD * 2,
-          (Math.random() - 0.5) * XY_SPREAD * 2,
-          -100 - Math.random() * (Math.abs(RESET_Z) - 100)
-        );
-        cube.mesh.rotation.set(
-          Math.random() * Math.PI * 2,
-          Math.random() * Math.PI * 2,
-          Math.random() * Math.PI * 2
-        );
-
-        const speedScale = Math.max(0.05, 1 - cubeSize / 30);
-        cube.rotationSpeed.set(
-          (Math.random() - 0.5) * 0.6 * speedScale,
-          (Math.random() - 0.5) * 0.6 * speedScale,
-          (Math.random() - 0.5) * 0.3 * speedScale
-        );
+      if (cube.position.z > RECYCLE_Z || cube.position.z >= nearCameraRecycleZ) {
+        this.resetCubeState(cube, -100 - Math.random() * (Math.abs(RESET_Z) - 100));
       }
+
+      const nearCameraFade = 1 - THREE.MathUtils.smoothstep(cube.position.z, fadeStartZ, fadeEndZ);
+      opacities[index] = cube.baseOpacity * this.cubeOpacityMultiplier * nearCameraFade;
+      emissiveIntensities[index] =
+        cube.baseEmissiveIntensity * this.cubeEmissiveMultiplier * nearCameraFade;
+
+      this.cubeTransform.position.copy(cube.position);
+      this.cubeTransform.rotation.copy(cube.rotation);
+      this.cubeTransform.scale.setScalar(cube.size);
+      this.cubeTransform.updateMatrix();
+      this.cubeInstancedMesh.setMatrixAt(index, this.cubeTransform.matrix);
     }
+
+    this.cubeInstancedMesh.instanceMatrix.needsUpdate = true;
+    this.cubeOpacityAttribute.needsUpdate = true;
+    this.cubeEmissiveIntensityAttribute.needsUpdate = true;
   }
 
   private updateFragments(
@@ -679,46 +813,72 @@ export class FallingScene {
     fadeEndZ: number,
     tintChanged: boolean
   ): void {
+    if (tintChanged) {
+      this.fragmentInstancedMaterial.color.copy(this.cubeMaterial.color);
+      this.fragmentInstancedMaterial.emissive.copy(this.cubeMaterial.emissive);
+    }
+
     const driftX = this.cubeDrift.x * delta * 0.65;
     const driftY = this.cubeDrift.y * delta * 0.65;
-    for (const fragment of this.fragments) {
+    const opacities = this.fragmentOpacityAttribute.array as Float32Array;
+    const emissiveIntensities = this.fragmentEmissiveIntensityAttribute.array as Float32Array;
+    const nearCameraRecycleZ = fadeEndZ - NEAR_CAMERA_RECYCLE_MARGIN_Z;
+
+    for (let index = 0; index < this.fragments.length; index += 1) {
+      const fragment = this.fragments[index];
       if (!fragment.active) {
+        opacities[index] = 0;
+        emissiveIntensities[index] = 0;
         continue;
       }
 
-      fragment.mesh.position.x += fragment.velocity.x * delta;
-      fragment.mesh.position.y += fragment.velocity.y * delta;
-      fragment.mesh.position.z += fragment.velocity.z * delta;
-      fragment.mesh.position.x += driftX;
-      fragment.mesh.position.y += driftY;
+      fragment.position.x += fragment.velocity.x * delta;
+      fragment.position.y += fragment.velocity.y * delta;
+      fragment.position.z += fragment.velocity.z * delta;
+      fragment.position.x += driftX;
+      fragment.position.y += driftY;
 
-      fragment.mesh.rotation.x += fragment.rotationSpeed.x * delta;
-      fragment.mesh.rotation.y += fragment.rotationSpeed.y * delta;
-      fragment.mesh.rotation.z += fragment.rotationSpeed.z * delta;
+      fragment.rotation.x += fragment.rotationSpeed.x * delta;
+      fragment.rotation.y += fragment.rotationSpeed.y * delta;
+      fragment.rotation.z += fragment.rotationSpeed.z * delta;
 
       fragment.life += delta;
       const lifeRatio = fragment.life / fragment.maxLife;
 
-      const material = fragment.mesh.material as THREE.MeshStandardMaterial;
-      const nearCameraFade = 1 - THREE.MathUtils.smoothstep(fragment.mesh.position.z, fadeStartZ, fadeEndZ);
-      if (tintChanged) {
-        material.color.copy(this.cubeMaterial.color);
-        material.emissive.copy(this.cubeMaterial.emissive);
-      }
-      material.emissiveIntensity =
+      const nearCameraFade = 1 - THREE.MathUtils.smoothstep(fragment.position.z, fadeStartZ, fadeEndZ);
+      emissiveIntensities[index] =
         fragment.baseEmissiveIntensity * this.cubeEmissiveMultiplier * nearCameraFade;
 
       const lifeOpacity = this.getFragmentLifeOpacity(lifeRatio);
-      material.opacity =
-        fragment.baseOpacity * this.cubeOpacityMultiplier * lifeOpacity * nearCameraFade;
+      opacities[index] = fragment.baseOpacity * this.cubeOpacityMultiplier * lifeOpacity * nearCameraFade;
 
-      if (fragment.life > fragment.maxLife || fragment.mesh.position.z > 50) {
+      this.fragmentTransform.position.copy(fragment.position);
+      this.fragmentTransform.rotation.copy(fragment.rotation);
+      this.fragmentTransform.scale.setScalar(fragment.size);
+      this.fragmentTransform.updateMatrix();
+      this.fragmentInstancedMesh.setMatrixAt(index, this.fragmentTransform.matrix);
+
+      if (
+        fragment.life > fragment.maxLife ||
+        fragment.position.z > 50 ||
+        fragment.position.z >= nearCameraRecycleZ
+      ) {
         fragment.active = false;
-        fragment.mesh.visible = false;
         fragment.life = 0;
+        opacities[index] = 0;
+        emissiveIntensities[index] = 0;
+        this.fragmentTransform.position.set(0, 0, -1000);
+        this.fragmentTransform.rotation.set(0, 0, 0);
+        this.fragmentTransform.scale.setScalar(0.0001);
+        this.fragmentTransform.updateMatrix();
+        this.fragmentInstancedMesh.setMatrixAt(index, this.fragmentTransform.matrix);
         this.activeFragmentCount = Math.max(0, this.activeFragmentCount - 1);
       }
     }
+
+    this.fragmentInstancedMesh.instanceMatrix.needsUpdate = true;
+    this.fragmentOpacityAttribute.needsUpdate = true;
+    this.fragmentEmissiveIntensityAttribute.needsUpdate = true;
   }
 
   private getFragmentLifeOpacity(lifeRatio: number): number {
@@ -729,6 +889,102 @@ export class FallingScene {
       return Math.max(0, 1 - (lifeRatio - 0.5) / 0.5);
     }
     return 1;
+  }
+
+  private updateAdaptiveQuality(delta: number): void {
+    if (!this.perfToggles.cubesAndFragments || !Number.isFinite(delta) || delta <= 0) {
+      return;
+    }
+
+    const frameMs = THREE.MathUtils.clamp(delta * 1000, 0, 250);
+    this.smoothedFrameMs = THREE.MathUtils.lerp(
+      this.smoothedFrameMs,
+      frameMs,
+      ADAPTIVE_FRAME_EMA_ALPHA
+    );
+
+    if (this.smoothedFrameMs > ADAPTIVE_DEGRADE_FRAME_MS) {
+      this.lowPerfSeconds += delta;
+      this.highPerfSeconds = 0;
+      if (this.lowPerfSeconds >= ADAPTIVE_DEGRADE_HOLD_SECONDS) {
+        this.lowPerfSeconds = 0;
+        this.degradeAdaptiveQuality();
+      }
+      return;
+    }
+
+    if (this.smoothedFrameMs < ADAPTIVE_RECOVER_FRAME_MS) {
+      this.highPerfSeconds += delta;
+      this.lowPerfSeconds = 0;
+      if (this.highPerfSeconds >= ADAPTIVE_RECOVER_HOLD_SECONDS) {
+        this.highPerfSeconds = 0;
+        this.recoverAdaptiveQuality();
+      }
+      return;
+    }
+
+    this.lowPerfSeconds = Math.max(0, this.lowPerfSeconds - delta * 0.5);
+    this.highPerfSeconds = 0;
+  }
+
+  private degradeAdaptiveQuality(): void {
+    if (this.adaptiveFragmentScale > ADAPTIVE_FRAGMENT_MIN_SCALE + 1e-4) {
+      this.adaptiveFragmentScale = THREE.MathUtils.clamp(
+        this.adaptiveFragmentScale - ADAPTIVE_FRAGMENT_DOWN_STEP,
+        ADAPTIVE_FRAGMENT_MIN_SCALE,
+        1
+      );
+      return;
+    }
+
+    this.adaptiveCubeScale = THREE.MathUtils.clamp(
+      this.adaptiveCubeScale - ADAPTIVE_CUBE_DOWN_STEP,
+      ADAPTIVE_CUBE_MIN_SCALE,
+      1
+    );
+  }
+
+  private recoverAdaptiveQuality(): void {
+    if (this.adaptiveCubeScale < 1 - 1e-4) {
+      this.adaptiveCubeScale = THREE.MathUtils.clamp(
+        this.adaptiveCubeScale + ADAPTIVE_CUBE_UP_STEP,
+        ADAPTIVE_CUBE_MIN_SCALE,
+        1
+      );
+      return;
+    }
+
+    this.adaptiveFragmentScale = THREE.MathUtils.clamp(
+      this.adaptiveFragmentScale + ADAPTIVE_FRAGMENT_UP_STEP,
+      ADAPTIVE_FRAGMENT_MIN_SCALE,
+      1
+    );
+  }
+
+  private getAdaptiveMaxFragments(): number {
+    return Math.max(
+      8,
+      Math.round(
+        THREE.MathUtils.clamp(
+          this.maxFragments * this.adaptiveFragmentScale,
+          8,
+          this.maxFragments
+        )
+      )
+    );
+  }
+
+  private getAdaptiveCubeCount(): number {
+    return Math.max(
+      1,
+      Math.round(
+        THREE.MathUtils.clamp(
+          CUBE_COUNT * this.adaptiveCubeScale,
+          CUBE_COUNT * ADAPTIVE_CUBE_MIN_SCALE,
+          CUBE_COUNT
+        )
+      )
+    );
   }
 
   private applyWeatherSnapshot(snapshot: LocalWeatherSnapshot): void {
@@ -1013,6 +1269,32 @@ export class FallingScene {
     return hour >= 6 && hour < 18;
   }
 
+  private resolvePerfSceneToggles(): PerfSceneToggles {
+    if (typeof window === 'undefined') {
+      return {
+        orbitIcons: true,
+        cubesAndFragments: true,
+        weatherParticles: true,
+      };
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const parseToggle = (key: string): boolean => {
+      const value = params.get(key);
+      if (value === null) {
+        return true;
+      }
+      const normalized = value.trim().toLowerCase();
+      return normalized !== '0' && normalized !== 'false' && normalized !== 'off';
+    };
+
+    return {
+      orbitIcons: parseToggle('tboOrbitIcons'),
+      cubesAndFragments: parseToggle('tboCubes'),
+      weatherParticles: parseToggle('tboWeather'),
+    };
+  }
+
   dispose(): void {
     if (this.disposed) {
       return;
@@ -1034,23 +1316,16 @@ export class FallingScene {
     this.characterPool.dispose();
     this.weatherParticles.dispose();
 
-    for (const cube of this.cubes) {
-      this.scene.remove(cube.mesh);
-      (cube.mesh.material as THREE.Material).dispose();
-    }
     this.cubes = [];
+    this.scene.remove(this.cubeInstancedMesh);
+    this.cubeInstancedMesh.geometry.dispose();
+    this.cubeInstancedMaterial.dispose();
 
-    for (const fragment of this.fragments) {
-      this.scene.remove(fragment.mesh);
-      (fragment.mesh.material as THREE.Material).dispose();
-    }
     this.fragments = [];
     this.activeFragmentCount = 0;
-
-    for (const geometry of this.sharedBoxGeometryCache.values()) {
-      geometry.dispose();
-    }
-    this.sharedBoxGeometryCache.clear();
+    this.scene.remove(this.fragmentInstancedMesh);
+    this.fragmentInstancedMesh.geometry.dispose();
+    this.fragmentInstancedMaterial.dispose();
 
     if (this.glowSprite) {
       this.scene.remove(this.glowSprite);

@@ -34,6 +34,7 @@ export class MenuIcon3D {
   private friendsRuntime: FriendsIconRuntime | null = null;
   private readonly rendererSize = new THREE.Vector2();
   private static readonly KEY_SPIN_SPEED = 1.05;
+
   constructor(canvas: HTMLCanvasElement, type: IconType) {
     this.type = type;
     this.ctx = canvas.getContext('2d')!;
@@ -53,22 +54,34 @@ export class MenuIcon3D {
     switch (type) {
       case 'key':
         this.buildKey();
+        this.applyGroupTransform(0, Math.PI * 0.5, 0, 1);
+        this.freezeStaticIconTransforms([this.group]);
         this.camera.position.set(0, 0, 5.6);
         break;
       case 'globe':
         this.buildGlobe();
+        this.applyGroupTransform(-0.18, 0.46, 0.04, 1);
+        this.applyGlobeStaticState();
+        this.freezeStaticIconTransforms(this.globeState.packetNodes.map((packet) => packet.mesh));
         this.camera.position.set(0, 0, 5.2);
         break;
       case 'info':
+        this.applyGroupTransform(-0.45, 0.18, -0.08, 1);
         void this.buildInfo();
         this.camera.position.set(0, 0, 4.5);
         break;
       case 'inbox':
         this.buildInboxPlaceholder();
+        this.applyGroupTransform(-0.1, 0.04, -0.09, 0.9);
+        this.freezeStaticIconTransforms(
+          this.inboxState.orbitParticles.map((particle) => particle.sprite)
+        );
         this.camera.position.set(0, 0, 4.8);
         break;
       case 'friends':
         this.buildFriendsPlaceholder();
+        this.applyGroupTransform(-0.12, 0.3, 0.02, 0.92);
+        this.freezeStaticIconTransforms();
         this.camera.position.set(0, 0, 5.0);
         break;
     }
@@ -124,6 +137,40 @@ export class MenuIcon3D {
 
   private buildFriendsPlaceholder(): void {
     this.friendsRuntime = new FriendsIconRuntime(this.group, this.scene);
+  }
+
+  private applyGroupTransform(
+    rotationX: number,
+    rotationY: number,
+    rotationZ: number,
+    scale: number
+  ): void {
+    this.group.position.set(0, 0, 0);
+    this.group.rotation.set(rotationX, rotationY, rotationZ);
+    this.group.scale.setScalar(scale);
+  }
+
+  private applyGlobeStaticState(): void {
+    for (const panel of this.globeState.auxPanels) {
+      panel.group.position.set(panel.baseX, panel.baseY, panel.baseZ);
+      panel.group.rotation.y = panel.baseRotY;
+      panel.group.rotation.z = panel.baseRotZ;
+    }
+
+    for (const pulse of this.globeState.pulseMaterials) {
+      pulse.material.opacity = pulse.baseOpacity;
+    }
+  }
+
+  private freezeStaticIconTransforms(dynamicObjects: readonly THREE.Object3D[] = []): void {
+    const dynamicSet = new Set(dynamicObjects);
+    this.group.traverse((obj) => {
+      if (dynamicSet.has(obj)) {
+        return;
+      }
+      obj.matrixAutoUpdate = false;
+      obj.updateMatrix();
+    });
   }
 
   private createRadialGlowTexture(inner: string, mid: string, outer: string): THREE.CanvasTexture {
@@ -365,6 +412,7 @@ export class MenuIcon3D {
         return;
       }
       buildInfoIcon(this.group);
+      this.freezeStaticIconTransforms();
     } catch (error) {
       console.warn('Failed to build info icon:', error);
     }
@@ -383,50 +431,14 @@ export class MenuIcon3D {
     }
 
     if (this.type === 'globe') {
-      // Keep globe icon static in world space (no float/tilt/spin).
-      this.group.rotation.set(-0.18, 0.46, 0.04);
-      this.group.position.set(0, 0, 0);
-      this.group.scale.set(1, 1, 1);
-      if (this.globeState.coreGroup) {
-        this.globeState.coreGroup.position.set(0, 0, 0);
-        this.globeState.coreGroup.rotation.set(0, 0, 0);
-      }
-      if (this.globeState.orbitalGroup) {
-        this.globeState.orbitalGroup.rotation.set(Math.PI * 0.43, 0.02, -0.08);
-      }
       updateGlobeOrbitNodes(this.globeState, this.elapsed);
-      for (let i = 0; i < this.globeState.auxPanels.length; i++) {
-        const panel = this.globeState.auxPanels[i];
-        panel.group.position.set(panel.baseX, panel.baseY, panel.baseZ);
-        panel.group.rotation.y = panel.baseRotY;
-        panel.group.rotation.z = panel.baseRotZ;
-      }
-      for (let i = 0; i < this.globeState.pulseMaterials.length; i++) {
-        const pulse = this.globeState.pulseMaterials[i];
-        pulse.material.opacity = pulse.baseOpacity;
-      }
     } else if (this.type === 'key') {
       const spinY = this.elapsed * MenuIcon3D.KEY_SPIN_SPEED + Math.PI * 0.5;
-      this.group.rotation.set(0, spinY, 0);
-      this.group.position.set(0, 0, 0);
-      this.group.scale.set(1, 1, 1);
-    } else if (this.type === 'info') {
-      this.group.rotation.set(-0.45, 0.18, -0.08);
-      this.group.position.set(0, 0, 0);
-      this.group.scale.set(1, 1, 1);
+      this.group.rotation.y = spinY;
     } else if (this.type === 'inbox') {
       updateInboxOrbitParticles(this.inboxState, this.elapsed);
-      this.group.rotation.set(-0.1, 0.04, -0.09);
-      this.group.position.set(0, 0, 0);
-      this.group.scale.setScalar(0.9);
     } else if (this.type === 'friends') {
       this.friendsRuntime?.update(this.elapsed, renderer);
-      this.group.rotation.set(-0.12, 0.3, 0.02);
-      this.group.position.set(0, 0, 0);
-      this.group.scale.setScalar(0.92);
-    } else {
-      this.group.position.set(0, 0, 0);
-      this.group.scale.set(1, 1, 1);
     }
 
     if (!renderToCanvas || !renderer) {

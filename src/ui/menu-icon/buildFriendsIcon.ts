@@ -154,6 +154,46 @@ export class FriendsIconRuntime {
       return new THREE.Mesh(geometry, material);
     };
 
+    interface InstanceTransform {
+      x: number;
+      y: number;
+      z: number;
+      rx?: number;
+      ry?: number;
+      rz?: number;
+      sx?: number;
+      sy?: number;
+      sz?: number;
+    }
+
+    const instanceDummy = new THREE.Object3D();
+    const addInstancedMesh = (
+      geometry: THREE.BufferGeometry,
+      material: THREE.Material,
+      transforms: readonly InstanceTransform[]
+    ): THREE.InstancedMesh | null => {
+      if (transforms.length === 0) {
+        return null;
+      }
+
+      const instanced = new THREE.InstancedMesh(geometry, material, transforms.length);
+      instanced.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+      transforms.forEach((transform, index) => {
+        instanceDummy.position.set(transform.x, transform.y, transform.z);
+        instanceDummy.rotation.set(transform.rx ?? 0, transform.ry ?? 0, transform.rz ?? 0);
+        instanceDummy.scale.set(
+          transform.sx ?? 1,
+          transform.sy ?? transform.sx ?? 1,
+          transform.sz ?? transform.sx ?? 1
+        );
+        instanceDummy.updateMatrix();
+        instanced.setMatrixAt(index, instanceDummy.matrix);
+      });
+      instanced.instanceMatrix.needsUpdate = true;
+      this.group.add(instanced);
+      return instanced;
+    };
+
     const shellMaterial = new THREE.MeshPhysicalMaterial({
       color: 0xf3e6cc,
       emissive: 0x17120d,
@@ -320,14 +360,12 @@ export class FriendsIconRuntime {
     this.group.add(screen);
 
     const screwGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.012, 14);
-    const topLeftScrew = new THREE.Mesh(screwGeo, screwMaterial);
-    topLeftScrew.rotation.x = Math.PI * 0.5;
-    topLeftScrew.position.set(-0.98, 0.06, 0.108);
-    this.group.add(topLeftScrew);
-    const topRightScrew = new THREE.Mesh(screwGeo, screwMaterial);
-    topRightScrew.rotation.x = Math.PI * 0.5;
-    topRightScrew.position.set(0.98, 0.06, 0.108);
-    this.group.add(topRightScrew);
+    const screwTransforms: InstanceTransform[] = [
+      { x: -0.98, y: 0.06, z: 0.108, rx: Math.PI * 0.5 },
+      { x: 0.98, y: 0.06, z: 0.108, rx: Math.PI * 0.5 },
+      { x: -0.98, y: -0.86, z: 0.108, rx: Math.PI * 0.5 },
+    ];
+    addInstancedMesh(screwGeo, screwMaterial, screwTransforms);
 
     const hinge = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 1.76, 24), shellInsetMaterial);
     hinge.rotation.z = Math.PI * 0.5;
@@ -369,6 +407,10 @@ export class FriendsIconRuntime {
     const keyStepX = 0.11;
     const keyStartY = -0.36;
     const keyStepY = 0.1;
+    const regularKeyTransforms: InstanceTransform[] = [];
+    const accentKeyTransforms: InstanceTransform[] = [];
+    const regularKeyFaceTransforms: InstanceTransform[] = [];
+    const accentKeyFaceTransforms: InstanceTransform[] = [];
     for (let row = 0; row < keyRows; row++) {
       const rowShift = row % 2 === 0 ? 0 : 0.018;
       for (let col = 0; col < keyCols; col++) {
@@ -377,20 +419,30 @@ export class FriendsIconRuntime {
           (row === 0 && col > 8) ||
           (row === 4 && col > 8) ||
           (row === 3 && col >= 8 && col <= 9);
-        const key = new THREE.Mesh(keyBodyGeometry, isAccent ? keyHighlightMaterial : keycapMaterial);
-        key.position.set(keyStartX + col * keyStepX + rowShift, keyStartY - row * keyStepY, 0.145);
-        key.rotation.z = ((row + col) % 2 === 0 ? 1 : -1) * 0.025;
-        this.group.add(key);
+        const x = keyStartX + col * keyStepX + rowShift;
+        const y = keyStartY - row * keyStepY;
+        const rotationZ = ((row + col) % 2 === 0 ? 1 : -1) * 0.025;
+        const keyTransform = { x, y, z: 0.145, rz: rotationZ };
+        const keyFaceTransform = {
+          x,
+          y: y + 0.0015,
+          z: 0.157,
+          rz: rotationZ * 0.7,
+        };
 
-        const keyFace = new THREE.Mesh(
-          keyFaceGeometry,
-          isAccent ? keyAccentFaceMaterial : keyFaceMaterial
-        );
-        keyFace.position.set(key.position.x, key.position.y + 0.0015, key.position.z + 0.012);
-        keyFace.rotation.z = key.rotation.z * 0.7;
-        this.group.add(keyFace);
+        if (isAccent) {
+          accentKeyTransforms.push(keyTransform);
+          accentKeyFaceTransforms.push(keyFaceTransform);
+        } else {
+          regularKeyTransforms.push(keyTransform);
+          regularKeyFaceTransforms.push(keyFaceTransform);
+        }
       }
     }
+    addInstancedMesh(keyBodyGeometry, keycapMaterial, regularKeyTransforms);
+    addInstancedMesh(keyBodyGeometry, keyHighlightMaterial, accentKeyTransforms);
+    addInstancedMesh(keyFaceGeometry, keyFaceMaterial, regularKeyFaceTransforms);
+    addInstancedMesh(keyFaceGeometry, keyAccentFaceMaterial, accentKeyFaceTransforms);
 
     const spaceBar = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.055, 0.026), keycapMaterial);
     spaceBar.position.set(-0.35, -0.86, 0.146);
@@ -455,11 +507,6 @@ export class FriendsIconRuntime {
     cameraLensFace.rotation.x = Math.PI * 0.5;
     cameraLensFace.position.set(0.98, -0.9, 0.161);
     this.group.add(cameraLensFace);
-
-    const bottomLeftScrew = new THREE.Mesh(screwGeo, screwMaterial);
-    bottomLeftScrew.rotation.x = Math.PI * 0.5;
-    bottomLeftScrew.position.set(-0.98, -0.86, 0.108);
-    this.group.add(bottomLeftScrew);
 
     // Chat bubble lives outside the device, floating over the right side.
     const floatingChatGroup = new THREE.Group();

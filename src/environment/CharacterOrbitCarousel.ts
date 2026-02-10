@@ -36,6 +36,8 @@ interface OrbitItem {
   iconAnimationAccumulator: number;
   lastHovered: boolean;
   lastActive: boolean;
+  lastRenderOrder: number;
+  lastScale: number;
 }
 
 const MENU_ACTION_EVENT = 'tbo:menu-action';
@@ -279,10 +281,17 @@ export class CharacterOrbitCarousel {
       const hoverScale = item.hoverScaleStrength * HOVER_SCALE_MAX_BOOST;
       const activeScale = active ? ACTIVE_SCALE_BOOST : 0;
       const scale = THREE.MathUtils.lerp(0.9, 1.0, focusedDepth) + hoverScale + activeScale;
-      item.group.scale.setScalar(scale);
+      if (!Number.isFinite(item.lastScale) || Math.abs(item.lastScale - scale) > 1e-4) {
+        item.group.scale.setScalar(scale);
+        item.lastScale = scale;
+      }
 
-      item.buttonMesh.renderOrder = 20 + Math.round(focusedDepth * 40);
-      item.hitMesh.renderOrder = item.buttonMesh.renderOrder + 3;
+      const renderOrder = 20 + Math.round(focusedDepth * 40);
+      if (item.lastRenderOrder !== renderOrder) {
+        item.buttonMesh.renderOrder = renderOrder;
+        item.hitMesh.renderOrder = renderOrder + 3;
+        item.lastRenderOrder = renderOrder;
+      }
 
       if (hovered !== item.lastHovered || active !== item.lastActive) {
         this.drawButtonTexture(item, hovered, active);
@@ -426,6 +435,8 @@ export class CharacterOrbitCarousel {
         iconAnimationAccumulator: ICON_UPDATE_STEP_SECONDS,
         lastHovered: false,
         lastActive: false,
+        lastRenderOrder: Number.NaN,
+        lastScale: Number.NaN,
       };
 
       this.items.push(item);

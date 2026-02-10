@@ -1,154 +1,227 @@
-# Optimization Plan and Session Handoff
+# Performance Optimization Plan
 
 Date: 2026-02-10
 Repo: `D:\code\tbowebsite`
 
-## Canonical Tracker
+## Objective
 
-- This file is now the single source of truth for optimization status and resume steps.
-- `progress.md` is intentionally reduced to a pointer to prevent status drift.
+Deliver the highest possible runtime performance gain with minimal change to the current website aesthetic.
 
-## Current Status
+The primary bottleneck is render submission overhead (draw calls), not triangle count.
+Current reference capture shows about `453` draw calls with about `36k` triangles.
 
-- Phase 0 (measurement + guardrails): Complete.
-- Phase 1 (frame-time quick wins): Complete.
-- Phase 2 (memory and asset load): Complete.
-- Phase 3 (bundle/module strategy): Complete.
-- Phase 4 (secondary GPU/render work): Complete.
-- Phase 5 (verification/regression safety): Complete.
-- Phase 6 (targeted runtime follow-up pass): Complete.
+## Progress Snapshot (Updated 2026-02-10)
 
-## Current Objective
+Overall status: `In progress`
 
-- Preserve existing contracts/behavior while reducing steady-state frame time in the active runtime path (`FallingScene` + in-world carousel + weather particles).
-- Validate measurable improvement with repeatable benchmark captures (before/after, same method).
-- Follow with one interactive GPU capture to confirm headless gains transfer to real hardware timing.
+Completed work:
+- P0 core work implemented in `buildFriendsIcon.ts` and `buildGlobeIcon.ts`.
+- P1 implemented in `FallingScene.ts` with instanced cubes and instanced fragments.
+- P2 implemented in `FallingScene.ts` with sustained-pressure adaptive scaling (fragments first, then cube density).
+- P3 implemented in `MenuIcon3D.ts`, `CharacterOrbitCarousel.ts`, and `HeaderOverlay.ts`:
+  - removed redundant per-frame static icon transform writes
+  - froze matrix updates for static icon subtrees while keeping animated nodes live
+  - cached carousel render-order/scale writes to avoid redundant property churn
+  - gated header weather icon redraw/text writes to state changes
+- Runtime perf toggles added in `FallingScene.ts`:
+  - `tboOrbitIcons`
+  - `tboCubes`
+  - `tboWeather`
+- Weather visibility hook added in `WeatherParticles.ts`.
+- Post-P3 integrated runtime perf capture recorded in `perf-capture.latest.json`.
+- Post-P3 warm runtime perf capture recorded in `perf-capture.warm.latest.json`.
+- Build verification currently passing with `npm.cmd run build`.
 
-## Session Update (2026-02-10, Follow-Up Perf Pass)
+Pending work:
+- Collect per-phase/toggle-isolated captures with `?tboPerf=1` for attribution.
+- Confirm draw-call target (`<200`) across additional comparable captures.
+- Run visual parity QA against references.
+- Optional P0 follow-up for `buildInboxIcon.ts` if capture results show it remains a significant call contributor.
 
-### Completed in this session
+## Latest Capture Snapshots (2026-02-10)
 
+- Capture A source: `perf-capture.latest.json`
+- Timestamp (UTC): `2026-02-10T20:05:41.614Z`
+- URL: `http://127.0.0.1:43234/?tboPerf=1`
+- Mode: `edge-cdp-headless`
+- GPU renderer: `ANGLE (NVIDIA GeForce RTX 3090, D3D11)`
+- Frame avg/p95/worst: `5.24 / 14.80 / 29.30 ms`
+- Estimated FPS / samples: `190.7 / 600`
+- Renderer calls/triangles/lines/points: `126 / 41117 / 4680 / 0`
+- Renderer textures/geometries/programs: `30 / 79 / 26`
+- Page warning counts: `0 warnings`, `0 errors`
+- Draw-call target check (`<200`): `Pass` in this capture
+- Capture B source: `perf-capture.warm.latest.json` (22s warmup before sampling)
+- Timestamp (UTC): `2026-02-10T21:04:25.031Z`
+- URL: `http://127.0.0.1:43234/?tboPerf=1`
+- Mode: `edge-cdp-headless-warm`
+- GPU renderer: `ANGLE (NVIDIA GeForce RTX 3090, D3D11)`
+- Frame avg/p95/worst: `5.40 / 14.80 / 26.40 ms`
+- Estimated FPS / samples: `185.0 / 600`
+- Renderer calls/triangles/lines/points: `130 / 41361 / 4680 / 0`
+- Renderer textures/geometries/programs: `32 / 80 / 26`
+- Page warning counts: `0 warnings`, `0 errors`
+- Draw-call target check (`<200`): `Pass` in warmed capture
+- Capture C source: `perf-capture.warm.after-cull.json` (post near-camera hard cull)
+- Timestamp (UTC): `2026-02-10T21:49:59.694Z`
+- URL: `http://127.0.0.1:43234/?tboPerf=1`
+- Mode: `edge-cdp-headless-warm-after-cull`
+- GPU renderer: `ANGLE (NVIDIA GeForce RTX 3090, D3D11)`
+- Frame avg/p95/worst: `4.64 / 8.60 / 17.60 ms`
+- Estimated FPS / samples: `215.3 / 600`
+- Renderer calls/triangles/lines/points: `126 / 41294 / 4680 / 0`
+- Renderer textures/geometries/programs: `30 / 79 / 26`
+- Draw-call target check (`<200`): `Pass` in post-cull warmed capture
+
+## Visual and Contract Guardrails
+
+No visual drift from the current design language:
+- No changes to page layout, typography, palette, or scene art direction.
+- Preserve existing motion style and interaction behavior.
+- Keep icon silhouettes and proportions visually equivalent.
+
+No contract drift from AGENTS.md:
+- Keep `tbo:menu-action` payload as `{ action, label }`.
+- Keep `tbo:local-weather-update` feeding `FallingScene`.
+- Keep `ORBIT_LAYER = 2` behavior intact.
+
+## Performance Targets
+
+- Reduce draw calls from about `453` to below `200`.
+- Improve or hold p95 frame time in interactive desktop capture.
+- Maintain visual parity under normal user viewing distance.
+
+## Measurement Method (Before and After Each Phase)
+
+1. Add temporary runtime toggles in `FallingScene` for:
+- orbit carousel icons
+- cubes and fragments
+- weather particles
+
+Status:
+- Implemented via query params:
+  - `tboOrbitIcons`
+  - `tboCubes`
+  - `tboWeather`
+
+2. For each phase, capture:
+- average, p95, worst frame time
+- estimated FPS
+- `renderer.info` calls, triangles, textures, geometries, programs
+
+3. Keep captures comparable:
+- same URL mode (`?tboPerf=1`)
+- same viewport class
+- same warmup time
+
+## Prioritized Work Plan
+
+### P0 (Highest ROI): Reduce in-world icon draw calls
+
+Status: `Partially complete (core implemented, integrated capture complete, phase-isolated capture pending)`
+
+Primary target:
+- `src/ui/menu-icon/buildFriendsIcon.ts`
+- `src/ui/menu-icon/buildGlobeIcon.ts`
+- `src/ui/menu-icon/buildInboxIcon.ts`
+- used by `src/environment/CharacterOrbitCarousel.ts`
+
+Actions:
+- Convert repeated friends icon mesh sets to `InstancedMesh` where geometry/material are shared.
+- Collapse globe line objects into fewer buffers/objects.
+- Keep current transforms, color values, and material styling so appearance remains consistent.
+
+Implemented:
+- Friends icon repeated key/screw meshes now use instancing.
+- Globe icon line objects were consolidated into batched line segment buffers.
+- Globe connector and hub marker meshes were converted to instanced rendering.
+
+Outstanding:
+- `buildInboxIcon.ts` was not changed in this pass.
+
+Expected result:
+- Largest draw-call reduction with low aesthetic risk.
+
+### P1: Batch cubes and fragments
+
+Status: `Implemented, integrated capture complete, phase-isolated capture pending`
+
+Primary target:
 - `src/scene/FallingScene.ts`
-  - Added fragment pooling and active-fragment tracking to remove repeated spawn/despawn allocations and per-frame array churn.
-  - Removed redundant per-frame camera reset/look-at work in `animate()`.
-  - Added tint-change gating so cube/fragment color-emissive sync only runs when tint actually changes.
-- `src/environment/CharacterOrbitCarousel.ts`
-  - Added fixed-step icon animation throttling (`30 FPS`) for in-world menu icons while keeping orbit transforms + hover/click responsiveness per-frame.
+
+Actions:
+- Replace per-cube meshes/material clones with bucketed instancing.
+- Instance fragment rendering where practical while preserving lifecycle and fade behavior.
+- Keep weather-driven motion profile and current size distribution.
+
+Implemented:
+- Cubes now render through a single `InstancedMesh` path with per-instance opacity/emissive attributes.
+- Fragments now render through a single `InstancedMesh` path with per-instance lifecycle-driven opacity/emissive updates.
+- Existing weather-driven movement and randomness profile were retained.
+
+Expected result:
+- Major additional draw-call and CPU update reduction with minimal visible change.
+
+### P2: Adaptive quality only when performance is constrained
+
+Status: `Implemented, integrated capture complete, phase-isolated capture pending`
+
+Primary target:
 - `src/environment/WeatherParticles.ts`
-  - Added adaptive particle-density scaling based on sustained frame-time pressure.
-  - Tightened particle hot-loop math and reduced redundant per-frame operations.
+- `src/scene/FallingScene.ts`
 
-### Benchmark captures from this session (headless, `?tboPerf=1`)
+Actions:
+- Expand adaptive scaling to reduce fragment load first, then cube density, only after sustained frame-pressure thresholds.
+- Avoid quality reduction on capable hardware.
 
-- Baseline before edits (same capture method):
-  - frame avg/p95/worst = `47.21 / 353.70 / 1000.00 ms`
-  - fps = `21.2`
-- Post-change run A:
-  - frame avg/p95/worst = `36.02 / 55.50 / 1000.10 ms`
-  - fps = `27.8`
-- Post-change run B:
-  - frame avg/p95/worst = `33.33 / 16.30 / 1000.10 ms`
-  - fps = `30.0`
-- Practical summary:
-  - average frame-time improvement is approximately `26.6%` (47.21 ms -> 34.68 ms average of stable post-runs)
-  - estimated fps improvement is approximately `36.3%` (21.2 -> 28.9)
-  - headless p95/worst remains noisy due to virtual-time/browser scheduling effects, so avg/fps are treated as the primary comparable signals.
+Implemented:
+- Added sustained-frame-pressure logic in `FallingScene`.
+- Degrade order is fragment budget first, then cube density.
+- Recovery order is reversed to restore full quality on stable frame times.
 
-## What Is Already Done
+Expected result:
+- Better stability on low-end devices without changing high-end visual output.
 
-- Performance instrumentation and baseline capture setup:
-  - `src/utils/DevPerformanceMonitor.ts`
-  - `docs/perf-baseline.md`
-- Scene hot-loop optimizations and allocation reduction:
-  - `src/scene/FallingScene.ts`
-- Texture ownership/memory strategy for character assets:
-  - `src/environment/FallingCharacter.ts`
-  - `src/environment/CharacterPool.ts`
-- Weather lightning pooling + opacity/state-change cleanup:
-  - `src/environment/WeatherParticles.ts`
-- Header icon loop throttling/visibility gating:
-  - `src/ui/HeaderOverlay.ts`
-- `MenuIcon3D` split into focused modules with lazy-loaded info icon:
-  - `src/ui/MenuIcon3D.ts`
-  - `src/ui/menu-icon/buildKeyIcon.ts`
-  - `src/ui/menu-icon/buildGlobeIcon.ts`
-  - `src/ui/menu-icon/buildInboxIcon.ts`
-  - `src/ui/menu-icon/buildFriendsIcon.ts`
-  - `src/ui/menu-icon/buildInfoIcon.ts`
-  - `src/ui/menu-icon/friendsConstants.ts`
-  - `src/ui/menu-icon/friendsConversationScript.ts`
-- Chunking strategy applied:
-  - `vite.config.ts` (`manualChunks` for `three` and `menu-icon`)
+### P3: Micro-optimizations and cleanup
 
-## Verified So Far
+Targets:
+- `src/ui/MenuIcon3D.ts`
+- `src/environment/CharacterOrbitCarousel.ts`
+- `src/ui/HeaderOverlay.ts`
 
-- Latest local build result: pass (`npm.cmd run build`).
-- Latest local build after follow-up perf pass: pass (`npm.cmd run build`).
-- Latest chunk snapshot:
-  - `dist/assets/three-BHFk_gJM.js` = `618.70 kB` minified (`161.27 kB` gzip)
-  - `dist/assets/menu-icon-CcP0RGiD.js` = `62.22 kB` minified (`17.61 kB` gzip)
-  - `dist/assets/buildInfoIcon-BAy1HD1P.js` = `1.71 kB` minified (`0.99 kB` gzip)
-  - `dist/assets/index-BmkKx10-.js` = `84.00 kB` minified (`23.84 kB` gzip)
-- Contract checks revalidated in code:
-  - `tbo:menu-action` payload stays `{ action, label }`
-  - `tbo:local-weather-update` integration into `FallingScene`
-  - `ORBIT_LAYER = 2` contract intact in carousel path
-- Runtime perf capture completed (`?tboPerf=1`, headless CDP):
-  - frame avg/p95/worst = `80.23 / 113.10 / 2043.80 ms`
-  - renderer calls/triangles/lines/points = `450 / 39109 / 4680 / 0`
-  - renderer textures/geometries/programs = `39 / 197 / 28`
-  - `No texture for material:` warnings not observed in capture
-  - Three.js disposal warnings not observed in capture
-- Material warning cleanup completed:
-  - `src/environment/FallingCharacter.ts` no longer passes `color: undefined` into `MeshStandardMaterial`
-  - interactive runtime check reports `THREE.Material ... color undefined` warning count = `0`
-- Interactive desktop-GPU spot check completed (`RTX 3090`, non-headless CDP):
-  - frame avg/p95/worst = `9.41 / 21.40 / 865.10 ms`
-  - renderer calls/triangles/lines/points = `453 / 36424 / 4680 / 0`
-  - renderer textures/geometries/programs = `41 / 211 / 28`
-  - no `No texture for material:`, disposal, or WebGL runtime error warnings observed
-- FBX/noise + network 404 cleanup completed:
-  - added `src/environment/fbxWarningFilter.ts` and wired it into all FBX load paths
-  - added favicon link in `index.html` to stop missing `/favicon.ico` requests
-  - final interactive verification: total runtime warning count = `0`
-  - final interactive frame avg/p95/worst = `7.90 / 20.70 / 582.50 ms`
-- Long-soak validation completed:
-  - 10-minute soak run (`?tboPerf=1`, RTX 3090) completed with `0` app/runtime warnings
-  - 10-minute run showed one terminal outlier (`worst = 30023.8 ms`) while p95 remained stable (`18.8` to `20.8 ms`), consistent with browser throttling/occlusion behavior
-  - 5-minute control soak (background throttling disabled) confirmed stable drift:
-  - avg range = `5.89` to `7.38 ms`
-  - p95 range = `17.0` to `22.3 ms`
-  - worst range = `22.9` to `81.8 ms`
-  - warning counts remained `0` across color/texture/FBX/disposal/WebGL/404 categories
-- Phase 6 interactive follow-up validation completed (`2026-02-10T18:31:11.153Z`, `http://127.0.0.1:43234/?tboPerf=1`, RTX 3090):
-  - frame avg/p95/worst = `5.84 / 15.80 / 22.30 ms`
-  - fps/samples = `171.3 / 600`
-  - renderer calls/triangles/lines/points = `447 / 38044 / 4680 / 0`
-  - renderer textures/geometries/programs = `39 / 208 / 28`
-  - heap startup/steady/delta = `15.0 / 99.5 / +84.6 MB`
-  - warning counts remained `0` for `color undefined`, `No texture for material`, FBX, disposal, WebGL runtime errors, and network `404` categories
-- Capture workflow update:
-  - soak captures now navigate a single Chrome tab via CDP (no duplicate app tabs required)
-- Phase 5 report finalized:
-  - `docs/perf-final.md`
+Status: `Implemented, integrated capture complete, phase-isolated capture pending`
 
-## Remaining Optional Follow-Up
+Actions:
+- Keep canvas texture uploads gated to meaningful state changes.
+- Remove any redundant per-frame transforms or property writes in icon paths.
+- Retain current interaction behavior and animation cadence.
 
-- None required for the current phase.
-- If interactive p95 regresses in a future pass, tune adaptive particle-density thresholds in `src/environment/WeatherParticles.ts`.
+Implemented:
+- `MenuIcon3D.ts`: moved static transforms to initialization, removed redundant per-frame static assignments, and froze matrix updates for static icon nodes.
+- `CharacterOrbitCarousel.ts`: cached scale/render-order writes to avoid unnecessary per-frame property updates.
+- `HeaderOverlay.ts`: weather icon redraw and date/weather text writes now run only when visible state changes.
 
-## Guardrails (Do Not Drift)
+Expected result:
+- Small but reliable frame-time improvements and less jitter.
 
-- Preserve contracts from `AGENTS.md`:
-  - `tbo:menu-action` payload shape is `{ action, label }`
-  - `tbo:local-weather-update` must continue feeding `FallingScene`
-  - `ORBIT_LAYER = 2` must remain enabled for camera, carousel meshes, and raycaster
-- Keep dormant/legacy `MenuIcon3D` helper paths out of scope unless explicitly requested.
+## Execution Cadence
 
-## Verification Commands
+1. `Complete` Baseline reference capture recorded (`~453` draw calls).
+2. `Implemented / integrated capture complete / phase-isolated capture pending` P0.
+3. `Implemented / integrated capture complete / phase-isolated capture pending` P1.
+4. `Implemented / integrated capture complete / phase-isolated capture pending` P2.
+5. `Implemented / integrated capture complete / phase-isolated capture pending` P3.
+6. `Pending` visual parity QA against reference screenshots.
 
-- Required:
-  - `npm.cmd run build`
-- Optional interactive:
-  - `npm.cmd run dev`
+## Success Criteria
 
+- Draw calls reduced below target or materially lower than baseline.
+- No regression in event contracts or orbit carousel interaction.
+- No meaningful aesthetic drift in icon appearance, scene composition, or animation feel.
+- Build passes with `npm.cmd run build`.
+
+## Rollback Strategy
+
+Each phase is scoped to a small set of files.
+If visual drift appears, rollback the specific phase and keep prior wins.
+Do not merge optimization changes without paired perf capture and visual check.

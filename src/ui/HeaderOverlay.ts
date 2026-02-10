@@ -46,6 +46,9 @@ export class HeaderOverlay {
   private onAction?: (detail: HeaderActionDetail) => void;
   private iconLastFrameAt = 0;
   private iconAccumulatedDelta = 0;
+  private lastRenderedDateText = '';
+  private lastRenderedWeatherText = '';
+  private lastRenderedWeatherKey = '';
 
   private readonly onResizeHandler = (): void => {
     this.updateDateTime();
@@ -298,10 +301,22 @@ export class HeaderOverlay {
       selectedText = now.toLocaleDateString('en-US', formatCandidates[0]);
     }
 
-    this.dateTimeTextEl.textContent = selectedText;
-    drawWeatherIcon(this.weatherCanvas, activeWeatherCode, isDay, weatherSize);
-    this.weatherTextEl.textContent =
-      this.weatherTempF !== null ? `${Math.round(this.weatherTempF)}F` : '--F';
+    if (this.dateTimeTextEl.textContent !== selectedText || this.lastRenderedDateText !== selectedText) {
+      this.dateTimeTextEl.textContent = selectedText;
+      this.lastRenderedDateText = selectedText;
+    }
+
+    const weatherKey = `${activeWeatherCode ?? 'na'}|${isDay ? 1 : 0}|${weatherSize}`;
+    if (this.lastRenderedWeatherKey !== weatherKey) {
+      drawWeatherIcon(this.weatherCanvas, activeWeatherCode, isDay, weatherSize);
+      this.lastRenderedWeatherKey = weatherKey;
+    }
+
+    const weatherText = this.weatherTempF !== null ? `${Math.round(this.weatherTempF)}F` : '--F';
+    if (this.weatherTextEl.textContent !== weatherText || this.lastRenderedWeatherText !== weatherText) {
+      this.weatherTextEl.textContent = weatherText;
+      this.lastRenderedWeatherText = weatherText;
+    }
   }
 
   private getDateTimeFormatCandidates(viewportWidth: number): Intl.DateTimeFormatOptions[] {
@@ -389,5 +404,8 @@ export class HeaderOverlay {
     this.weatherTempF = null;
     this.weatherCode = null;
     this.weatherIsDay = null;
+    this.lastRenderedDateText = '';
+    this.lastRenderedWeatherText = '';
+    this.lastRenderedWeatherKey = '';
   }
 }

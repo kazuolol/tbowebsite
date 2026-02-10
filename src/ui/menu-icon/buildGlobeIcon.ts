@@ -67,6 +67,40 @@ export function buildGlobeIcon(group: THREE.Group, scene: THREE.Scene): GlobeIco
     });
   };
 
+  const appendLineSegments = (
+    target: number[],
+    points: readonly THREE.Vector3[],
+    closeLoop: boolean
+  ): void => {
+    if (points.length < 2) {
+      return;
+    }
+    for (let i = 1; i < points.length; i++) {
+      const a = points[i - 1];
+      const b = points[i];
+      target.push(a.x, a.y, a.z, b.x, b.y, b.z);
+    }
+    if (!closeLoop) {
+      return;
+    }
+    const first = points[0];
+    const last = points[points.length - 1];
+    target.push(last.x, last.y, last.z, first.x, first.y, first.z);
+  };
+
+  const createLineSegments = (
+    points: readonly number[],
+    material: THREE.LineBasicMaterial
+  ): THREE.LineSegments | null => {
+    if (points.length === 0) {
+      return null;
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+    return new THREE.LineSegments(geometry, material);
+  };
+
   const globeFillLight = new THREE.PointLight(0x6dff80, 0.38, 8.0, 2.0);
   globeFillLight.position.set(1.45, 1.18, 1.52);
   scene.add(globeFillLight);
@@ -114,6 +148,9 @@ export function buildGlobeIcon(group: THREE.Group, scene: THREE.Scene): GlobeIco
     toneMapped: false,
   });
 
+  const gridGlowSegments: number[] = [];
+  const gridCoreSegments: number[] = [];
+
   const latitudeBands = 8;
   for (let band = 1; band < latitudeBands; band++) {
     const t = band / latitudeBands;
@@ -128,12 +165,8 @@ export function buildGlobeIcon(group: THREE.Group, scene: THREE.Scene): GlobeIco
         new THREE.Vector3(Math.cos(angle) * ringRadius, y, Math.sin(angle) * ringRadius * 0.96)
       );
     }
-    const glowMaterial = gridGlowTemplate.clone();
-    const coreMaterial = gridCoreTemplate.clone();
-    coreGroup.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points), glowMaterial));
-    coreGroup.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points), coreMaterial));
-    addPulse(glowMaterial, 0.08, 0.02, 2.3, band * 0.31);
-    addPulse(coreMaterial, 0.34, 0.03, 2.9, band * 0.47);
+    appendLineSegments(gridGlowSegments, points, true);
+    appendLineSegments(gridCoreSegments, points, true);
   }
 
   const longitudeLines = 12;
@@ -153,13 +186,20 @@ export function buildGlobeIcon(group: THREE.Group, scene: THREE.Scene): GlobeIco
         )
       );
     }
-    const glowMaterial = gridGlowTemplate.clone();
-    const coreMaterial = gridCoreTemplate.clone();
-    coreGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), glowMaterial));
-    coreGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), coreMaterial));
-    addPulse(glowMaterial, 0.08, 0.018, 2.1, line * 0.27);
-    addPulse(coreMaterial, 0.34, 0.025, 2.8, line * 0.33);
+    appendLineSegments(gridGlowSegments, points, false);
+    appendLineSegments(gridCoreSegments, points, false);
   }
+
+  const gridGlowLines = createLineSegments(gridGlowSegments, gridGlowTemplate);
+  if (gridGlowLines) {
+    coreGroup.add(gridGlowLines);
+  }
+  const gridCoreLines = createLineSegments(gridCoreSegments, gridCoreTemplate);
+  if (gridCoreLines) {
+    coreGroup.add(gridCoreLines);
+  }
+  addPulse(gridGlowTemplate, 0.08, 0.02, 2.3, 0.4);
+  addPulse(gridCoreTemplate, 0.34, 0.03, 2.8, 0.7);
 
   const hubAt = (latDeg: number, lonDeg: number, scale = 1): THREE.Vector3 => {
     const lat = (latDeg * Math.PI) / 180;
@@ -210,14 +250,22 @@ export function buildGlobeIcon(group: THREE.Group, scene: THREE.Scene): GlobeIco
     depthWrite: false,
     toneMapped: false,
   });
+  const hubNodes = new THREE.InstancedMesh(hubNodeGeometry, hubNodeTemplate, hubs.length);
+  hubNodes.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+  const hubDummy = new THREE.Object3D();
   hubs.forEach((hub, index) => {
-    const nodeMaterial = hubNodeTemplate.clone();
-    const node = new THREE.Mesh(hubNodeGeometry, nodeMaterial);
-    node.position.copy(hub);
-    coreGroup.add(node);
-    addPulse(nodeMaterial, 0.52, 0.04, 3.1, index * 0.36);
+    hubDummy.position.copy(hub);
+    hubDummy.rotation.set(0, 0, 0);
+    hubDummy.scale.set(1, 1, 1);
+    hubDummy.updateMatrix();
+    hubNodes.setMatrixAt(index, hubDummy.matrix);
   });
+  hubNodes.instanceMatrix.needsUpdate = true;
+  coreGroup.add(hubNodes);
+  addPulse(hubNodeTemplate, 0.52, 0.04, 3.1, 0.36);
 
+  const brightArcSegments: number[] = [];
+  const softArcSegments: number[] = [];
   links.forEach(([aIndex, bIndex], index) => {
     const start = hubs[aIndex];
     const end = hubs[bIndex];
@@ -230,18 +278,40 @@ export function buildGlobeIcon(group: THREE.Group, scene: THREE.Scene): GlobeIco
       arcPoints.push(raisedPoint.multiplyScalar(radius * lift));
     }
 
-    const arcMaterial = new THREE.LineBasicMaterial({
-      color: index % 3 === 0 ? 0xb8ff7d : 0x86ff85,
-      transparent: true,
-      opacity: 0.14,
-      blending: THREE.NormalBlending,
-      depthWrite: false,
-      toneMapped: false,
-    });
-    const arc = new THREE.Line(new THREE.BufferGeometry().setFromPoints(arcPoints), arcMaterial);
-    coreGroup.add(arc);
-    addPulse(arcMaterial, 0.22, 0.04, 2.4 + index * 0.1, index * 0.24);
+    if (index % 3 === 0) {
+      appendLineSegments(brightArcSegments, arcPoints, false);
+    } else {
+      appendLineSegments(softArcSegments, arcPoints, false);
+    }
   });
+
+  const brightArcMaterial = new THREE.LineBasicMaterial({
+    color: 0xb8ff7d,
+    transparent: true,
+    opacity: 0.14,
+    blending: THREE.NormalBlending,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const brightArcLines = createLineSegments(brightArcSegments, brightArcMaterial);
+  if (brightArcLines) {
+    coreGroup.add(brightArcLines);
+  }
+  addPulse(brightArcMaterial, 0.22, 0.04, 2.4, 0.24);
+
+  const softArcMaterial = new THREE.LineBasicMaterial({
+    color: 0x86ff85,
+    transparent: true,
+    opacity: 0.14,
+    blending: THREE.NormalBlending,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const softArcLines = createLineSegments(softArcSegments, softArcMaterial);
+  if (softArcLines) {
+    coreGroup.add(softArcLines);
+  }
+  addPulse(softArcMaterial, 0.22, 0.04, 2.7, 0.48);
 
   const orbitGuidePoints: THREE.Vector3[] = [];
   const orbitSegments = 180;
@@ -291,22 +361,26 @@ export function buildGlobeIcon(group: THREE.Group, scene: THREE.Scene): GlobeIco
     depthWrite: false,
     toneMapped: false,
   });
+  const orbitTickSegments: number[] = [];
   for (let i = 0; i < 8; i++) {
     const angle = -0.96 + i * 0.31;
     const x = Math.cos(angle) * radius * 1.22;
     const y = Math.sin(angle) * radius * 0.76;
-    const tickMaterial = orbitTickTemplate.clone();
-    const tick = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(x * 0.97, y * 0.97, 0),
-        new THREE.Vector3(x * 1.05, y * 1.05, 0),
-      ]),
-      tickMaterial
+    orbitTickSegments.push(
+      x * 0.97,
+      y * 0.97,
+      0,
+      x * 1.05,
+      y * 1.05,
+      0
     );
-    tick.rotation.copy(orbitGuide.rotation);
-    coreGroup.add(tick);
-    addPulse(tickMaterial, 0.28, 0.04, 2.9, i * 0.43);
   }
+  const orbitTicks = createLineSegments(orbitTickSegments, orbitTickTemplate);
+  if (orbitTicks) {
+    orbitTicks.rotation.copy(orbitGuide.rotation);
+    coreGroup.add(orbitTicks);
+  }
+  addPulse(orbitTickTemplate, 0.28, 0.04, 2.9, 0.43);
 
   const haloMaterial = new THREE.SpriteMaterial({
     map: createOffsetGlowTexture(),
@@ -499,27 +573,26 @@ export function buildGlobeIcon(group: THREE.Group, scene: THREE.Scene): GlobeIco
     depthWrite: false,
     toneMapped: false,
   });
+  const connectorSegments: number[] = [];
   const addConnector = (
     start: THREE.Vector3,
     end: THREE.Vector3,
-    offsetY: number,
-    phase: number
+    offsetY: number
   ): void => {
     const mid = start.clone().lerp(end, 0.5);
     mid.y += offsetY;
-    const connectorMaterial = connectorTemplate.clone();
-    const connector = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints([start, mid, end]),
-      connectorMaterial
-    );
-    group.add(connector);
-    addPulse(connectorMaterial, 0.28, 0.04, 3.1, phase);
+    appendLineSegments(connectorSegments, [start, mid, end], false);
   };
 
-  addConnector(hubAt(22, 18, 1.03), new THREE.Vector3(1.18, 0.34, 0.12), 0.08, 0.4);
-  addConnector(hubAt(-6, 22, 1.02), new THREE.Vector3(1.12, 0.18, 0.16), 0.04, 0.9);
-  addConnector(hubAt(12, -8, 1.02), new THREE.Vector3(-1.16, -0.2, 0.18), -0.02, 1.5);
-  addConnector(hubAt(42, 14, 1.01), new THREE.Vector3(1.0, 0.86, 0), 0.16, 2.0);
+  addConnector(hubAt(22, 18, 1.03), new THREE.Vector3(1.18, 0.34, 0.12), 0.08);
+  addConnector(hubAt(-6, 22, 1.02), new THREE.Vector3(1.12, 0.18, 0.16), 0.04);
+  addConnector(hubAt(12, -8, 1.02), new THREE.Vector3(-1.16, -0.2, 0.18), -0.02);
+  addConnector(hubAt(42, 14, 1.01), new THREE.Vector3(1.0, 0.86, 0), 0.16);
+  const connectorLines = createLineSegments(connectorSegments, connectorTemplate);
+  if (connectorLines) {
+    group.add(connectorLines);
+  }
+  addPulse(connectorTemplate, 0.28, 0.04, 3.1, 0.4);
 
   const connectorNodeMaterial = new THREE.MeshBasicMaterial({
     color: 0xecffb8,
@@ -536,13 +609,23 @@ export function buildGlobeIcon(group: THREE.Group, scene: THREE.Scene): GlobeIco
     new THREE.Vector3(-1.16, -0.2, 0.18),
     new THREE.Vector3(1.0, 0.86, 0),
   ];
+  const connectorMarkers = new THREE.InstancedMesh(
+    connectorNodeGeometry,
+    connectorNodeMaterial,
+    connectorNodePoints.length
+  );
+  connectorMarkers.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+  const markerDummy = new THREE.Object3D();
   connectorNodePoints.forEach((point, index) => {
-    const markerMaterial = connectorNodeMaterial.clone();
-    const marker = new THREE.Mesh(connectorNodeGeometry, markerMaterial);
-    marker.position.copy(point);
-    group.add(marker);
-    addPulse(markerMaterial, 0.56, 0.05, 3.4, index * 0.52);
+    markerDummy.position.copy(point);
+    markerDummy.rotation.set(0, 0, 0);
+    markerDummy.scale.set(1, 1, 1);
+    markerDummy.updateMatrix();
+    connectorMarkers.setMatrixAt(index, markerDummy.matrix);
   });
+  connectorMarkers.instanceMatrix.needsUpdate = true;
+  group.add(connectorMarkers);
+  addPulse(connectorNodeMaterial, 0.56, 0.05, 3.4, 0.52);
 
   group.rotation.set(-0.18, 0.46, 0.04);
   return state;
@@ -563,12 +646,6 @@ export function updateGlobeOrbitNodes(state: GlobeIconState, elapsedSeconds: num
       Math.sin(angle) * packet.radiusY * radialJitter,
       packet.zOffset + Math.sin(angle * 2.2 + packet.phase * 0.85) * 0.05
     );
-
-    const material = packet.mesh.material;
-    if (material instanceof THREE.MeshBasicMaterial) {
-      material.opacity =
-        0.2 + 0.18 * (0.5 + 0.5 * Math.sin(elapsedSeconds * (2.1 + packet.speed * 0.4) + packet.phase));
-    }
   }
 }
 

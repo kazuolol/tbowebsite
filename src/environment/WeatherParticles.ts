@@ -53,6 +53,7 @@ interface ParticleLayer extends LayerConfig {
   positions: Float32Array;
   velocities: Float32Array;
   seeds: Float32Array;
+  baseTargetCount: number;
   activeCount: number;
   targetCount: number;
   speedMultiplier: number;
@@ -86,6 +87,17 @@ const STORM_DENSITY_EXTRA_MULTIPLIER = 1.2;
 const PRECIPITATION_OPACITY_MULTIPLIER = 1.12;
 const LIGHTNING_POOL_SIZE = 10;
 const LIGHTNING_MAX_SEGMENTS = 10;
+const VOLUME_MARGIN_X = 22;
+const VOLUME_MARGIN_Y = 24;
+const VOLUME_MARGIN_Z = 20;
+const PARTICLE_DENSITY_MIN_SCALE = 0.55;
+const PARTICLE_DENSITY_DOWN_STEP = 0.15;
+const PARTICLE_DENSITY_UP_STEP = 0.05;
+const PARTICLE_DENSITY_DEGRADE_FRAME_MS = 22;
+const PARTICLE_DENSITY_RECOVER_FRAME_MS = 14;
+const PARTICLE_DENSITY_DEGRADE_HOLD_SECONDS = 2;
+const PARTICLE_DENSITY_RECOVER_HOLD_SECONDS = 7;
+const PARTICLE_DENSITY_FRAME_EMA_ALPHA = 0.08;
 
 export class WeatherParticles {
   private scene: THREE.Scene;
@@ -107,6 +119,10 @@ export class WeatherParticles {
   private readonly targetWind = new THREE.Vector2();
   private worldSpeed = 12;
   private targetWorldSpeed = 12;
+  private densityScale = 1;
+  private smoothedFrameMs = 16.7;
+  private lowPerfSeconds = 0;
+  private highPerfSeconds = 0;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -212,20 +228,20 @@ export class WeatherParticles {
     const snowDensity = SNOW_DENSITY_MULTIPLIER * stormBoost;
     const hailDensity = HAIL_DENSITY_MULTIPLIER * stormBoost;
 
-    this.rainLayer.targetCount = this.clampCount(
+    this.rainLayer.baseTargetCount = this.clampCount(
       recipe.rain * rainDensity,
       this.rainLayer.maxCount
     );
-    this.snowLayer.targetCount = this.clampCount(
+    this.snowLayer.baseTargetCount = this.clampCount(
       recipe.snow * snowDensity,
       this.snowLayer.maxCount
     );
-    this.hailLayer.targetCount = this.clampCount(
+    this.hailLayer.baseTargetCount = this.clampCount(
       recipe.hail * hailDensity,
       this.hailLayer.maxCount
     );
-    this.mistLayer.targetCount = 0;
-    this.motesLayer.targetCount = 0;
+    this.mistLayer.baseTargetCount = 0;
+    this.motesLayer.baseTargetCount = 0;
 
     this.rainLayer.speedMultiplier = recipe.rainSpeed;
     this.snowLayer.speedMultiplier = recipe.snowSpeed;
@@ -246,6 +262,7 @@ export class WeatherParticles {
       state.weatherCode === 99;
     this.lightningRate = recipe.lightningRate;
 
+    this.applyDensityScaledTargets();
     this.applyPalette(state.isDay);
     this.applyLayerOpacities();
   }
@@ -258,13 +275,17 @@ export class WeatherParticles {
   public update(delta: number): void {
     this.time += delta;
 
+    this.updateAdaptiveDensity(delta);
+
     const blend = 1 - Math.exp(-delta * 3.4);
     this.wind.lerp(this.targetWind, blend);
     this.worldSpeed = THREE.MathUtils.lerp(this.worldSpeed, this.targetWorldSpeed, blend);
+    const windMagnitude = this.wind.length();
+    const swayScale = 1 + THREE.MathUtils.clamp(windMagnitude * 0.36, 0, 1.25);
 
     for (const layer of this.layers) {
       this.updateLayerActiveCount(layer, delta);
-      this.updateLayerParticles(layer, delta);
+      this.updateLayerParticles(layer, delta, swayScale);
     }
 
     this.updateLightning(delta);
@@ -324,6 +345,7 @@ export class WeatherParticles {
       positions,
       velocities,
       seeds,
+      baseTargetCount: 0,
       activeCount: 0,
       targetCount: 0,
       speedMultiplier: 1,
@@ -384,59 +406,61 @@ export class WeatherParticles {
       layer.activeCount = Math.max(layer.targetCount, layer.activeCount - step);
     }
 
-    layer.geometry.setDrawRange(0, layer.activeCount);
+    if (layer.geometry.drawRange.count !== layer.activeCount) {
+      layer.geometry.setDrawRange(0, layer.activeCount);
+    }
   }
 
-  private updateLayerParticles(layer: ParticleLayer, delta: number): void {
+  private updateLayerParticles(layer: ParticleLayer, delta: number, swayScale: number): void {
     if (layer.activeCount <= 0) {
       return;
     }
 
-    const windMagnitude = this.wind.length();
-    const swayScale = 1 + THREE.MathUtils.clamp(windMagnitude * 0.36, 0, 1.25);
     const positionAttr = layer.geometry.attributes.position as THREE.BufferAttribute;
+    const positions = layer.positions;
+    const velocities = layer.velocities;
+    const seeds = layer.seeds;
+    const activeCount = layer.activeCount;
+    const speedMultiplier = layer.speedMultiplier;
+    const depthSpeed = this.worldSpeed * layer.depthFactor;
+    const windXBase = this.wind.x * layer.windFactor * swayScale;
+    const windYBase = this.wind.y * layer.windFactor * 0.3;
+    const flutterStrengthX = layer.flutter * 0.28;
+    const flutterStrengthY = layer.flutter * 0.14;
+    const flutterTime = this.time * 2.5;
+    const gustTime = this.time * 0.8;
 
-    for (let i = 0; i < layer.activeCount; i += 1) {
+    const minX = VOLUME.minX - VOLUME_MARGIN_X;
+    const maxX = VOLUME.maxX + VOLUME_MARGIN_X;
+    const minY = VOLUME.minY - VOLUME_MARGIN_Y;
+    const maxY = VOLUME.maxY + VOLUME_MARGIN_Y;
+    const minZ = VOLUME.minZ - VOLUME_MARGIN_Z;
+    const maxZ = VOLUME.maxZ + VOLUME_MARGIN_Z;
+
+    for (let i = 0; i < activeCount; i += 1) {
       const idx = i * 3;
-      const seed = layer.seeds[i];
-      const flutter = Math.sin(this.time * 2.5 + seed * 12.6) * layer.flutter;
-      const gust = 0.68 + (Math.sin(this.time * 0.8 + seed * 4.8) * 0.5 + 0.5) * 0.92;
-      const windX = this.wind.x * layer.windFactor * gust * swayScale;
-      const windY = this.wind.y * layer.windFactor * 0.3;
+      const seed = seeds[i];
+      const flutterWave = Math.sin(flutterTime + seed * 12.6);
+      const flutter = flutterWave * layer.flutter;
+      const gust = 1.14 + Math.sin(gustTime + seed * 4.8) * 0.46;
 
-      const velocityX = layer.velocities[idx] * layer.speedMultiplier;
-      const velocityY = layer.velocities[idx + 1] * layer.speedMultiplier;
-      const velocityZ = layer.velocities[idx + 2] * layer.speedMultiplier;
+      const velocityX = velocities[idx] * speedMultiplier;
+      const velocityY = velocities[idx + 1] * speedMultiplier;
+      const velocityZ = velocities[idx + 2] * speedMultiplier;
 
-      layer.positions[idx] += (velocityX + windX + flutter * 0.28) * delta;
-      layer.positions[idx + 1] += (velocityY + windY + flutter * 0.14) * delta;
-      layer.positions[idx + 2] += (velocityZ + this.worldSpeed * layer.depthFactor) * delta;
+      positions[idx] += (velocityX + windXBase * gust + flutter * flutterStrengthX) * delta;
+      positions[idx + 1] += (velocityY + windYBase + flutter * flutterStrengthY) * delta;
+      positions[idx + 2] += (velocityZ + depthSpeed) * delta;
 
-      if (this.isOutOfVolume(layer, idx)) {
+      const x = positions[idx];
+      const y = positions[idx + 1];
+      const z = positions[idx + 2];
+      if (x < minX || x > maxX || y < minY || y > maxY || z < minZ || z > maxZ) {
         this.resetParticle(layer, i, false);
       }
     }
 
     positionAttr.needsUpdate = true;
-  }
-
-  private isOutOfVolume(layer: ParticleLayer, idx: number): boolean {
-    const x = layer.positions[idx];
-    const y = layer.positions[idx + 1];
-    const z = layer.positions[idx + 2];
-
-    const marginX = 22;
-    const marginY = 24;
-    const marginZ = 20;
-
-    return (
-      x < VOLUME.minX - marginX ||
-      x > VOLUME.maxX + marginX ||
-      y < VOLUME.minY - marginY ||
-      y > VOLUME.maxY + marginY ||
-      z < VOLUME.minZ - marginZ ||
-      z > VOLUME.maxZ + marginZ
-    );
   }
 
   private resetParticle(layer: ParticleLayer, index: number, spreadEverywhere: boolean): void {
@@ -574,6 +598,58 @@ export class WeatherParticles {
 
   private randomRange(min: number, max: number): number {
     return min + Math.random() * (max - min);
+  }
+
+  private updateAdaptiveDensity(delta: number): void {
+    if (!Number.isFinite(delta) || delta <= 0) {
+      return;
+    }
+
+    const frameMs = THREE.MathUtils.clamp(delta * 1000, 0, 250);
+    this.smoothedFrameMs = THREE.MathUtils.lerp(
+      this.smoothedFrameMs,
+      frameMs,
+      PARTICLE_DENSITY_FRAME_EMA_ALPHA
+    );
+
+    if (this.smoothedFrameMs > PARTICLE_DENSITY_DEGRADE_FRAME_MS) {
+      this.lowPerfSeconds += delta;
+      this.highPerfSeconds = 0;
+      if (this.lowPerfSeconds >= PARTICLE_DENSITY_DEGRADE_HOLD_SECONDS) {
+        this.lowPerfSeconds = 0;
+        this.setDensityScale(this.densityScale - PARTICLE_DENSITY_DOWN_STEP);
+      }
+      return;
+    }
+
+    if (this.smoothedFrameMs < PARTICLE_DENSITY_RECOVER_FRAME_MS) {
+      this.highPerfSeconds += delta;
+      this.lowPerfSeconds = 0;
+      if (this.highPerfSeconds >= PARTICLE_DENSITY_RECOVER_HOLD_SECONDS) {
+        this.highPerfSeconds = 0;
+        this.setDensityScale(this.densityScale + PARTICLE_DENSITY_UP_STEP);
+      }
+      return;
+    }
+
+    this.lowPerfSeconds = Math.max(0, this.lowPerfSeconds - delta * 0.5);
+    this.highPerfSeconds = 0;
+  }
+
+  private setDensityScale(nextScale: number): void {
+    const clamped = THREE.MathUtils.clamp(nextScale, PARTICLE_DENSITY_MIN_SCALE, 1);
+    if (Math.abs(clamped - this.densityScale) < 1e-4) {
+      return;
+    }
+
+    this.densityScale = clamped;
+    this.applyDensityScaledTargets();
+  }
+
+  private applyDensityScaledTargets(): void {
+    for (const layer of this.layers) {
+      layer.targetCount = this.clampCount(layer.baseTargetCount * this.densityScale, layer.maxCount);
+    }
   }
 
   private applyPalette(isDay: boolean): void {

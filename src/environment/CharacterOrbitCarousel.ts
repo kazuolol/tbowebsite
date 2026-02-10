@@ -33,6 +33,7 @@ interface OrbitItem {
   phase: number;
   focusStrength: number;
   hoverScaleStrength: number;
+  iconAnimationAccumulator: number;
   lastHovered: boolean;
   lastActive: boolean;
 }
@@ -77,6 +78,9 @@ const HOVER_FOCUS_IN_LAMBDA = 20;
 const HOVER_FOCUS_OUT_LAMBDA = 12;
 const HOVER_FOCUS_SNAP_DELTA = 0.25;
 const HOVER_FOCUS_SNAP_EPSILON = 0.001;
+const ICON_UPDATE_FPS = 30;
+const ICON_UPDATE_STEP_SECONDS = 1 / ICON_UPDATE_FPS;
+const ICON_MAX_FRAME_DELTA_SECONDS = 0.1;
 
 export class CharacterOrbitCarousel {
   private readonly scene: THREE.Scene;
@@ -228,7 +232,16 @@ export class CharacterOrbitCarousel {
         }
       }
 
-      item.icon.update(delta, renderer);
+      item.iconAnimationAccumulator += THREE.MathUtils.clamp(
+        delta,
+        0,
+        ICON_MAX_FRAME_DELTA_SECONDS
+      );
+      if (item.iconAnimationAccumulator >= ICON_UPDATE_STEP_SECONDS) {
+        const iconDelta = item.iconAnimationAccumulator;
+        item.iconAnimationAccumulator = 0;
+        item.icon.update(iconDelta, renderer);
+      }
 
       item.group.position.set(x, y, z);
       const focusOffset = item.focusStrength * HOVER_FOCUS_DISTANCE;
@@ -410,6 +423,7 @@ export class CharacterOrbitCarousel {
         phase,
         focusStrength: 0,
         hoverScaleStrength: 0,
+        iconAnimationAccumulator: ICON_UPDATE_STEP_SECONDS,
         lastHovered: false,
         lastActive: false,
       };

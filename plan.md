@@ -16,6 +16,43 @@ Repo: `D:\code\tbowebsite`
 - Phase 3 (bundle/module strategy): Complete.
 - Phase 4 (secondary GPU/render work): Complete.
 - Phase 5 (verification/regression safety): Complete.
+- Phase 6 (targeted runtime follow-up pass): Complete.
+
+## Current Objective
+
+- Preserve existing contracts/behavior while reducing steady-state frame time in the active runtime path (`FallingScene` + in-world carousel + weather particles).
+- Validate measurable improvement with repeatable benchmark captures (before/after, same method).
+- Follow with one interactive GPU capture to confirm headless gains transfer to real hardware timing.
+
+## Session Update (2026-02-10, Follow-Up Perf Pass)
+
+### Completed in this session
+
+- `src/scene/FallingScene.ts`
+  - Added fragment pooling and active-fragment tracking to remove repeated spawn/despawn allocations and per-frame array churn.
+  - Removed redundant per-frame camera reset/look-at work in `animate()`.
+  - Added tint-change gating so cube/fragment color-emissive sync only runs when tint actually changes.
+- `src/environment/CharacterOrbitCarousel.ts`
+  - Added fixed-step icon animation throttling (`30 FPS`) for in-world menu icons while keeping orbit transforms + hover/click responsiveness per-frame.
+- `src/environment/WeatherParticles.ts`
+  - Added adaptive particle-density scaling based on sustained frame-time pressure.
+  - Tightened particle hot-loop math and reduced redundant per-frame operations.
+
+### Benchmark captures from this session (headless, `?tboPerf=1`)
+
+- Baseline before edits (same capture method):
+  - frame avg/p95/worst = `47.21 / 353.70 / 1000.00 ms`
+  - fps = `21.2`
+- Post-change run A:
+  - frame avg/p95/worst = `36.02 / 55.50 / 1000.10 ms`
+  - fps = `27.8`
+- Post-change run B:
+  - frame avg/p95/worst = `33.33 / 16.30 / 1000.10 ms`
+  - fps = `30.0`
+- Practical summary:
+  - average frame-time improvement is approximately `26.6%` (47.21 ms -> 34.68 ms average of stable post-runs)
+  - estimated fps improvement is approximately `36.3%` (21.2 -> 28.9)
+  - headless p95/worst remains noisy due to virtual-time/browser scheduling effects, so avg/fps are treated as the primary comparable signals.
 
 ## What Is Already Done
 
@@ -46,11 +83,12 @@ Repo: `D:\code\tbowebsite`
 ## Verified So Far
 
 - Latest local build result: pass (`npm.cmd run build`).
+- Latest local build after follow-up perf pass: pass (`npm.cmd run build`).
 - Latest chunk snapshot:
   - `dist/assets/three-BHFk_gJM.js` = `618.70 kB` minified (`161.27 kB` gzip)
   - `dist/assets/menu-icon-CcP0RGiD.js` = `62.22 kB` minified (`17.61 kB` gzip)
   - `dist/assets/buildInfoIcon-BAy1HD1P.js` = `1.71 kB` minified (`0.99 kB` gzip)
-  - `dist/assets/index-CI-WPgD-.js` = `82.03 kB` minified (`23.18 kB` gzip)
+  - `dist/assets/index-BmkKx10-.js` = `84.00 kB` minified (`23.84 kB` gzip)
 - Contract checks revalidated in code:
   - `tbo:menu-action` payload stays `{ action, label }`
   - `tbo:local-weather-update` integration into `FallingScene`
@@ -82,6 +120,13 @@ Repo: `D:\code\tbowebsite`
   - p95 range = `17.0` to `22.3 ms`
   - worst range = `22.9` to `81.8 ms`
   - warning counts remained `0` across color/texture/FBX/disposal/WebGL/404 categories
+- Phase 6 interactive follow-up validation completed (`2026-02-10T18:31:11.153Z`, `http://127.0.0.1:43234/?tboPerf=1`, RTX 3090):
+  - frame avg/p95/worst = `5.84 / 15.80 / 22.30 ms`
+  - fps/samples = `171.3 / 600`
+  - renderer calls/triangles/lines/points = `447 / 38044 / 4680 / 0`
+  - renderer textures/geometries/programs = `39 / 208 / 28`
+  - heap startup/steady/delta = `15.0 / 99.5 / +84.6 MB`
+  - warning counts remained `0` for `color undefined`, `No texture for material`, FBX, disposal, WebGL runtime errors, and network `404` categories
 - Capture workflow update:
   - soak captures now navigate a single Chrome tab via CDP (no duplicate app tabs required)
 - Phase 5 report finalized:
@@ -89,7 +134,8 @@ Repo: `D:\code\tbowebsite`
 
 ## Remaining Optional Follow-Up
 
-1. None currently. Optional long-soak validation is complete and recorded in `docs/perf-final.md`.
+- None required for the current phase.
+- If interactive p95 regresses in a future pass, tune adaptive particle-density thresholds in `src/environment/WeatherParticles.ts`.
 
 ## Guardrails (Do Not Drift)
 

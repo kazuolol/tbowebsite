@@ -564,6 +564,452 @@ html, body {
   text-align: right;
 }
 
+/* ========================================
+   Early Access Overlay
+   ======================================== */
+
+/* TheBigOne UI Toolkit parity primitives */
+.text-normal-shadow {
+  font-size: 16px;
+  font-style: normal;
+  color: rgb(255, 255, 255);
+  margin: 0;
+  padding: 0;
+  text-shadow: var(--text-shadow-default);
+}
+
+.text-title-large {
+  font-size: 48px;
+  font-style: normal;
+  letter-spacing: 4px;
+}
+
+.text-large {
+  font-size: 20px;
+  font-style: normal;
+  color: rgb(255, 255, 255);
+  letter-spacing: 0;
+}
+
+.basic-button {
+  background-color: var(--slot-bg-default);
+  border-radius: var(--border-radius-default);
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--border-color-default);
+  width: var(--dc-menu-btn-width);
+  height: var(--size-medium);
+  color: rgb(255, 255, 255);
+  font-family: var(--dc-ui-font-family);
+  cursor: pointer;
+}
+
+.basic-button:hover,
+.basic-button:focus-visible,
+.basic-button-active {
+  background-color: var(--hover-bg);
+  border-color: var(--border-color-hover);
+}
+
+.menu-button-width {
+  width: 280px;
+}
+
+.default-visual-Element {
+  background-color: rgba(51, 51, 51, 0.3);
+  border-color: rgba(0, 0, 0, 0.9);
+  border-radius: var(--border-radius-default);
+}
+
+.blurredBackground_Border {
+  background-color: rgba(51, 51, 51, 0.3);
+  border-color: rgba(129, 129, 129, 0.9);
+  border-radius: var(--border-radius-default);
+  border-width: 2px;
+}
+
+.close-button {
+  width: var(--size-small);
+  height: var(--size-small);
+  background-color: var(--slot-bg-default);
+  border-radius: var(--slot-border-radius);
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--border-color-default);
+  padding: 0;
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  margin: 0;
+  line-height: 1;
+}
+
+.close-button:hover,
+.close-button:focus-visible {
+  background-color: rgba(255, 0, 0, 0.8);
+  border-color: var(--border-color-default);
+}
+
+.dc-early-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  display: none;
+  pointer-events: none;
+}
+
+.dc-early-overlay.is-open {
+  display: block;
+  pointer-events: auto;
+}
+
+.dc-early-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0);
+}
+
+.dc-early-screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  pointer-events: none;
+}
+
+.dc-early-card {
+  width: 398px;
+  min-height: 480px;
+  max-height: min(740px, calc(100vh - 24px));
+  background-color: rgba(0, 0, 0, 0);
+  border-color: rgba(255, 255, 255, 0.15);
+  border-width: 1px;
+  border-style: solid;
+  border-radius: var(--border-radius-default);
+  padding: var(--spacing-medium);
+  pointer-events: auto;
+  overflow-y: auto;
+  color: rgb(255, 255, 255);
+  font-family: var(--dc-ui-font-family);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.dc-early-header {
+  position: relative;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  padding-right: 28px;
+  min-height: 70px;
+}
+
+.dc-early-heading {
+  width: var(--dc-menu-btn-width);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.dc-early-title {
+  margin: 0 0 6px;
+  text-align: center;
+  line-height: 1;
+}
+
+.dc-early-subtitle {
+  margin: 0;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.dc-early-close {
+  top: 0;
+  right: 0;
+  font-size: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dc-early-indicator {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  width: 100%;
+  gap: var(--spacing-default);
+  list-style: none;
+  margin: var(--spacing-default) 0 var(--spacing-medium);
+  padding: 0;
+}
+
+.dc-early-indicator-item {
+  width: 122px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  border-radius: var(--border-radius-medium);
+  opacity: 0.56;
+  user-select: none;
+  transition: opacity 0.2s ease;
+  cursor: default;
+  pointer-events: none;
+}
+
+.dc-early-transparent-button {
+  background-color: rgba(255, 255, 255, 0);
+  border-color: rgba(255, 255, 255, 0);
+}
+
+.dc-early-indicator-item.is-active {
+  opacity: 1;
+}
+
+.dc-early-step {
+  display: none;
+  width: 100%;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  padding-top: var(--spacing-medium);
+}
+
+.dc-early-step.is-active {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.dc-early-label {
+  width: 280px;
+  margin-bottom: 6px;
+  text-align: left;
+}
+
+.dc-early-input {
+  width: 280px;
+  height: var(--size-medium);
+  border-style: solid;
+  border-radius: var(--border-radius-default);
+  border-color: var(--border-color-default);
+  background-color: var(--slot-bg-default);
+  color: rgb(255, 255, 255);
+  font-family: var(--dc-ui-font-family);
+  font-size: 16px;
+  padding: 0 14px;
+  outline: none;
+  cursor: text;
+}
+
+.dc-early-input:hover,
+.dc-early-input:focus-visible {
+  border-color: var(--border-color-hover);
+  background-color: var(--hover-bg);
+}
+
+.dc-early-input.is-invalid {
+  border-color: rgba(255, 94, 94, 0.85);
+  background-color: rgba(255, 94, 94, 0.12);
+}
+
+.dc-early-input::placeholder {
+  color: var(--border-color-hover);
+  text-shadow: var(--text-shadow-default);
+}
+
+.dc-early-help {
+  width: 280px;
+  margin-top: 6px;
+  font-size: 14px;
+  line-height: 1.25;
+  color: rgba(255, 255, 255, 0.9);
+  text-align: left;
+}
+
+.dc-early-error {
+  width: 280px;
+  min-height: 20px;
+  margin-top: 6px;
+  font-size: 14px;
+  color: rgb(255, 94, 94);
+  text-align: left;
+}
+
+.dc-early-actions {
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-default);
+  margin-top: 6px;
+}
+
+.dc-early-check {
+  width: 280px;
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  text-align: left;
+}
+
+.dc-early-check input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid var(--border-color-default);
+  border-radius: var(--border-radius-small);
+  background: rgba(255, 255, 255, 0);
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.dc-early-check input[type='checkbox']::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.9);
+  transform: scale(0);
+  transition: transform 0.15s ease;
+}
+
+.dc-early-check input[type='checkbox']:checked {
+  border-color: var(--border-color-hover);
+  background: var(--hover-bg);
+}
+
+.dc-early-check input[type='checkbox']:checked::after {
+  transform: scale(1);
+}
+
+.dc-early-btn {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  text-decoration: none;
+  line-height: 1;
+}
+
+.dc-early-btn:disabled,
+.basic-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dc-early-btn.is-link {
+  width: var(--dc-menu-btn-width);
+}
+
+.dc-early-btn.is-secondary {
+  width: 100px;
+}
+
+.dc-early-btn.is-secondary.menu-button-width {
+  width: var(--dc-menu-btn-width);
+}
+
+.dc-early-key {
+  width: 280px;
+  margin-top: 6px;
+  display: flex;
+  align-items: stretch;
+  gap: var(--spacing-default);
+}
+
+.dc-early-key-value {
+  flex: 1 1 auto;
+  min-height: var(--size-medium);
+  border-radius: var(--border-radius-default);
+  border: 1px solid var(--border-color-default);
+  background-color: rgba(255, 255, 255, 0);
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 14px;
+  letter-spacing: 0.03em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .dc-early-screen {
+    align-items: flex-start;
+    padding-top: calc(10px + env(safe-area-inset-top));
+    padding-right: 10px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    padding-left: 10px;
+  }
+
+  .dc-early-card {
+    width: min(100%, 398px);
+    min-height: 0;
+    max-height: calc(100vh - 20px);
+  }
+
+  .dc-early-title {
+    font-size: 32px;
+    letter-spacing: 2px;
+  }
+
+  .dc-early-subtitle {
+    font-size: 16px;
+  }
+
+  .dc-early-indicator {
+    flex-wrap: wrap;
+  }
+
+  .dc-early-indicator-item {
+    width: 100px;
+    font-size: 12px;
+  }
+
+  .dc-early-label,
+  .dc-early-input,
+  .dc-early-help,
+  .dc-early-error,
+  .dc-early-actions,
+  .dc-early-check,
+  .dc-early-btn.is-link,
+  .dc-early-key {
+    width: 100%;
+  }
+
+  .dc-early-btn.menu-button-width {
+    width: 100%;
+  }
+
+  .dc-early-key {
+    flex-direction: column;
+  }
+
+  .dc-early-btn.is-secondary {
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .dc-early-title {
+    font-size: 28px;
+    letter-spacing: 1px;
+  }
+
+  .dc-early-subtitle {
+    font-size: 14px;
+  }
+}
+
 /* Temporary weather event simulator */
 .dc-weather-debug {
   position: fixed;

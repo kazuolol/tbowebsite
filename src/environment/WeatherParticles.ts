@@ -48,6 +48,7 @@ interface LayerConfig {
 interface ParticleLayer extends LayerConfig {
   points: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
   geometry: THREE.BufferGeometry;
+  positionAttribute: THREE.BufferAttribute;
   material: THREE.PointsMaterial;
   texture: THREE.CanvasTexture;
   positions: Float32Array;
@@ -63,11 +64,22 @@ interface ParticleLayer extends LayerConfig {
 interface LightningBolt {
   line: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>;
   geometry: THREE.BufferGeometry;
+  positionAttribute: THREE.BufferAttribute;
   material: THREE.LineBasicMaterial;
   positions: Float32Array;
   active: boolean;
   life: number;
   maxLife: number;
+}
+
+type WeatherPerfTier = 'low' | 'medium' | 'high';
+
+interface WeatherPerformanceProfile {
+  layerCountScale: number;
+  initialDensityScale: number;
+  minDensityScale: number;
+  simulationStepSeconds: number;
+  maxSimulationStepsPerFrame: number;
 }
 
 const VOLUME = {
@@ -98,6 +110,7 @@ const PARTICLE_DENSITY_RECOVER_FRAME_MS = 14;
 const PARTICLE_DENSITY_DEGRADE_HOLD_SECONDS = 2;
 const PARTICLE_DENSITY_RECOVER_HOLD_SECONDS = 7;
 const PARTICLE_DENSITY_FRAME_EMA_ALPHA = 0.08;
+const WEATHER_SIMULATION_MAX_DELTA = 0.25;
 
 export class WeatherParticles {
   private scene: THREE.Scene;
@@ -120,12 +133,23 @@ export class WeatherParticles {
   private worldSpeed = 12;
   private targetWorldSpeed = 12;
   private densityScale = 1;
+  private readonly densityMinScale: number;
   private smoothedFrameMs = 16.7;
   private lowPerfSeconds = 0;
   private highPerfSeconds = 0;
+  private simulationAccumulator = 0;
+  private readonly simulationStepSeconds: number;
+  private readonly maxSimulationStepsPerFrame: number;
+  private readonly layerCountScale: number;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
+    const perfProfile = this.resolvePerformanceProfile();
+    this.densityScale = perfProfile.initialDensityScale;
+    this.densityMinScale = perfProfile.minDensityScale;
+    this.simulationStepSeconds = perfProfile.simulationStepSeconds;
+    this.maxSimulationStepsPerFrame = perfProfile.maxSimulationStepsPerFrame;
+    this.layerCountScale = perfProfile.layerCountScale;
     this.group = new THREE.Group();
     this.group.name = 'WeatherParticles';
     this.group.renderOrder = DRAW_ORDER;
@@ -133,7 +157,7 @@ export class WeatherParticles {
 
     this.rainLayer = this.createLayer({
       kind: 'rain',
-      maxCount: 2600,
+      maxCount: this.scaleLayerMaxCount(2600),
       size: 1.15,
       baseOpacity: 0.9,
       dayColor: 0xaad8ff,
@@ -149,7 +173,7 @@ export class WeatherParticles {
 
     this.snowLayer = this.createLayer({
       kind: 'snow',
-      maxCount: 2200,
+      maxCount: this.scaleLayerMaxCount(2200),
       size: 1.9,
       baseOpacity: 0.98,
       dayColor: 0xffffff,
@@ -165,7 +189,7 @@ export class WeatherParticles {
 
     this.hailLayer = this.createLayer({
       kind: 'hail',
-      maxCount: 1200,
+      maxCount: this.scaleLayerMaxCount(1200),
       size: 1.35,
       baseOpacity: 0.95,
       dayColor: 0xe3f4ff,
@@ -274,25 +298,33 @@ export class WeatherParticles {
 
   public setVisible(visible: boolean): void {
     this.group.visible = visible;
+    if (!visible) {
+      this.simulationAccumulator = 0;
+    }
   }
 
   public update(delta: number): void {
-    this.time += delta;
-
-    this.updateAdaptiveDensity(delta);
-
-    const blend = 1 - Math.exp(-delta * 3.4);
-    this.wind.lerp(this.targetWind, blend);
-    this.worldSpeed = THREE.MathUtils.lerp(this.worldSpeed, this.targetWorldSpeed, blend);
-    const windMagnitude = this.wind.length();
-    const swayScale = 1 + THREE.MathUtils.clamp(windMagnitude * 0.36, 0, 1.25);
-
-    for (const layer of this.layers) {
-      this.updateLayerActiveCount(layer, delta);
-      this.updateLayerParticles(layer, delta, swayScale);
+    if (!this.group.visible || !Number.isFinite(delta) || delta <= 0) {
+      return;
     }
 
-    this.updateLightning(delta);
+    const frameDelta = THREE.MathUtils.clamp(delta, 0, WEATHER_SIMULATION_MAX_DELTA);
+    this.updateAdaptiveDensity(frameDelta);
+
+    this.simulationAccumulator = Math.min(
+      this.simulationAccumulator + frameDelta,
+      this.simulationStepSeconds * this.maxSimulationStepsPerFrame
+    );
+
+    let steps = 0;
+    while (
+      this.simulationAccumulator >= this.simulationStepSeconds &&
+      steps < this.maxSimulationStepsPerFrame
+    ) {
+      this.stepSimulation(this.simulationStepSeconds);
+      this.simulationAccumulator -= this.simulationStepSeconds;
+      steps += 1;
+    }
   }
 
   public dispose(): void {
@@ -318,7 +350,9 @@ export class WeatherParticles {
     const positions = new Float32Array(config.maxCount * 3);
     const velocities = new Float32Array(config.maxCount * 3);
     const seeds = new Float32Array(config.maxCount);
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const positionAttribute = new THREE.BufferAttribute(positions, 3);
+    positionAttribute.setUsage(THREE.DynamicDrawUsage);
+    geometry.setAttribute('position', positionAttribute);
     geometry.setDrawRange(0, 0);
 
     const texture = this.createParticleTexture(config.kind);
@@ -328,7 +362,7 @@ export class WeatherParticles {
       map: texture,
       transparent: true,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true,
       opacity: config.baseOpacity,
       sizeAttenuation: true,
       alphaTest: 0.015,
@@ -344,6 +378,7 @@ export class WeatherParticles {
       ...config,
       points,
       geometry,
+      positionAttribute,
       material,
       texture,
       positions,
@@ -367,7 +402,9 @@ export class WeatherParticles {
     for (let i = 0; i < LIGHTNING_POOL_SIZE; i += 1) {
       const positions = new Float32Array(LIGHTNING_MAX_SEGMENTS * 3);
       const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const positionAttribute = new THREE.BufferAttribute(positions, 3);
+      positionAttribute.setUsage(THREE.DynamicDrawUsage);
+      geometry.setAttribute('position', positionAttribute);
       geometry.setDrawRange(0, 0);
 
       const material = new THREE.LineBasicMaterial({
@@ -375,7 +412,7 @@ export class WeatherParticles {
         transparent: true,
         opacity: 0,
         depthWrite: false,
-        depthTest: false,
+        depthTest: true,
         fog: true,
       });
 
@@ -388,6 +425,7 @@ export class WeatherParticles {
       this.bolts.push({
         line,
         geometry,
+        positionAttribute,
         material,
         positions,
         active: false,
@@ -420,7 +458,6 @@ export class WeatherParticles {
       return;
     }
 
-    const positionAttr = layer.geometry.attributes.position as THREE.BufferAttribute;
     const positions = layer.positions;
     const velocities = layer.velocities;
     const seeds = layer.seeds;
@@ -464,7 +501,7 @@ export class WeatherParticles {
       }
     }
 
-    positionAttr.needsUpdate = true;
+    layer.positionAttribute.needsUpdate = true;
   }
 
   private resetParticle(layer: ParticleLayer, index: number, spreadEverywhere: boolean): void {
@@ -554,8 +591,7 @@ export class WeatherParticles {
       }
     }
 
-    const positionAttr = bolt.geometry.attributes.position as THREE.BufferAttribute;
-    positionAttr.needsUpdate = true;
+    bolt.positionAttribute.needsUpdate = true;
     bolt.geometry.setDrawRange(0, drawCount);
     bolt.material.opacity = 0.95;
     bolt.line.visible = true;
@@ -604,6 +640,88 @@ export class WeatherParticles {
     return min + Math.random() * (max - min);
   }
 
+  private stepSimulation(delta: number): void {
+    this.time += delta;
+
+    const blend = 1 - Math.exp(-delta * 3.4);
+    this.wind.lerp(this.targetWind, blend);
+    this.worldSpeed = THREE.MathUtils.lerp(this.worldSpeed, this.targetWorldSpeed, blend);
+    const windMagnitude = this.wind.length();
+    const swayScale = 1 + THREE.MathUtils.clamp(windMagnitude * 0.36, 0, 1.25);
+
+    for (const layer of this.layers) {
+      this.updateLayerActiveCount(layer, delta);
+      this.updateLayerParticles(layer, delta, swayScale);
+    }
+
+    this.updateLightning(delta);
+  }
+
+  private resolvePerformanceProfile(): WeatherPerformanceProfile {
+    const tier = this.resolvePerfTier();
+    switch (tier) {
+      case 'low':
+        return {
+          layerCountScale: 0.5,
+          initialDensityScale: 0.74,
+          minDensityScale: 0.2,
+          simulationStepSeconds: 1 / 24,
+          maxSimulationStepsPerFrame: 2,
+        };
+      case 'medium':
+        return {
+          layerCountScale: 0.72,
+          initialDensityScale: 0.86,
+          minDensityScale: 0.28,
+          simulationStepSeconds: 1 / 30,
+          maxSimulationStepsPerFrame: 3,
+        };
+      default:
+        return {
+          layerCountScale: 1,
+          initialDensityScale: 1,
+          minDensityScale: PARTICLE_DENSITY_MIN_SCALE,
+          simulationStepSeconds: 1 / 36,
+          maxSimulationStepsPerFrame: 3,
+        };
+    }
+  }
+
+  private resolvePerfTier(): WeatherPerfTier {
+    if (typeof navigator === 'undefined') {
+      return 'medium';
+    }
+
+    const nav = navigator as Navigator & { deviceMemory?: number };
+    const deviceMemory = nav.deviceMemory;
+    const cores = navigator.hardwareConcurrency;
+    const isTouchDevice = navigator.maxTouchPoints > 0;
+    const compactViewport =
+      typeof window !== 'undefined' &&
+      (window.innerWidth <= 900 || window.innerHeight <= 900);
+
+    if (
+      (typeof deviceMemory === 'number' && deviceMemory <= 4) ||
+      (typeof cores === 'number' && cores <= 4) ||
+      (isTouchDevice && compactViewport)
+    ) {
+      return 'low';
+    }
+
+    if (
+      (typeof deviceMemory === 'number' && deviceMemory <= 8) ||
+      (typeof cores === 'number' && cores <= 8)
+    ) {
+      return 'medium';
+    }
+
+    return 'high';
+  }
+
+  private scaleLayerMaxCount(baseCount: number): number {
+    return Math.max(1, Math.round(baseCount * this.layerCountScale));
+  }
+
   private updateAdaptiveDensity(delta: number): void {
     if (!Number.isFinite(delta) || delta <= 0) {
       return;
@@ -641,7 +759,7 @@ export class WeatherParticles {
   }
 
   private setDensityScale(nextScale: number): void {
-    const clamped = THREE.MathUtils.clamp(nextScale, PARTICLE_DENSITY_MIN_SCALE, 1);
+    const clamped = THREE.MathUtils.clamp(nextScale, this.densityMinScale, 1);
     if (Math.abs(clamped - this.densityScale) < 1e-4) {
       return;
     }

@@ -4,11 +4,6 @@ import { MenuIcon3D, type IconType } from '../ui/MenuIcon3D';
 
 type OrbitMenuAction = 'play' | 'inbox' | 'friends';
 
-interface OrbitMenuActionDetail {
-  action: OrbitMenuAction;
-  label: string;
-}
-
 interface OrbitItemConfig {
   action: OrbitMenuAction;
   label: string;
@@ -35,12 +30,10 @@ interface OrbitItem {
   hoverScaleStrength: number;
   iconAnimationAccumulator: number;
   lastHovered: boolean;
-  lastActive: boolean;
   lastRenderOrder: number;
   lastScale: number;
 }
 
-const MENU_ACTION_EVENT = 'tbo:menu-action';
 export const ORBIT_LAYER = 2;
 const ORBIT_UI_SCALE = 1.4;
 const ICON_DISPLAY_SIZE_PX = 216 * ORBIT_UI_SCALE;
@@ -69,7 +62,6 @@ const ORBIT_RADIUS_X = 5.0;
 const ORBIT_RADIUS_Z = 2.8;
 const ORBIT_SPEED = 0.1;
 const HOVER_SCALE_MAX_BOOST = 0.06;
-const ACTIVE_SCALE_BOOST = 0.1;
 const HOVER_SCALE_IN_LAMBDA = 24;
 const HOVER_SCALE_OUT_LAMBDA = 16;
 const HOVER_SCALE_SNAP_DELTA = 0.25;
@@ -112,7 +104,6 @@ export class CharacterOrbitCarousel {
 
   private rotation = 0;
   private hoveredIndex: number | null = null;
-  private activeIndex: number | null = null;
   private disposed = false;
 
   private readonly onPointerMove = (event: PointerEvent): void => {
@@ -121,26 +112,6 @@ export class CharacterOrbitCarousel {
 
   private readonly onPointerLeave = (): void => {
     this.hoveredIndex = null;
-  };
-
-  private readonly onClick = (event: MouseEvent): void => {
-    const index = this.pickItemIndex(event.clientX, event.clientY);
-    if (index === null) {
-      return;
-    }
-
-    this.activeIndex = index;
-    const item = this.items[index];
-    const detail: OrbitMenuActionDetail = {
-      action: item.config.action,
-      label: item.config.label,
-    };
-
-    window.dispatchEvent(
-      new CustomEvent<OrbitMenuActionDetail>(MENU_ACTION_EVENT, {
-        detail,
-      })
-    );
   };
 
   constructor(
@@ -166,7 +137,6 @@ export class CharacterOrbitCarousel {
 
     this.canvas.addEventListener('pointermove', this.onPointerMove);
     this.canvas.addEventListener('pointerleave', this.onPointerLeave);
-    this.canvas.addEventListener('click', this.onClick);
   }
 
   update(delta: number, renderer?: THREE.WebGLRenderer): void {
@@ -198,7 +168,6 @@ export class CharacterOrbitCarousel {
       const y = 0;
       const depth = (z / ORBIT_RADIUS_Z + 1) * 0.5;
       const hovered = this.hoveredIndex === i;
-      const active = this.activeIndex === i;
       const hoverScaleTarget = hovered ? 1 : 0;
       const focusTarget = hovered ? 1 : 0;
       if (delta >= HOVER_SCALE_SNAP_DELTA) {
@@ -279,8 +248,7 @@ export class CharacterOrbitCarousel {
       }
 
       const hoverScale = item.hoverScaleStrength * HOVER_SCALE_MAX_BOOST;
-      const activeScale = active ? ACTIVE_SCALE_BOOST : 0;
-      const scale = THREE.MathUtils.lerp(0.9, 1.0, focusedDepth) + hoverScale + activeScale;
+      const scale = THREE.MathUtils.lerp(0.9, 1.0, focusedDepth) + hoverScale;
       if (!Number.isFinite(item.lastScale) || Math.abs(item.lastScale - scale) > 1e-4) {
         item.group.scale.setScalar(scale);
         item.lastScale = scale;
@@ -293,10 +261,9 @@ export class CharacterOrbitCarousel {
         item.lastRenderOrder = renderOrder;
       }
 
-      if (hovered !== item.lastHovered || active !== item.lastActive) {
-        this.drawButtonTexture(item, hovered, active);
+      if (hovered !== item.lastHovered) {
+        this.drawButtonTexture(item, hovered);
         item.lastHovered = hovered;
-        item.lastActive = active;
       }
     }
   }
@@ -309,7 +276,6 @@ export class CharacterOrbitCarousel {
 
     this.canvas.removeEventListener('pointermove', this.onPointerMove);
     this.canvas.removeEventListener('pointerleave', this.onPointerLeave);
-    this.canvas.removeEventListener('click', this.onClick);
 
     this.scene.remove(this.root);
 
@@ -434,14 +400,13 @@ export class CharacterOrbitCarousel {
         hoverScaleStrength: 0,
         iconAnimationAccumulator: ICON_UPDATE_STEP_SECONDS,
         lastHovered: false,
-        lastActive: false,
         lastRenderOrder: Number.NaN,
         lastScale: Number.NaN,
       };
 
       this.items.push(item);
       this.fitIconToTargetSize(item);
-      this.drawButtonTexture(item, false, false);
+      this.drawButtonTexture(item, false);
     }
   }
 
@@ -522,13 +487,13 @@ export class CharacterOrbitCarousel {
     return !target.isEmpty();
   }
 
-  private drawButtonTexture(item: OrbitItem, hovered: boolean, active: boolean): void {
+  private drawButtonTexture(item: OrbitItem, hovered: boolean): void {
     const { buttonContext: ctx, buttonCanvas } = item;
     const width = buttonCanvas.width;
     const height = buttonCanvas.height;
 
     ctx.clearRect(0, 0, width, height);
-    const isActive = hovered || active;
+    const isActive = hovered;
     const x = 0.5 * CANVAS_SCALE;
     const y = 0.5 * CANVAS_SCALE;
     const w = width - CANVAS_SCALE;

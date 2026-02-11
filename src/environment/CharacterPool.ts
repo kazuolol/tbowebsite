@@ -100,6 +100,7 @@ export class CharacterPool {
       new Float32Array(MAX_DISINTEGRATION_PARTICLES),
       1
     );
+    this.disintegrationOpacityAttribute.setUsage(THREE.DynamicDrawUsage);
     this.disintegrationMesh.geometry.setAttribute(
       'instanceOpacity',
       this.disintegrationOpacityAttribute
@@ -209,6 +210,7 @@ gl_FragColor = vec4( outgoingLight, diffuseColor.a );`
 
   private generateConfigs(): CharacterConfig[] {
     const combos: { gender: 'male' | 'female'; hair: string; outfit: string }[] = [];
+    const eyePalette = [0x5f4632, 0x3b6fa8, 0x7f6334, 0x3a6c56, 0x7d4e2a];
 
     // Female combos: 5 hairs × 5 outfits (2-6) = 25
     for (let h = 1; h <= 5; h++) {
@@ -238,16 +240,31 @@ gl_FragColor = vec4( outgoingLight, diffuseColor.a );`
       [combos[i], combos[j]] = [combos[j], combos[i]];
     }
 
-    // Take first POOL_SIZE and assign evenly-spaced hair colors with jitter
+    // Take first POOL_SIZE and assign evenly-spaced hair colors with jitter.
     return combos.slice(0, POOL_SIZE).map((combo, i) => {
-      const hue = (i / POOL_SIZE + (Math.random() - 0.5) * 0.05) % 1;
-      const color = new THREE.Color();
-      color.setHSL(
-        hue < 0 ? hue + 1 : hue,
+      const hairHue = (i / POOL_SIZE + (Math.random() - 0.5) * 0.05) % 1;
+      const hairColor = new THREE.Color();
+      hairColor.setHSL(
+        hairHue < 0 ? hairHue + 1 : hairHue,
         0.3 + Math.random() * 0.7,
         0.3 + Math.random() * 0.4
       );
-      return { ...combo, hairColor: color };
+      const eyeColor = new THREE.Color();
+      const eyeBase = new THREE.Color(
+        eyePalette[Math.floor(Math.random() * eyePalette.length)]
+      );
+      const eyeBaseHsl = { h: 0, s: 0, l: 0 };
+      eyeBase.getHSL(eyeBaseHsl);
+      eyeColor.setHSL(
+        (eyeBaseHsl.h + (Math.random() - 0.5) * 0.04 + 1) % 1,
+        THREE.MathUtils.clamp(eyeBaseHsl.s + (Math.random() - 0.5) * 0.12, 0.2, 0.8),
+        THREE.MathUtils.clamp(eyeBaseHsl.l + (Math.random() - 0.5) * 0.12, 0.2, 0.55)
+      );
+      return {
+        ...combo,
+        hairColor,
+        eyeColor,
+      };
     });
   }
 

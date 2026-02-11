@@ -58,6 +58,8 @@ interface PerfSceneToggles {
   weatherParticles: boolean;
 }
 
+type RenderPerfTier = 'low' | 'medium' | 'high';
+
 const CUBE_COUNT = 150;
 const RECYCLE_Z = 25;
 const RESET_Z = -500;
@@ -79,6 +81,9 @@ const ADAPTIVE_FRAGMENT_UP_STEP = 0.05;
 const ADAPTIVE_CUBE_MIN_SCALE = 0.6;
 const ADAPTIVE_CUBE_DOWN_STEP = 0.1;
 const ADAPTIVE_CUBE_UP_STEP = 0.05;
+const ADAPTIVE_RENDER_SCALE_MIN = 0.55;
+const ADAPTIVE_RENDER_SCALE_DOWN_STEP = 0.1;
+const ADAPTIVE_RENDER_SCALE_UP_STEP = 0.05;
 const NEAR_CAMERA_FADE_START_Z_OFFSET = -75;
 const NEAR_CAMERA_FADE_END_Z_OFFSET = 6;
 const NEAR_CAMERA_RECYCLE_MARGIN_Z = 0.5;
@@ -171,6 +176,10 @@ export class FallingScene {
   private smoothedFrameMs = 16.7;
   private lowPerfSeconds = 0;
   private highPerfSeconds = 0;
+  private readonly renderPerfTier: RenderPerfTier;
+  private readonly nativePixelRatio: number;
+  private readonly maxPixelRatio: number;
+  private renderScale = 1;
   private adaptiveFragmentScale = 1;
   private adaptiveCubeScale = 1;
   private renderedCubeCount = CUBE_COUNT;
@@ -199,6 +208,10 @@ export class FallingScene {
     this.scene.fog = new THREE.FogExp2(0xcccccc, DEFAULT_FOG_DENSITY);
     this.clock = new THREE.Clock();
     this.perfToggles = this.resolvePerfSceneToggles();
+    this.renderPerfTier = this.resolveRenderPerfTier();
+    this.nativePixelRatio = Math.max(1, window.devicePixelRatio || 1);
+    this.maxPixelRatio = this.resolveMaxPixelRatio(this.renderPerfTier);
+    this.renderScale = this.resolveInitialRenderScale(this.renderPerfTier);
 
     this.camera = new THREE.PerspectiveCamera(
       75,
@@ -211,9 +224,10 @@ export class FallingScene {
 
     this.renderer = new THREE.WebGLRenderer({
       canvas,
-      antialias: true,
+      antialias: this.renderPerfTier === 'high',
+      powerPreference: 'high-performance',
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.applyRendererPixelRatio();
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.localClippingEnabled = true;
@@ -256,10 +270,12 @@ export class FallingScene {
     this.cubeInstancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.cubeInstancedMesh.frustumCulled = false;
     this.cubeOpacityAttribute = new THREE.InstancedBufferAttribute(new Float32Array(CUBE_COUNT), 1);
+    this.cubeOpacityAttribute.setUsage(THREE.DynamicDrawUsage);
     this.cubeEmissiveIntensityAttribute = new THREE.InstancedBufferAttribute(
       new Float32Array(CUBE_COUNT),
       1
     );
+    this.cubeEmissiveIntensityAttribute.setUsage(THREE.DynamicDrawUsage);
     this.cubeInstancedMesh.geometry.setAttribute('instanceOpacity', this.cubeOpacityAttribute);
     this.cubeInstancedMesh.geometry.setAttribute(
       'instanceEmissiveIntensity',
@@ -282,10 +298,12 @@ export class FallingScene {
       new Float32Array(MAX_FRAGMENT_POOL),
       1
     );
+    this.fragmentOpacityAttribute.setUsage(THREE.DynamicDrawUsage);
     this.fragmentEmissiveIntensityAttribute = new THREE.InstancedBufferAttribute(
       new Float32Array(MAX_FRAGMENT_POOL),
       1
     );
+    this.fragmentEmissiveIntensityAttribute.setUsage(THREE.DynamicDrawUsage);
     this.fragmentInstancedMesh.geometry.setAttribute(
       'instanceOpacity',
       this.fragmentOpacityAttribute
@@ -914,7 +932,7 @@ gl_FragColor = vec4( outgoingLight, diffuseColor.a );`
   }
 
   private updateAdaptiveQuality(delta: number): void {
-    if (!this.perfToggles.cubesAndFragments || !Number.isFinite(delta) || delta <= 0) {
+    if (!Number.isFinite(delta) || delta <= 0) {
       return;
     }
 
@@ -950,6 +968,16 @@ gl_FragColor = vec4( outgoingLight, diffuseColor.a );`
   }
 
   private degradeAdaptiveQuality(): void {
+    if (this.renderScale > ADAPTIVE_RENDER_SCALE_MIN + 1e-4) {
+      this.renderScale = THREE.MathUtils.clamp(
+        this.renderScale - ADAPTIVE_RENDER_SCALE_DOWN_STEP,
+        ADAPTIVE_RENDER_SCALE_MIN,
+        1
+      );
+      this.applyRendererPixelRatio();
+      return;
+    }
+
     if (this.adaptiveFragmentScale > ADAPTIVE_FRAGMENT_MIN_SCALE + 1e-4) {
       this.adaptiveFragmentScale = THREE.MathUtils.clamp(
         this.adaptiveFragmentScale - ADAPTIVE_FRAGMENT_DOWN_STEP,
@@ -981,6 +1009,78 @@ gl_FragColor = vec4( outgoingLight, diffuseColor.a );`
       ADAPTIVE_FRAGMENT_MIN_SCALE,
       1
     );
+    if (this.adaptiveFragmentScale < 1 - 1e-4) {
+      return;
+    }
+
+    if (this.renderScale < 1 - 1e-4) {
+      this.renderScale = THREE.MathUtils.clamp(
+        this.renderScale + ADAPTIVE_RENDER_SCALE_UP_STEP,
+        ADAPTIVE_RENDER_SCALE_MIN,
+        1
+      );
+      this.applyRendererPixelRatio();
+    }
+  }
+
+  private resolveRenderPerfTier(): RenderPerfTier {
+    if (typeof navigator === 'undefined') {
+      return 'medium';
+    }
+
+    const nav = navigator as Navigator & { deviceMemory?: number };
+    const deviceMemory = nav.deviceMemory;
+    const cores = navigator.hardwareConcurrency;
+    const isTouchDevice = navigator.maxTouchPoints > 0;
+    const compactViewport = window.innerWidth <= 900 || window.innerHeight <= 900;
+
+    if (
+      (typeof deviceMemory === 'number' && deviceMemory <= 4) ||
+      (typeof cores === 'number' && cores <= 4) ||
+      (isTouchDevice && compactViewport)
+    ) {
+      return 'low';
+    }
+
+    if (
+      (typeof deviceMemory === 'number' && deviceMemory <= 8) ||
+      (typeof cores === 'number' && cores <= 8)
+    ) {
+      return 'medium';
+    }
+
+    return 'high';
+  }
+
+  private resolveMaxPixelRatio(tier: RenderPerfTier): number {
+    switch (tier) {
+      case 'low':
+        return 1.25;
+      case 'medium':
+        return 1.6;
+      default:
+        return 2;
+    }
+  }
+
+  private resolveInitialRenderScale(tier: RenderPerfTier): number {
+    switch (tier) {
+      case 'low':
+        return 0.85;
+      case 'medium':
+        return 0.92;
+      default:
+        return 1;
+    }
+  }
+
+  private applyRendererPixelRatio(): void {
+    const pixelRatio = THREE.MathUtils.clamp(
+      this.nativePixelRatio * this.renderScale,
+      ADAPTIVE_RENDER_SCALE_MIN,
+      this.maxPixelRatio
+    );
+    this.renderer.setPixelRatio(pixelRatio);
   }
 
   private getAdaptiveMaxFragments(): number {

@@ -7,6 +7,7 @@ export interface CharacterConfig {
   hair: string;
   outfit: string;
   hairColor: THREE.Color;
+  eyeColor: THREE.Color;
 }
 
 export interface CharacterTextureLoadOptions {
@@ -48,6 +49,7 @@ export class FallingCharacter {
   private selectedHair: string;
   private selectedOutfit: string;
   private hairColor: THREE.Color;
+  private eyeColor: THREE.Color;
 
   constructor(scene: THREE.Scene, config?: CharacterConfig) {
     this.scene = scene;
@@ -56,7 +58,8 @@ export class FallingCharacter {
       this.gender = config.gender;
       this.selectedHair = config.hair;
       this.selectedOutfit = config.outfit;
-      this.hairColor = config.hairColor;
+      this.hairColor = config.hairColor.clone();
+      this.eyeColor = config.eyeColor.clone();
     } else {
       this.gender = 'female';
       this.selectedHair = String(Math.floor(Math.random() * 5) + 1).padStart(3, '0');
@@ -67,6 +70,12 @@ export class FallingCharacter {
         Math.random(),
         0.3 + Math.random() * 0.7,
         0.3 + Math.random() * 0.4
+      );
+      this.eyeColor = new THREE.Color();
+      this.eyeColor.setHSL(
+        Math.random(),
+        0.45 + Math.random() * 0.4,
+        0.25 + Math.random() * 0.25
       );
     }
   }
@@ -445,6 +454,11 @@ export class FallingCharacter {
     }
 
     const isHair = matName.includes('hair');
+    const isEyeMaterial =
+      matName.includes('_eye') &&
+      !matName.includes('eyeball') &&
+      !matName.includes('eyelid') &&
+      !matName.includes('eyelash');
     const needsTransparency = matName.includes('eyelid') ||
                               matName.includes('eyelash');
 
@@ -462,9 +476,37 @@ export class FallingCharacter {
     }
 
     const material = new THREE.MeshStandardMaterial(materialParams);
-
+    if (isEyeMaterial) {
+      this.applyIrisTint(material);
+    }
     this.materials.push(material);
     return material;
+  }
+
+  private applyIrisTint(material: THREE.MeshStandardMaterial): void {
+    const irisColor = this.eyeColor.clone();
+    material.onBeforeCompile = (shader) => {
+      shader.uniforms.uTboIrisColor = { value: irisColor };
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <common>',
+        `#include <common>
+uniform vec3 uTboIrisColor;`
+      );
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <map_fragment>',
+        `#include <map_fragment>
+  #ifdef USE_MAP
+    float tboLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+    float tboIrisMask =
+      smoothstep(0.11, 0.28, tboLuma) *
+      (1.0 - smoothstep(0.6, 0.8, tboLuma));
+    vec3 tboBase = diffuseColor.rgb;
+    vec3 tboIrisTint = mix(tboBase, uTboIrisColor * (0.4 + tboLuma * 0.95), 0.95);
+    diffuseColor.rgb = mix(tboBase, tboIrisTint, tboIrisMask);
+  #endif`
+      );
+    };
+    material.customProgramCacheKey = () => 'tbo-eye-iris-tint-v5';
   }
 
   private acquireTextureVariant(

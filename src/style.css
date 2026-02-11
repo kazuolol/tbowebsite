@@ -686,8 +686,7 @@ html, body {
 }
 
 /* Reusable borderless overlay card component (TheBigOne-style window shell). */
-.dc-overlay-card,
-.dc-early-card {
+.dc-overlay-card {
   width: 398px;
   min-height: 480px;
   max-height: min(740px, calc(100vh - 24px));
@@ -708,8 +707,7 @@ html, body {
   align-items: center;
 }
 
-.dc-overlay-card-header,
-.dc-early-header {
+.dc-overlay-card-header {
   display: flex;
   width: 100%;
   align-items: center;
@@ -964,15 +962,13 @@ html, body {
     padding-left: calc(10px + env(safe-area-inset-left));
   }
 
-  .dc-overlay-card,
-  .dc-early-card {
+  .dc-overlay-card {
     width: min(100%, 398px);
     min-height: 0;
     max-height: calc(100vh - 20px);
   }
 
-  .dc-overlay-card-header,
-  .dc-early-header {
+  .dc-overlay-card-header {
     padding-right: calc(var(--size-small) + 4px);
   }
 

@@ -632,6 +632,7 @@ html, body {
   width: var(--size-small);
   height: var(--size-small);
   background-color: var(--slot-bg-default);
+  color: rgb(255, 255, 255);
   border-radius: var(--slot-border-radius);
   border-width: 1px;
   border-style: solid;
@@ -666,7 +667,9 @@ html, body {
 .dc-early-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0);
+  background: rgba(6, 10, 16, 0.22);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .dc-early-screen {
@@ -675,19 +678,26 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px;
+  padding-top: calc(12px + env(safe-area-inset-top));
+  padding-right: calc(12px + env(safe-area-inset-right));
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  padding-left: calc(12px + env(safe-area-inset-left));
   pointer-events: none;
 }
 
+/* Reusable borderless overlay card component (TheBigOne-style window shell). */
+.dc-overlay-card,
 .dc-early-card {
   width: 398px;
   min-height: 480px;
   max-height: min(740px, calc(100vh - 24px));
   background-color: rgba(0, 0, 0, 0);
-  border-color: rgba(255, 255, 255, 0.15);
-  border-width: 1px;
-  border-style: solid;
+  border: 0 !important;
+  outline: 0;
+  box-shadow: none;
   border-radius: var(--border-radius-default);
+  position: relative;
+  container-type: inline-size;
   padding: var(--spacing-medium);
   pointer-events: auto;
   overflow-y: auto;
@@ -698,42 +708,43 @@ html, body {
   align-items: center;
 }
 
+.dc-overlay-card-header,
 .dc-early-header {
-  position: relative;
   display: flex;
   width: 100%;
   align-items: center;
   justify-content: center;
-  padding-right: 28px;
   min-height: 70px;
+  padding-right: calc(var(--size-small) + var(--spacing-default));
 }
 
 .dc-early-heading {
-  width: var(--dc-menu-btn-width);
+  width: 100%;
+  max-width: none;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
 .dc-early-title {
-  margin: 0 0 6px;
+  font-size: 32px;
+  letter-spacing: 2px;
+  margin: 0 0 var(--spacing-large);
   text-align: center;
-  line-height: 1;
+  line-height: normal;
 }
 
 .dc-early-subtitle {
-  margin: 0;
+  font-size: 18px;
+  font-size: clamp(16px, 4.5cqi, 20px);
+  margin: 0 0 var(--spacing-large);
   text-align: center;
-  line-height: 1.2;
+  line-height: normal;
 }
 
 .dc-early-close {
-  top: 0;
-  right: 0;
-  font-size: 20px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  top: 4px;
+  z-index: 2;
 }
 
 .dc-early-indicator {
@@ -748,12 +759,14 @@ html, body {
 }
 
 .dc-early-indicator-item {
-  width: 122px;
+  width: calc((100% - (var(--spacing-default) * 2)) / 3);
+  max-width: 122px;
+  min-width: 0;
   height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: clamp(12px, 3cqi, 14px);
   border-radius: var(--border-radius-medium);
   opacity: 0.56;
   user-select: none;
@@ -785,13 +798,13 @@ html, body {
 }
 
 .dc-early-label {
-  width: 280px;
+  width: 100%;
   margin-bottom: 6px;
   text-align: left;
 }
 
 .dc-early-input {
-  width: 280px;
+  width: 100%;
   height: var(--size-medium);
   border-style: solid;
   border-radius: var(--border-radius-default);
@@ -822,7 +835,7 @@ html, body {
 }
 
 .dc-early-help {
-  width: 280px;
+  width: 100%;
   margin-top: 6px;
   font-size: 14px;
   line-height: 1.25;
@@ -831,7 +844,7 @@ html, body {
 }
 
 .dc-early-error {
-  width: 280px;
+  width: 100%;
   min-height: 20px;
   margin-top: 6px;
   font-size: 14px;
@@ -840,7 +853,7 @@ html, body {
 }
 
 .dc-early-actions {
-  width: 280px;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-default);
@@ -848,7 +861,7 @@ html, body {
 }
 
 .dc-early-check {
-  width: 280px;
+  width: 100%;
   margin-top: 6px;
   display: flex;
   align-items: center;
@@ -907,7 +920,7 @@ html, body {
 }
 
 .dc-early-btn.is-link {
-  width: var(--dc-menu-btn-width);
+  width: 100%;
 }
 
 .dc-early-btn.is-secondary {
@@ -919,7 +932,7 @@ html, body {
 }
 
 .dc-early-key {
-  width: 280px;
+  width: 100%;
   margin-top: 6px;
   display: flex;
   align-items: stretch;
@@ -944,17 +957,23 @@ html, body {
 
 @media (max-width: 768px) {
   .dc-early-screen {
-    align-items: flex-start;
+    align-items: center;
     padding-top: calc(10px + env(safe-area-inset-top));
-    padding-right: 10px;
+    padding-right: calc(10px + env(safe-area-inset-right));
     padding-bottom: calc(10px + env(safe-area-inset-bottom));
-    padding-left: 10px;
+    padding-left: calc(10px + env(safe-area-inset-left));
   }
 
+  .dc-overlay-card,
   .dc-early-card {
     width: min(100%, 398px);
     min-height: 0;
     max-height: calc(100vh - 20px);
+  }
+
+  .dc-overlay-card-header,
+  .dc-early-header {
+    padding-right: calc(var(--size-small) + 4px);
   }
 
   .dc-early-title {
@@ -973,17 +992,6 @@ html, body {
   .dc-early-indicator-item {
     width: 100px;
     font-size: 12px;
-  }
-
-  .dc-early-label,
-  .dc-early-input,
-  .dc-early-help,
-  .dc-early-error,
-  .dc-early-actions,
-  .dc-early-check,
-  .dc-early-btn.is-link,
-  .dc-early-key {
-    width: 100%;
   }
 
   .dc-early-btn.menu-button-width {

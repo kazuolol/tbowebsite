@@ -133,14 +133,14 @@ export class EarlyAccessOverlay {
     this.root.innerHTML = `
       <div class="dc-early-backdrop"></div>
       <section class="dc-early-screen" role="dialog" aria-modal="true" aria-labelledby="dc-early-title">
-        <div class="dc-early-card">
-          <header class="dc-early-header">
-            <div class="dc-early-heading menu-button-width">
+        <div class="dc-overlay-card dc-early-card">
+          <header class="dc-overlay-card-header dc-early-header">
+            <div class="dc-early-heading">
               <h2 id="dc-early-title" class="dc-early-title text-title-large text-normal-shadow">Claim Early Access</h2>
               <p class="dc-early-subtitle text-large text-normal-shadow">Verify your wallet and social actions to receive a key.</p>
             </div>
-            <button type="button" class="dc-early-close close-button text-large text-normal-shadow" aria-label="Close early access form">&times;</button>
           </header>
+          <button type="button" class="dc-early-close close-button" aria-label="Close early access form">&times;</button>
           <ol class="dc-early-indicator" aria-label="Sign up progress">
             <li class="dc-early-indicator-item basic-button text-normal-shadow dc-early-transparent-button" data-step-indicator="wallet">1 Wallet</li>
             <li class="dc-early-indicator-item basic-button text-normal-shadow dc-early-transparent-button" data-step-indicator="social">2 Social</li>

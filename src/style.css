@@ -911,6 +911,23 @@ html, body {
   line-height: 1;
 }
 
+.dc-early-nav {
+  --dc-early-nav-gap: var(--spacing-default);
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--dc-early-nav-gap);
+  margin-top: 6px;
+}
+
+.dc-early-nav .dc-early-btn {
+  flex: 0 1 var(--dc-menu-btn-width);
+  width: min(var(--dc-menu-btn-width), calc((100% - var(--dc-early-nav-gap)) / 2));
+  min-width: 0;
+  margin-top: 0;
+}
+
 .dc-early-btn:disabled,
 .basic-button:disabled {
   opacity: 0.45;

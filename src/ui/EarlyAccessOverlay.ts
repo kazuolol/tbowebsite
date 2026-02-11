@@ -50,14 +50,17 @@ export class EarlyAccessOverlay {
   private readonly claimStep: HTMLElement;
   private readonly walletInput: HTMLInputElement;
   private readonly walletError: HTMLParagraphElement;
+  private readonly walletBackButton: HTMLButtonElement;
   private readonly walletContinueButton: HTMLButtonElement;
   private readonly socialWalletValue: HTMLSpanElement;
   private readonly followLink: HTMLAnchorElement;
   private readonly likeLink: HTMLAnchorElement;
   private readonly followCheck: HTMLInputElement;
   private readonly likeCheck: HTMLInputElement;
+  private readonly socialBackButton: HTMLButtonElement;
   private readonly socialContinueButton: HTMLButtonElement;
   private readonly claimWalletValue: HTMLSpanElement;
+  private readonly claimBackButton: HTMLButtonElement;
   private readonly generateButton: HTMLButtonElement;
   private readonly keyValue: HTMLSpanElement;
   private readonly keyStatus: HTMLParagraphElement;
@@ -98,12 +101,24 @@ export class EarlyAccessOverlay {
     this.handleWalletContinue();
   };
 
+  private readonly onWalletBackClick = (): void => {
+    this.handleGoBack();
+  };
+
   private readonly onSocialStateChange = (): void => {
     this.updateSocialContinueState();
   };
 
+  private readonly onSocialBackClick = (): void => {
+    this.handleGoBack();
+  };
+
   private readonly onSocialContinueClick = (): void => {
     this.handleSocialContinue();
+  };
+
+  private readonly onClaimBackClick = (): void => {
+    this.handleGoBack();
   };
 
   private readonly onGenerateKeyClick = (): void => {
@@ -158,7 +173,10 @@ export class EarlyAccessOverlay {
             />
             <p class="dc-early-help text-normal-shadow">Use your public wallet address. Private keys are never requested.</p>
             <p class="dc-early-error text-normal-shadow" data-role="wallet-error"></p>
-            <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-role="wallet-continue" disabled>Continue</button>
+            <div class="dc-early-nav">
+              <button type="button" class="dc-early-btn basic-button text-normal-shadow" data-role="wallet-go-back">Go back</button>
+              <button type="button" class="dc-early-btn basic-button text-normal-shadow" data-role="wallet-continue" disabled>Continue</button>
+            </div>
           </section>
           <section class="dc-early-step" data-step="social">
             <p class="dc-early-help text-normal-shadow">Wallet: <span data-role="social-wallet-value"></span></p>
@@ -174,11 +192,17 @@ export class EarlyAccessOverlay {
               <input type="checkbox" data-role="like-check" />
               <span>I liked the campaign tweet</span>
             </label>
-            <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-role="social-continue" disabled>Continue</button>
+            <div class="dc-early-nav">
+              <button type="button" class="dc-early-btn basic-button text-normal-shadow" data-role="social-go-back">Go back</button>
+              <button type="button" class="dc-early-btn basic-button text-normal-shadow" data-role="social-continue" disabled>Continue</button>
+            </div>
           </section>
           <section class="dc-early-step" data-step="claim">
             <p class="dc-early-help text-normal-shadow">Wallet: <span data-role="claim-wallet-value"></span></p>
-            <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-role="generate-key">Generate Access Key</button>
+            <div class="dc-early-nav">
+              <button type="button" class="dc-early-btn basic-button text-normal-shadow" data-role="claim-go-back">Go back</button>
+              <button type="button" class="dc-early-btn basic-button text-normal-shadow" data-role="generate-key">Generate Access Key</button>
+            </div>
             <div class="dc-early-key">
               <span class="dc-early-key-value text-normal-shadow" data-role="key-value">No key generated yet</span>
               <button type="button" class="dc-early-btn is-secondary basic-button text-normal-shadow" data-role="copy-key" disabled>Copy</button>
@@ -198,14 +222,17 @@ export class EarlyAccessOverlay {
     this.claimStep = this.queryRequired<HTMLElement>('[data-step="claim"]');
     this.walletInput = this.queryRequired<HTMLInputElement>('#dc-early-wallet-input');
     this.walletError = this.queryRequired<HTMLParagraphElement>('[data-role="wallet-error"]');
+    this.walletBackButton = this.queryRequired<HTMLButtonElement>('[data-role="wallet-go-back"]');
     this.walletContinueButton = this.queryRequired<HTMLButtonElement>('[data-role="wallet-continue"]');
     this.socialWalletValue = this.queryRequired<HTMLSpanElement>('[data-role="social-wallet-value"]');
     this.followLink = this.queryRequired<HTMLAnchorElement>('[data-role="follow-link"]');
     this.likeLink = this.queryRequired<HTMLAnchorElement>('[data-role="like-link"]');
     this.followCheck = this.queryRequired<HTMLInputElement>('[data-role="follow-check"]');
     this.likeCheck = this.queryRequired<HTMLInputElement>('[data-role="like-check"]');
+    this.socialBackButton = this.queryRequired<HTMLButtonElement>('[data-role="social-go-back"]');
     this.socialContinueButton = this.queryRequired<HTMLButtonElement>('[data-role="social-continue"]');
     this.claimWalletValue = this.queryRequired<HTMLSpanElement>('[data-role="claim-wallet-value"]');
+    this.claimBackButton = this.queryRequired<HTMLButtonElement>('[data-role="claim-go-back"]');
     this.generateButton = this.queryRequired<HTMLButtonElement>('[data-role="generate-key"]');
     this.keyValue = this.queryRequired<HTMLSpanElement>('[data-role="key-value"]');
     this.keyStatus = this.queryRequired<HTMLParagraphElement>('[data-role="key-status"]');
@@ -264,10 +291,13 @@ export class EarlyAccessOverlay {
     this.backdrop.addEventListener('click', this.onBackdropClick);
     this.closeButton.addEventListener('click', this.onCloseClick);
     this.walletInput.addEventListener('input', this.onWalletInput);
+    this.walletBackButton.addEventListener('click', this.onWalletBackClick);
     this.walletContinueButton.addEventListener('click', this.onWalletContinueClick);
     this.followCheck.addEventListener('change', this.onSocialStateChange);
     this.likeCheck.addEventListener('change', this.onSocialStateChange);
+    this.socialBackButton.addEventListener('click', this.onSocialBackClick);
     this.socialContinueButton.addEventListener('click', this.onSocialContinueClick);
+    this.claimBackButton.addEventListener('click', this.onClaimBackClick);
     this.generateButton.addEventListener('click', this.onGenerateKeyClick);
     this.copyButton.addEventListener('click', this.onCopyKeyClick);
     this.restartButton.addEventListener('click', this.onRestartClick);
@@ -278,10 +308,13 @@ export class EarlyAccessOverlay {
     this.backdrop.removeEventListener('click', this.onBackdropClick);
     this.closeButton.removeEventListener('click', this.onCloseClick);
     this.walletInput.removeEventListener('input', this.onWalletInput);
+    this.walletBackButton.removeEventListener('click', this.onWalletBackClick);
     this.walletContinueButton.removeEventListener('click', this.onWalletContinueClick);
     this.followCheck.removeEventListener('change', this.onSocialStateChange);
     this.likeCheck.removeEventListener('change', this.onSocialStateChange);
+    this.socialBackButton.removeEventListener('click', this.onSocialBackClick);
     this.socialContinueButton.removeEventListener('click', this.onSocialContinueClick);
+    this.claimBackButton.removeEventListener('click', this.onClaimBackClick);
     this.generateButton.removeEventListener('click', this.onGenerateKeyClick);
     this.copyButton.removeEventListener('click', this.onCopyKeyClick);
     this.restartButton.removeEventListener('click', this.onRestartClick);
@@ -306,6 +339,28 @@ export class EarlyAccessOverlay {
     }
     this.step = 'claim';
     this.syncStepUI();
+  }
+
+  private handleGoBack(): void {
+    switch (this.step) {
+      case 'wallet':
+        this.close();
+        return;
+      case 'social':
+        this.step = 'wallet';
+        break;
+      case 'claim':
+        this.step = 'social';
+        break;
+      default:
+        return;
+    }
+
+    this.syncStepUI();
+    if (this.step === 'wallet') {
+      this.walletInput.focus();
+      this.walletInput.select();
+    }
   }
 
   private async handleGenerateKey(): Promise<void> {

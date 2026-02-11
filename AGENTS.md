@@ -2,7 +2,7 @@
 
 Purpose: keep new-session startup cheap. This file is bootstrap-only and should stay concise.
 
-Last verified: 2026-02-09
+Last verified: 2026-02-11
 Line budget: keep this file under 160 lines.
 
 ## Session Start Protocol
@@ -15,20 +15,23 @@ Read these files first and only expand scope when needed:
 4. `src/environment/CharacterPool.ts`
 5. `src/environment/FallingCharacter.ts`
 6. `src/ui/HeaderOverlay.ts`
+7. `src/ui/EarlyAccessOverlay.ts` (only when early-access claim/social/key/guild flow is in scope)
 
 Read `src/ui/MenuIcon3D.ts` only when icon visuals or icon animation are directly in scope.
 
 ## Current Runtime Truth
 
-- Entry point boots `FallingScene`, `HeaderOverlay`, and `LocalWeatherService`.
+- Entry point boots `FallingScene`, `HeaderOverlay`, `EarlyAccessOverlay`, and `LocalWeatherService`.
 - Active scene is `FallingScene` (falling cubes + rotating character variants).
 - In-world menu is `CharacterOrbitCarousel` (not DOM menu buttons).
 - Header shows date/time/weather and `Claim Early Access`.
+- `/claim` path and `?guild=CODE` deep links open the early-access overlay.
 
 ## Critical Contracts (Do Not Drift)
 
 - Event `tbo:menu-action` payload: `{ action, label }`.
 - Event `tbo:local-weather-update` feeds weather state into `FallingScene`.
+- Event `tbo:early-access-claimed` payload: `{ walletPublicKey, status, founderKey?, guildCode? }`.
 - Environment component pattern:
   - Constructor accepts `THREE.Scene`.
   - Implements `update(delta: number)`.
@@ -62,6 +65,11 @@ Read `src/ui/MenuIcon3D.ts` only when icon visuals or icon animation are directl
   - `src/environment/FallingCharacter.ts`
 - Header actions, key icon, weather readout:
   - `src/ui/HeaderOverlay.ts`
+- Early access claim/social/key/guild flow:
+  - `src/ui/EarlyAccessOverlay.ts`
+  - `src/ui/earlyAccessApi.ts`
+  - `src/types/EarlyAccess.ts`
+  - `src/style.css` (`.dc-early-*`, `.dc-overlay-card`, `.dc-header-extension-*`)
 - Scene wiring, render loop, lifecycle:
   - `src/scene/FallingScene.ts`
   - `src/main.ts`
@@ -83,8 +91,9 @@ Do not scan these unless the task explicitly requires them:
 
 ## Known Caveats
 
-- `main.ts` does not register a default global `tbo:menu-action` listener.
+- `main.ts` registers a global `tbo:menu-action` listener and opens the overlay when `action === 'early-access'`.
 - Both header and carousel dispatch `tbo:menu-action` with `{ action, label }`.
+- `main.ts` clears early-access localStorage keys on each refresh (`tbo:early-access-overlay:state:v2`, `tbo:early-access-api:mock-state:v1`, `tbo:early-access-api:client-id:v1`, `tbo:early-access:dev-wallet`).
 - Build commonly warns about chunk size (`>500 kB`); informational unless bundling is in scope.
 
 ## Verification

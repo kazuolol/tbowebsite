@@ -14,11 +14,49 @@ if (!(uiRoot instanceof HTMLElement)) {
   throw new Error('Missing #ui-root container element.');
 }
 
+const clearEarlyAccessCacheOnRefresh = (): void => {
+  const keys = [
+    'tbo:early-access-overlay:state:v2',
+    'tbo:early-access-api:mock-state:v1',
+    'tbo:early-access-api:client-id:v1',
+    'tbo:early-access:dev-wallet',
+  ];
+  for (const key of keys) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // Ignore storage failures.
+    }
+  }
+};
+
+clearEarlyAccessCacheOnRefresh();
+
 const fallingScene = new FallingScene(canvas);
 const headerOverlay = new HeaderOverlay(uiRoot);
 const earlyAccessOverlay = new EarlyAccessOverlay(uiRoot);
 const localWeatherService = new LocalWeatherService();
 localWeatherService.start();
+
+const parseDeepLinkGuildCode = (): string | undefined => {
+  const params = new URLSearchParams(window.location.search);
+  const guild = params.get('guild');
+  if (!guild) {
+    return undefined;
+  }
+  const normalized = guild.trim().toUpperCase();
+  if (!/^[A-Z0-9-]{3,20}$/.test(normalized)) {
+    return undefined;
+  }
+  return normalized;
+};
+
+const deepLinkGuildCode = parseDeepLinkGuildCode();
+const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+const isClaimPath = path === '/claim';
+if (isClaimPath || deepLinkGuildCode) {
+  earlyAccessOverlay.open({ deepLinkGuildCode });
+}
 
 const handleMenuAction = (event: Event): void => {
   const customEvent = event as CustomEvent<{ action?: unknown }>;

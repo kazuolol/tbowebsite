@@ -260,10 +260,12 @@ gl_FragColor = vec4( outgoingLight, diffuseColor.a );`
         THREE.MathUtils.clamp(eyeBaseHsl.s + (Math.random() - 0.5) * 0.12, 0.2, 0.8),
         THREE.MathUtils.clamp(eyeBaseHsl.l + (Math.random() - 0.5) * 0.12, 0.2, 0.55)
       );
+      const skinColor = FallingCharacter.createRandomSkinColor();
       return {
         ...combo,
         hairColor,
         eyeColor,
+        skinColor,
       };
     });
   }

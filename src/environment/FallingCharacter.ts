@@ -2,12 +2,16 @@ import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { withFbxWarningFilter } from './fbxWarningFilter';
 
+const SKIN_TONE_MIN_SRGB = 0.6;
+const SKIN_TONE_MAX_SRGB = 1.0;
+
 export interface CharacterConfig {
   gender: 'male' | 'female';
   hair: string;
   outfit: string;
   hairColor: THREE.Color;
   eyeColor: THREE.Color;
+  skinColor: THREE.Color;
 }
 
 export interface CharacterTextureLoadOptions {
@@ -50,6 +54,7 @@ export class FallingCharacter {
   private selectedOutfit: string;
   private hairColor: THREE.Color;
   private eyeColor: THREE.Color;
+  private skinColor: THREE.Color;
 
   constructor(scene: THREE.Scene, config?: CharacterConfig) {
     this.scene = scene;
@@ -60,6 +65,7 @@ export class FallingCharacter {
       this.selectedOutfit = config.outfit;
       this.hairColor = config.hairColor.clone();
       this.eyeColor = config.eyeColor.clone();
+      this.skinColor = config.skinColor.clone();
     } else {
       this.gender = 'female';
       this.selectedHair = String(Math.floor(Math.random() * 5) + 1).padStart(3, '0');
@@ -77,7 +83,18 @@ export class FallingCharacter {
         0.45 + Math.random() * 0.4,
         0.25 + Math.random() * 0.25
       );
+      this.skinColor = FallingCharacter.createRandomSkinColor();
     }
+  }
+
+  static createRandomSkinColor(): THREE.Color {
+    const srgbBrightness = THREE.MathUtils.lerp(
+      SKIN_TONE_MIN_SRGB,
+      SKIN_TONE_MAX_SRGB,
+      Math.random()
+    );
+    // Author values in sRGB so "40% darker than white" is perceptual, then convert to linear.
+    return new THREE.Color(srgbBrightness, srgbBrightness, srgbBrightness).convertSRGBToLinear();
   }
 
   // ── Static shared loaders ────────────────────────────────────────
@@ -454,7 +471,11 @@ export class FallingCharacter {
     }
 
     const isHair = matName.includes('hair');
-    const isEyeMaterial =
+    const isSkin =
+      matName.includes('face') ||
+      matName.includes('body') ||
+      matName.includes('eyelid');
+    const isIrisMaterial =
       matName.includes('_eye') &&
       !matName.includes('eyeball') &&
       !matName.includes('eyelid') &&
@@ -473,40 +494,15 @@ export class FallingCharacter {
 
     if (isHair) {
       materialParams.color = this.hairColor;
+    } else if (isSkin) {
+      materialParams.color = this.skinColor;
+    } else if (isIrisMaterial) {
+      materialParams.color = this.eyeColor;
     }
 
     const material = new THREE.MeshStandardMaterial(materialParams);
-    if (isEyeMaterial) {
-      this.applyIrisTint(material);
-    }
     this.materials.push(material);
     return material;
-  }
-
-  private applyIrisTint(material: THREE.MeshStandardMaterial): void {
-    const irisColor = this.eyeColor.clone();
-    material.onBeforeCompile = (shader) => {
-      shader.uniforms.uTboIrisColor = { value: irisColor };
-      shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <common>',
-        `#include <common>
-uniform vec3 uTboIrisColor;`
-      );
-      shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <map_fragment>',
-        `#include <map_fragment>
-  #ifdef USE_MAP
-    float tboLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-    float tboIrisMask =
-      smoothstep(0.11, 0.28, tboLuma) *
-      (1.0 - smoothstep(0.6, 0.8, tboLuma));
-    vec3 tboBase = diffuseColor.rgb;
-    vec3 tboIrisTint = mix(tboBase, uTboIrisColor * (0.4 + tboLuma * 0.95), 0.95);
-    diffuseColor.rgb = mix(tboBase, tboIrisTint, tboIrisMask);
-  #endif`
-      );
-    };
-    material.customProgramCacheKey = () => 'tbo-eye-iris-tint-v5';
   }
 
   private acquireTextureVariant(

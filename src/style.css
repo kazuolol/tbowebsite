@@ -688,8 +688,7 @@ html, body {
 /* Reusable borderless overlay card component (TheBigOne-style window shell). */
 .dc-overlay-card {
   width: 398px;
-  min-height: 480px;
-  max-height: min(740px, calc(100vh - 24px));
+  height: min(700px, calc(100vh - 24px));
   background-color: rgba(0, 0, 0, 0);
   border: 0 !important;
   outline: 0;
@@ -699,7 +698,7 @@ html, body {
   container-type: inline-size;
   padding: var(--spacing-medium);
   pointer-events: auto;
-  overflow-y: auto;
+  overflow: hidden;
   color: rgb(255, 255, 255);
   font-family: var(--dc-ui-font-family);
   display: flex;
@@ -712,8 +711,9 @@ html, body {
   width: 100%;
   align-items: center;
   justify-content: center;
-  min-height: 70px;
+  min-height: 58px;
   padding-right: calc(var(--size-small) + var(--spacing-default));
+  flex-shrink: 0;
 }
 
 .dc-early-heading {
@@ -727,7 +727,7 @@ html, body {
 .dc-early-title {
   font-size: 32px;
   letter-spacing: 2px;
-  margin: 0 0 var(--spacing-large);
+  margin: 0 0 6px;
   text-align: center;
   line-height: normal;
 }
@@ -754,6 +754,7 @@ html, body {
   list-style: none;
   margin: var(--spacing-default) 0 var(--spacing-medium);
   padding: 0;
+  flex-shrink: 0;
 }
 
 .dc-early-indicator-item {
@@ -787,6 +788,7 @@ html, body {
   width: 100%;
   border-top: 1px solid rgba(255, 255, 255, 0.15);
   padding-top: var(--spacing-medium);
+  min-height: 100%;
 }
 
 .dc-early-step.is-active {
@@ -795,8 +797,30 @@ html, body {
   align-items: center;
 }
 
+.dc-early-step-content {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.dc-early-step-content-centered {
+  flex: 1 1 auto;
+  min-height: 0;
+  justify-content: space-evenly;
+}
+
 .dc-early-body {
   width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.dc-early-body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .dc-early-label {
@@ -867,7 +891,7 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-default);
-  margin-top: 6px;
+  margin-top: 0;
 }
 
 .dc-early-status-list {
@@ -890,7 +914,11 @@ html, body {
 }
 
 .dc-early-status-row-action {
-  align-items: stretch;
+  align-items: center;
+}
+
+.dc-early-status-row-action .dc-early-btn {
+  margin-top: 6px;
 }
 
 .dc-early-badge {
@@ -1037,7 +1065,8 @@ html, body {
   justify-content: space-between;
   align-items: center;
   gap: var(--dc-early-nav-gap);
-  margin-top: 6px;
+  margin-top: auto;
+  padding-top: 6px;
 }
 
 .dc-early-nav .dc-early-btn {
@@ -1177,6 +1206,7 @@ html, body {
   margin-top: var(--spacing-default);
   opacity: 0;
   transition: opacity 0.18s ease;
+  flex-shrink: 0;
 }
 
 .dc-early-toast.is-visible {
@@ -1194,8 +1224,7 @@ html, body {
 
   .dc-overlay-card {
     width: min(100%, 398px);
-    min-height: 0;
-    max-height: calc(100vh - 20px);
+    height: min(660px, calc(100vh - 20px));
   }
 
   .dc-overlay-card-header {
@@ -1250,9 +1279,14 @@ html, body {
   .dc-early-guild-actions {
     flex-direction: column;
   }
+
 }
 
 @media (max-width: 420px) {
+  .dc-overlay-card {
+    height: min(620px, calc(100vh - 16px));
+  }
+
   .dc-early-title {
     font-size: 28px;
     letter-spacing: 1px;

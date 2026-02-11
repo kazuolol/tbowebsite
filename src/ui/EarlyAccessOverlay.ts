@@ -176,7 +176,6 @@ export class EarlyAccessOverlay {
           <header class="dc-overlay-card-header dc-early-header">
             <div class="dc-early-heading">
               <h2 id="dc-early-title" class="dc-early-title text-title-large text-normal-shadow">Claim Early Access</h2>
-              <p class="dc-early-subtitle text-large text-normal-shadow">Connect your wallet, complete social actions, then claim or queue.</p>
             </div>
           </header>
           <button type="button" class="dc-early-close close-button" data-action="close" aria-label="Close early access form">&times;</button>
@@ -301,23 +300,21 @@ export class EarlyAccessOverlay {
     return `
       <section class="dc-early-step is-active" data-step="wallet">
         <p class="dc-early-help text-normal-shadow">We will never ask for your private key. This signature only proves you own this wallet.</p>
-        <div class="dc-early-status-list">
-          <div class="dc-early-status-row">
-            <span class="text-normal-shadow">Wallet Connected</span>
-            ${this.renderBadge(wallet.connected)}
+        <div class="dc-early-step-content dc-early-step-content-centered">
+          <div class="dc-early-status-list">
+            <div class="dc-early-status-row dc-early-status-row-action">
+              <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-action="wallet-connect" ${
+                this.asyncState.connectWallet ? 'disabled' : ''
+              }>${this.escapeHtml(connectLabel)}</button>
+              ${this.renderBadge(wallet.connected)}
+            </div>
+            <div class="dc-early-status-row dc-early-status-row-action">
+              <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-action="wallet-sign" ${
+                canSign ? '' : 'disabled'
+              }>${this.escapeHtml(signLabel)}</button>
+              ${this.renderBadge(wallet.verified)}
+            </div>
           </div>
-          <div class="dc-early-status-row">
-            <span class="text-normal-shadow">Wallet Verified</span>
-            ${this.renderBadge(wallet.verified)}
-          </div>
-        </div>
-        <div class="dc-early-actions">
-          <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-action="wallet-connect" ${
-            this.asyncState.connectWallet ? 'disabled' : ''
-          }>${this.escapeHtml(connectLabel)}</button>
-          <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-action="wallet-sign" ${
-            canSign ? '' : 'disabled'
-          }>${this.escapeHtml(signLabel)}</button>
         </div>
         ${this.renderNotice(this.walletNotice)}
         <div class="dc-early-nav">
@@ -332,33 +329,36 @@ export class EarlyAccessOverlay {
 
   private renderSocialStep(): string {
     const social = this.state.social;
-    const communitySection = this.renderCommunitySection();
+    const community = this.state.communityAction;
+    const communitySection = community.mode === 'discord' ? '' : this.renderCommunitySection();
     const canContinue = this.isSocialStepVerified();
     return `
       <section class="dc-early-step is-active" data-step="social">
         <p class="dc-early-help text-normal-shadow">Wallet: <span class="dc-early-mono">${this.escapeHtml(this.maskWalletAddress(this.state.wallet.publicKey))}</span></p>
-        <h3 class="dc-early-section-title text-normal-shadow">X Verification</h3>
-        <div class="dc-early-status-list">
-          <div class="dc-early-status-row dc-early-status-row-action">
-            <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-action="x-connect" ${
-              this.asyncState.connectX ? 'disabled' : ''
-            }>${this.asyncState.connectX ? 'Connecting...' : 'Connect X'}</button>
-            ${this.renderBadge(social.xConnected)}
+        <div class="dc-early-step-content dc-early-step-content-centered">
+          <div class="dc-early-status-list">
+            <div class="dc-early-status-row dc-early-status-row-action">
+              <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-action="x-connect" ${
+                this.asyncState.connectX ? 'disabled' : ''
+              }>${this.asyncState.connectX ? 'Connecting...' : 'Connect X'}</button>
+              ${this.renderBadge(social.xConnected)}
+            </div>
+            <div class="dc-early-status-row dc-early-status-row-action">
+              <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-action="x-follow" ${
+                !social.xConnected || this.asyncState.verifyXFollow ? 'disabled' : ''
+              }>${this.asyncState.verifyXFollow ? 'Verifying...' : `Verify Follow ${this.config.twitterHandle}`}</button>
+              ${this.renderBadge(social.followingVerified)}
+            </div>
+            <div class="dc-early-status-row dc-early-status-row-action">
+              <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-action="x-like" ${
+                !social.xConnected || this.asyncState.verifyXLike ? 'disabled' : ''
+              }>${this.asyncState.verifyXLike ? 'Verifying...' : 'Verify Like Campaign Tweet'}</button>
+              ${this.renderBadge(social.likeVerified)}
+            </div>
+            ${community.mode === 'discord' ? this.renderDiscordCommunityRow() : ''}
           </div>
-          <div class="dc-early-status-row dc-early-status-row-action">
-            <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-action="x-follow" ${
-              !social.xConnected || this.asyncState.verifyXFollow ? 'disabled' : ''
-            }>${this.asyncState.verifyXFollow ? 'Verifying...' : `Verify Follow ${this.config.twitterHandle}`}</button>
-            ${this.renderBadge(social.followingVerified)}
-          </div>
-          <div class="dc-early-status-row dc-early-status-row-action">
-            <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-action="x-like" ${
-              !social.xConnected || this.asyncState.verifyXLike ? 'disabled' : ''
-            }>${this.asyncState.verifyXLike ? 'Verifying...' : 'Verify Like Campaign Tweet'}</button>
-            ${this.renderBadge(social.likeVerified)}
-          </div>
+          ${communitySection}
         </div>
-        ${communitySection}
         ${this.renderNotice(this.socialNotice)}
         <div class="dc-early-nav">
           <button type="button" class="dc-early-btn basic-button text-normal-shadow" data-action="step-back">Go back</button>
@@ -367,6 +367,21 @@ export class EarlyAccessOverlay {
           }>Continue</button>
         </div>
       </section>
+    `;
+  }
+
+  private renderDiscordCommunityRow(): string {
+    const community = this.state.communityAction;
+    if (community.mode !== 'discord') {
+      return '';
+    }
+    return `
+      <div class="dc-early-status-row dc-early-status-row-action">
+        <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-action="community-discord-verify" ${
+          this.asyncState.verifyCommunity ? 'disabled' : ''
+        }>${this.asyncState.verifyCommunity ? 'Verifying...' : 'Connect Discord + Verify'}</button>
+        ${this.renderBadge(community.verified)}
+      </div>
     `;
   }
 
@@ -484,8 +499,8 @@ export class EarlyAccessOverlay {
 
     const verified = this.getVerifiedCount(guild);
     const isCaptain = this.isCaptain(guild);
-    const myMember = this.getCurrentMember(guild);
     const pendingMembers = guild.members.filter((member) => member.status === 'PENDING');
+    const visibleMembers = guild.members.filter((member) => !member.isCaptain);
     const progress = Math.min(100, (verified / Math.max(1, guild.capacity)) * 100);
     return `
       <div class="dc-early-guild-card">
@@ -506,12 +521,11 @@ export class EarlyAccessOverlay {
         <div class="dc-early-progress">
           <div class="dc-early-progress-track"><div class="dc-early-progress-fill" style="width:${progress.toFixed(2)}%"></div></div>
           <p class="dc-early-help text-normal-shadow">${verified}/${guild.capacity} verified members</p>
-          <p class="dc-early-help text-normal-shadow">Your status: <strong>${this.escapeHtml(
-            myMember?.status ?? 'PENDING'
-          )}</strong></p>
         </div>
-        <ul class="dc-early-member-list">
-          ${guild.members
+        ${
+          visibleMembers.length > 0
+            ? `<ul class="dc-early-member-list">
+          ${visibleMembers
             .map((member) => {
               const canKick = isCaptain && !member.isCaptain && member.status === 'PENDING';
               return `
@@ -531,7 +545,9 @@ export class EarlyAccessOverlay {
                 `;
             })
             .join('')}
-        </ul>
+        </ul>`
+            : ''
+        }
         ${
           pendingMembers.length > 0
             ? `<p class="dc-early-help text-normal-shadow">${pendingMembers.length} pending member(s) waiting for verification.</p>`

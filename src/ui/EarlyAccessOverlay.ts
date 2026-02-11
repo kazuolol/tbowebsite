@@ -454,7 +454,9 @@ export class EarlyAccessOverlay {
     return `
       <section class="dc-early-step is-active" data-step="claim">
         <p class="dc-early-help text-normal-shadow">Wallet: <span class="dc-early-mono">${this.escapeHtml(this.maskWalletAddress(this.state.wallet.publicKey))}</span></p>
-        ${body}
+        <div class="dc-early-step-content dc-early-step-content-centered">
+          ${body}
+        </div>
         ${this.renderNotice(statusNotice)}
         <div class="dc-early-nav">
           <button type="button" class="dc-early-btn basic-button text-normal-shadow" data-action="step-back">Go back</button>

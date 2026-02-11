@@ -806,7 +806,7 @@ html, body {
 .dc-early-step-content-centered {
   flex: 1 1 auto;
   min-height: 0;
-  justify-content: space-evenly;
+  justify-content: flex-start;
 }
 
 .dc-early-body {
@@ -1138,6 +1138,17 @@ html, body {
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: var(--border-radius-default);
   background: rgba(255, 255, 255, 0.05);
+}
+
+.dc-early-guild-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.dc-early-guild-card .dc-early-section-title {
+  margin-top: 0;
 }
 
 .dc-early-guild-actions {

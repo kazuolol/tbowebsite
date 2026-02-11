@@ -942,6 +942,10 @@ html, body {
   width: 100px;
 }
 
+.dc-early-btn.is-key-action {
+  width: var(--dc-menu-btn-width);
+}
+
 .dc-early-btn.is-secondary.menu-button-width {
   width: var(--dc-menu-btn-width);
 }

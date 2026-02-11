@@ -61,11 +61,10 @@ export class EarlyAccessOverlay {
   private readonly socialContinueButton: HTMLButtonElement;
   private readonly claimWalletValue: HTMLSpanElement;
   private readonly claimBackButton: HTMLButtonElement;
-  private readonly generateButton: HTMLButtonElement;
   private readonly keyValue: HTMLSpanElement;
   private readonly keyStatus: HTMLParagraphElement;
   private readonly copyButton: HTMLButtonElement;
-  private readonly restartButton: HTMLButtonElement;
+  private readonly shareImageButton: HTMLButtonElement;
   private readonly indicatorWallet: HTMLElement;
   private readonly indicatorSocial: HTMLElement;
   private readonly indicatorClaim: HTMLElement;
@@ -121,16 +120,12 @@ export class EarlyAccessOverlay {
     this.handleGoBack();
   };
 
-  private readonly onGenerateKeyClick = (): void => {
-    void this.handleGenerateKey();
-  };
-
   private readonly onCopyKeyClick = (): void => {
-    void this.copyKeyToClipboard();
+    void this.handleClaimKeyAction();
   };
 
-  private readonly onRestartClick = (): void => {
-    this.restartFlow();
+  private readonly onShareImageClick = (): void => {
+    void this.createShareableImage();
   };
 
   constructor(container: HTMLElement, config?: EarlyAccessOverlayConfig) {
@@ -199,16 +194,15 @@ export class EarlyAccessOverlay {
           </section>
           <section class="dc-early-step" data-step="claim">
             <p class="dc-early-help text-normal-shadow">Wallet: <span data-role="claim-wallet-value"></span></p>
-            <div class="dc-early-nav">
-              <button type="button" class="dc-early-btn basic-button text-normal-shadow" data-role="claim-go-back">Go back</button>
-              <button type="button" class="dc-early-btn basic-button text-normal-shadow" data-role="generate-key">Generate Access Key</button>
-            </div>
             <div class="dc-early-key">
               <span class="dc-early-key-value text-normal-shadow" data-role="key-value">No key generated yet</span>
-              <button type="button" class="dc-early-btn is-secondary basic-button text-normal-shadow" data-role="copy-key" disabled>Copy</button>
+              <button type="button" class="dc-early-btn is-secondary is-key-action basic-button text-normal-shadow" data-role="copy-key">Generate Access Key</button>
             </div>
             <p class="dc-early-help text-normal-shadow" data-role="key-status"></p>
-            <button type="button" class="dc-early-btn is-secondary basic-button text-normal-shadow menu-button-width" data-role="restart-flow">Start Over</button>
+            <div class="dc-early-nav">
+              <button type="button" class="dc-early-btn basic-button text-normal-shadow" data-role="claim-go-back">Go back</button>
+              <button type="button" class="dc-early-btn basic-button text-normal-shadow" data-role="share-image">Mog your friends</button>
+            </div>
           </section>
         </div>
       </section>
@@ -233,11 +227,10 @@ export class EarlyAccessOverlay {
     this.socialContinueButton = this.queryRequired<HTMLButtonElement>('[data-role="social-continue"]');
     this.claimWalletValue = this.queryRequired<HTMLSpanElement>('[data-role="claim-wallet-value"]');
     this.claimBackButton = this.queryRequired<HTMLButtonElement>('[data-role="claim-go-back"]');
-    this.generateButton = this.queryRequired<HTMLButtonElement>('[data-role="generate-key"]');
     this.keyValue = this.queryRequired<HTMLSpanElement>('[data-role="key-value"]');
     this.keyStatus = this.queryRequired<HTMLParagraphElement>('[data-role="key-status"]');
     this.copyButton = this.queryRequired<HTMLButtonElement>('[data-role="copy-key"]');
-    this.restartButton = this.queryRequired<HTMLButtonElement>('[data-role="restart-flow"]');
+    this.shareImageButton = this.queryRequired<HTMLButtonElement>('[data-role="share-image"]');
     this.indicatorWallet = this.queryRequired<HTMLElement>('[data-step-indicator="wallet"]');
     this.indicatorSocial = this.queryRequired<HTMLElement>('[data-step-indicator="social"]');
     this.indicatorClaim = this.queryRequired<HTMLElement>('[data-step-indicator="claim"]');
@@ -298,9 +291,8 @@ export class EarlyAccessOverlay {
     this.socialBackButton.addEventListener('click', this.onSocialBackClick);
     this.socialContinueButton.addEventListener('click', this.onSocialContinueClick);
     this.claimBackButton.addEventListener('click', this.onClaimBackClick);
-    this.generateButton.addEventListener('click', this.onGenerateKeyClick);
     this.copyButton.addEventListener('click', this.onCopyKeyClick);
-    this.restartButton.addEventListener('click', this.onRestartClick);
+    this.shareImageButton.addEventListener('click', this.onShareImageClick);
   }
 
   private unbindEvents(): void {
@@ -315,15 +307,17 @@ export class EarlyAccessOverlay {
     this.socialBackButton.removeEventListener('click', this.onSocialBackClick);
     this.socialContinueButton.removeEventListener('click', this.onSocialContinueClick);
     this.claimBackButton.removeEventListener('click', this.onClaimBackClick);
-    this.generateButton.removeEventListener('click', this.onGenerateKeyClick);
     this.copyButton.removeEventListener('click', this.onCopyKeyClick);
-    this.restartButton.removeEventListener('click', this.onRestartClick);
+    this.shareImageButton.removeEventListener('click', this.onShareImageClick);
   }
 
   private handleWalletContinue(): void {
     const walletCandidate = this.walletInput.value.trim();
     if (!this.updateWalletValidationState(true)) {
       return;
+    }
+    if (walletCandidate !== this.walletAddress) {
+      this.clearGeneratedKeyState();
     }
     this.walletAddress = walletCandidate;
     this.socialWalletValue.textContent = this.maskWalletAddress(this.walletAddress);
@@ -363,12 +357,20 @@ export class EarlyAccessOverlay {
     }
   }
 
+  private async handleClaimKeyAction(): Promise<void> {
+    if (this.generatedKey) {
+      await this.copyKeyToClipboard();
+      return;
+    }
+    await this.handleGenerateKey();
+  }
+
   private async handleGenerateKey(): Promise<void> {
     if (this.generatingKey || !this.walletAddress) {
       return;
     }
     this.generatingKey = true;
-    this.generateButton.disabled = true;
+    this.syncClaimSection();
     this.keyStatus.textContent = 'Generating your access key...';
 
     try {
@@ -380,7 +382,6 @@ export class EarlyAccessOverlay {
       this.generatedKey = result.key;
       this.generatedKeySource = result.source;
       this.keyValue.textContent = result.key;
-      this.copyButton.disabled = false;
       this.keyStatus.textContent =
         result.source === 'remote'
           ? 'Key generated and registered successfully.'
@@ -397,9 +398,9 @@ export class EarlyAccessOverlay {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to generate key.';
       this.keyStatus.textContent = message;
-      this.generateButton.disabled = false;
     } finally {
       this.generatingKey = false;
+      this.syncClaimSection();
     }
   }
 
@@ -435,27 +436,83 @@ export class EarlyAccessOverlay {
     }
   }
 
-  private restartFlow(): void {
-    this.walletAddress = '';
-    this.step = 'wallet';
+  private async createShareableImage(): Promise<void> {
+    if (!this.generatedKey) {
+      this.keyStatus.textContent = 'Generate an access key before creating a shareable image.';
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 1200;
+    canvas.height = 630;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      this.keyStatus.textContent = 'Share image is unavailable in this browser.';
+      return;
+    }
+
+    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+    gradient.addColorStop(0, '#2f3f7a');
+    gradient.addColorStop(0.55, '#4159a8');
+    gradient.addColorStop(1, '#8197df');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+    ctx.fillRect(70, 70, canvas.width - 140, canvas.height - 140);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.font = '700 64px Jost, sans-serif';
+    ctx.fillText('The Big One - Early Access', 110, 120);
+
+    ctx.font = '400 34px Jost, sans-serif';
+    ctx.fillText('Wallet', 110, 240);
+    ctx.font = '600 38px Jost, sans-serif';
+    ctx.fillText(this.maskWalletAddress(this.walletAddress), 110, 282);
+
+    ctx.font = '400 34px Jost, sans-serif';
+    ctx.fillText('Access Key', 110, 372);
+    ctx.font = '700 46px Jost, sans-serif';
+    ctx.fillText(this.generatedKey, 110, 416);
+
+    ctx.font = '400 28px Jost, sans-serif';
+    ctx.fillText('Join the waitlist at thebig.one', 110, 530);
+
+    const blob = await this.canvasToBlob(canvas);
+    if (!blob) {
+      this.keyStatus.textContent = 'Failed to create shareable image.';
+      return;
+    }
+
+    const safeKeySlug = this.generatedKey.replace(/[^A-Za-z0-9-]+/g, '').slice(0, 20);
+    const fileName = `tbo-early-access-${safeKeySlug || 'key'}.png`;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    this.keyStatus.textContent = 'Shareable image downloaded.';
+  }
+
+  private canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => resolve(blob), 'image/png');
+    });
+  }
+
+  private clearGeneratedKeyState(): void {
     this.generatedKey = null;
     this.generatedKeySource = null;
     this.generatingKey = false;
-    this.walletInput.value = '';
-    this.walletError.textContent = '';
-    this.walletInput.classList.remove('is-invalid');
-    this.followCheck.checked = false;
-    this.likeCheck.checked = false;
     this.keyValue.textContent = 'No key generated yet';
     this.keyStatus.textContent = '';
-    this.copyButton.disabled = true;
-    this.generateButton.disabled = false;
-    this.socialWalletValue.textContent = '';
-    this.claimWalletValue.textContent = '';
-    this.updateWalletValidationState(false);
-    this.updateSocialContinueState();
-    this.syncStepUI();
-    this.walletInput.focus();
+    this.syncClaimSection();
   }
 
   private syncStepUI(): void {
@@ -477,12 +534,17 @@ export class EarlyAccessOverlay {
 
   private syncClaimSection(): void {
     const hasKey = this.generatedKey !== null;
-    this.copyButton.disabled = !hasKey;
-    if (hasKey && this.generatedKeySource === 'remote') {
-      this.generateButton.disabled = true;
-    } else if (!this.generatingKey) {
-      this.generateButton.disabled = false;
+    if (this.generatingKey) {
+      this.copyButton.textContent = 'Generating...';
+      this.copyButton.disabled = true;
+    } else if (hasKey) {
+      this.copyButton.textContent = 'Copy';
+      this.copyButton.disabled = false;
+    } else {
+      this.copyButton.textContent = 'Generate Access Key';
+      this.copyButton.disabled = !this.walletAddress;
     }
+    this.shareImageButton.disabled = !hasKey || this.generatingKey;
   }
 
   private updateWalletValidationState(showError: boolean): boolean {

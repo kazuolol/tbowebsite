@@ -271,6 +271,7 @@ export class FallingCharacter {
     this.resolveOrbitAnchorBones();
 
     this.applyVariantConfig(textureMap);
+    this.refreshClipBounds();
 
     this.mixer = new THREE.AnimationMixer(this.model);
     const retargetedClip = this.retargetAnimation(animClip);
@@ -786,12 +787,22 @@ export class FallingCharacter {
       if (!child.visible) {
         return;
       }
-      const position = child.geometry?.getAttribute('position');
-      if (!position || position.count === 0) {
+      const geometry = child.geometry;
+      if (!geometry) {
         return;
       }
-      this.clipBoundsMeshBox.setFromObject(child, true);
-      if (!this.clipBoundsMeshBox.isEmpty()) {
+      if (!geometry.boundingBox) {
+        geometry.computeBoundingBox();
+      }
+      if (!geometry.boundingBox || geometry.boundingBox.isEmpty()) {
+        return;
+      }
+      this.clipBoundsMeshBox.copy(geometry.boundingBox).applyMatrix4(child.matrixWorld);
+      if (
+        Number.isFinite(this.clipBoundsMeshBox.min.y) &&
+        Number.isFinite(this.clipBoundsMeshBox.max.y) &&
+        !this.clipBoundsMeshBox.isEmpty()
+      ) {
         this.clipBoundsBox.union(this.clipBoundsMeshBox);
       }
     });

@@ -86,6 +86,9 @@ const RESIZE_GUARD_INTERVAL_SECONDS = 0.5;
 const FOV_UPDATE_EPSILON = 0.01;
 const CUBE_BASE_COLOR = 0x0632d8;
 const CUBE_EMISSIVE_COLOR = 0x0b3be8;
+const CUBE_BASE_OPACITY_MIN = 0.5;
+const CUBE_BASE_OPACITY_RANGE = 0.22;
+const CUBE_FRAGMENT_OPACITY_SCALE = 0.5;
 const FRAGMENT_GEOMETRY_BUCKET = 0.2;
 const MAX_FRAGMENT_POOL = 160;
 const NIGHT_BACKGROUND_TINT = new THREE.Color(0x08142f);
@@ -236,7 +239,9 @@ export class FallingScene {
       metalness: 0.0,
       transparent: true,
       depthWrite: false,
-      opacity: 0.9,
+      alphaHash: false,
+      alphaTest: 0,
+      opacity: 1,
     });
     this.cubeInstancedMaterial = this.cubeMaterial.clone();
     this.cubeInstancedMaterial.opacity = 1;
@@ -414,12 +419,21 @@ ${shader.fragmentShader}`;
         'vec3 totalEmissiveRadiance = emissive;',
         'vec3 totalEmissiveRadiance = emissive * vInstanceEmissiveIntensity;'
       );
-      shader.fragmentShader = shader.fragmentShader.replace(
-        'gl_FragColor = vec4( outgoingLight, diffuseColor.a );',
-        'gl_FragColor = vec4( outgoingLight, diffuseColor.a * vInstanceOpacity );'
-      );
+      if (shader.fragmentShader.includes('#include <alphatest_fragment>')) {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <alphatest_fragment>',
+          `diffuseColor.a *= vInstanceOpacity;
+#include <alphatest_fragment>`
+        );
+      } else {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          'gl_FragColor = vec4( outgoingLight, diffuseColor.a );',
+          `diffuseColor.a *= vInstanceOpacity;
+gl_FragColor = vec4( outgoingLight, diffuseColor.a );`
+        );
+      }
     };
-    material.customProgramCacheKey = () => 'tbo-instanced-cube-v1';
+    material.customProgramCacheKey = () => 'tbo-instanced-cube-v2';
   }
 
   private createRandomCubeVisualValues(): {
@@ -427,7 +441,7 @@ ${shader.fragmentShader}`;
     emissiveIntensity: number;
   } {
     return {
-      opacity: 0.7 + Math.random() * 0.3,
+      opacity: CUBE_BASE_OPACITY_MIN + Math.random() * CUBE_BASE_OPACITY_RANGE,
       emissiveIntensity: 0.8 + Math.random() * 0.6,
     };
   }
@@ -538,7 +552,7 @@ ${shader.fragmentShader}`;
     );
 
     const values = this.createRandomCubeVisualValues();
-    values.opacity *= 0.5;
+    values.opacity *= CUBE_FRAGMENT_OPACITY_SCALE;
     fragment.baseOpacity = values.opacity;
     fragment.baseEmissiveIntensity = values.emissiveIntensity;
 
@@ -791,7 +805,11 @@ ${shader.fragmentShader}`;
       }
 
       const nearCameraFade = 1 - THREE.MathUtils.smoothstep(cube.position.z, fadeStartZ, fadeEndZ);
-      opacities[index] = cube.baseOpacity * this.cubeOpacityMultiplier * nearCameraFade;
+      opacities[index] = THREE.MathUtils.clamp(
+        cube.baseOpacity * this.cubeOpacityMultiplier * nearCameraFade,
+        0,
+        1
+      );
       emissiveIntensities[index] =
         cube.baseEmissiveIntensity * this.cubeEmissiveMultiplier * nearCameraFade;
 
@@ -850,7 +868,11 @@ ${shader.fragmentShader}`;
         fragment.baseEmissiveIntensity * this.cubeEmissiveMultiplier * nearCameraFade;
 
       const lifeOpacity = this.getFragmentLifeOpacity(lifeRatio);
-      opacities[index] = fragment.baseOpacity * this.cubeOpacityMultiplier * lifeOpacity * nearCameraFade;
+      opacities[index] = THREE.MathUtils.clamp(
+        fragment.baseOpacity * this.cubeOpacityMultiplier * lifeOpacity * nearCameraFade,
+        0,
+        1
+      );
 
       this.fragmentTransform.position.copy(fragment.position);
       this.fragmentTransform.rotation.copy(fragment.rotation);

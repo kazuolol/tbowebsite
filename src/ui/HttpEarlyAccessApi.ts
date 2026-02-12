@@ -200,7 +200,7 @@ const normalizeVerifySocialResult = (value: unknown): VerifySocialResult => {
   return { verified };
 };
 
-const normalizeConnectUrl = (value: unknown): { url: string } => {
+const normalizeConnectUrl = (value: unknown): { url: string; connected?: boolean } => {
   if (!isRecord(value)) {
     throw new Error('Invalid connect URL response from backend.');
   }
@@ -208,7 +208,15 @@ const normalizeConnectUrl = (value: unknown): { url: string } => {
   if (!url) {
     throw new Error('Invalid connect URL response from backend.');
   }
-  return { url };
+  const connected = asBoolean(value.connected);
+  return { url, connected };
+};
+
+const openPopupOrThrow = (url: string, label: string): void => {
+  const popup = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!popup) {
+    throw new Error(`${label} popup was blocked. Allow popups and try again.`);
+  }
 };
 
 const getPublicKeyFromProviderResult = (
@@ -374,8 +382,8 @@ class HttpEarlyAccessApi implements EarlyAccessApi {
       method: 'GET',
       parse: normalizeConnectUrl,
     });
-    const popup = window.open(result.url, '_blank', 'noopener,noreferrer');
-    return { connected: popup !== null };
+    openPopupOrThrow(result.url, 'X authentication');
+    return { connected: result.connected === true };
   }
 
   async verifyXFollow(): Promise<VerifySocialResult> {
@@ -406,7 +414,7 @@ class HttpEarlyAccessApi implements EarlyAccessApi {
       method: 'GET',
       parse: normalizeConnectUrl,
     });
-    window.open(connect.url, '_blank', 'noopener,noreferrer');
+    openPopupOrThrow(connect.url, 'Discord authentication');
     return this.request('/community/discord/verify', {
       method: 'POST',
       body: {},

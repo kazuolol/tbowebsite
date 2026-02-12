@@ -10,7 +10,7 @@ Make Claim Early Access fully functional and production-ready by replacing the m
 
 ## Progress Snapshot (2026-02-12)
 
-Status: PR-1, PR-2, PR-4, and PR-7 are completed in the frontend repo. PR-3, PR-5, and PR-6 are completed in backend repo `C:\Code\tbowebsite-backend`.
+Status: PR-1, PR-2, PR-4, and PR-7 are completed in the frontend repo. PR-3, PR-5, and PR-6 are completed in backend repo `D:\Code\tbowebsite-backend`.
 
 Completed work:
 
@@ -58,7 +58,7 @@ Completed work:
 
 Important handoff notes:
 
-1. Backend PR-3, PR-5, and PR-6 are complete in backend repo `C:\Code\tbowebsite-backend`.
+1. Backend PR-3, PR-5, and PR-6 are complete in backend repo `D:\Code\tbowebsite-backend`.
 - Implemented endpoints: wallet challenge/verify, status, and guild lifecycle endpoints.
 - Implemented schema/migrations: `users`, `wallet_challenges`, `auth_sessions`, `early_access_state`, `founder_keys`, `guilds`, `guild_memberships`.
 - Founder identifiers are incremental and exposed as `acceptanceId`.
@@ -72,6 +72,69 @@ Important handoff notes:
 - Discord verification path opens `community/discord/connect-url` then calls `community/discord/verify`.
 - Backend callback/session logic for OAuth remains pending (PR-8 and PR-9).
 
+## Progress Update (2026-02-12, 18:10 local)
+
+Status update:
+
+1. Frontend PR-8/PR-9 behavior hardening is implemented in `D:\Code\tbowebsite`.
+2. Backend PR-8/PR-9 code implementation is now added in `D:\Code\tbowebsite-backend` (cloned from `https://github.com/kazuolol/tbowebsite-backend`).
+3. Live integration validation is blocked by local Postgres authentication.
+
+Completed in this update:
+
+1. Frontend social/OAuth behavior hardening (HTTP mode).
+- Updated `src/ui/HttpEarlyAccessApi.ts`:
+  - connect-url parsing now supports optional backend `connected` signal,
+  - popup-open is no longer treated as verification success,
+  - popup blocked now raises explicit error.
+- Updated `src/ui/EarlyAccessOverlay.ts`:
+  - Step 2 follow/like buttons are not gated by optimistic `xConnected` state,
+  - follow/like completion now depends on backend verification responses,
+  - user notice text guides retry after OAuth completion,
+  - Step 3 checklist label updated to `X follow + like verified`.
+- Preserved event payload contracts.
+
+2. Added manual verification checklist for item 1 (`/claim` + `/claim?guild=CODE`).
+- New file: `docs/early-access-http-checklist.md`.
+
+3. Backend PR-8 and PR-9 implementation added.
+- New migration: `migrations/0004_social_oauth.sql`.
+  - Adds `social_accounts` and `oauth_state_tokens` tables.
+  - Adds social verification timestamp columns to `early_access_state`.
+- New service: `src/services/socialAuthService.ts`.
+  - X connect-url, callback, verify-follow, verify-like.
+  - Discord connect-url, callback, verify.
+  - OAuth state issuance/consumption and session-bound ownership checks.
+  - Mock callback fallback when provider credentials are unset.
+- Route wiring in `src/routes/earlyAccessRoutes.ts` for:
+  - `GET /social/x/connect-url`
+  - `GET /social/x/callback`
+  - `POST /social/x/verify-follow`
+  - `POST /social/x/verify-like`
+  - `GET /community/discord/connect-url`
+  - `GET /community/discord/callback`
+  - `POST /community/discord/verify`
+- App/config wiring updates:
+  - `src/app.ts`
+  - `src/config.ts`
+  - `.env.example`
+  - `openapi/early-access-wallet-auth.v1.yaml`
+  - `README.md`
+
+4. Validation completed for current code state.
+- Frontend (`D:\Code\tbowebsite`):
+  - `npm.cmd run build` passed.
+- Backend (`D:\Code\tbowebsite-backend`):
+  - `npm.cmd run typecheck` passed.
+  - `npm.cmd run build` passed.
+  - `npm.cmd test` passed (`2` test files, `6` tests).
+
+Current blockers:
+
+1. `npm.cmd run db:migrate` in `D:\Code\tbowebsite-backend` failed due DB auth:
+- `password authentication failed for user "postgres"` for `postgres://postgres:postgres@localhost:5432/tbo_early_access`.
+2. Until `DATABASE_URL`/credentials are corrected and migrations run, live backend smoke checks and end-to-end `/claim` + `/claim?guild=CODE` HTTP-mode validation are blocked.
+
 ## Verification Snapshot (2026-02-12)
 
 Latest verification run completed on 2026-02-12.
@@ -79,7 +142,7 @@ Latest verification run completed on 2026-02-12.
 1. Frontend repo (`C:\Users\gazin\tbowebsite`)
 - Ran `npm.cmd run build`; build passed.
 
-2. Backend repo (`C:\Code\tbowebsite-backend`)
+2. Backend repo (`D:\Code\tbowebsite-backend`)
 - Ran `npm.cmd run typecheck`; passed.
 - Ran `npm.cmd run build`; passed.
 - Ran `npm.cmd test`; passed (`2` test files, `6` tests).
@@ -300,8 +363,8 @@ Use a consistent envelope:
 5. PR-5 Backend status computation + founder key issuance. [DONE 2026-02-12]
 6. PR-6 Backend guild endpoints + authorization. [DONE 2026-02-12]
 7. PR-7 Frontend guild integration against backend. [DONE 2026-02-12]
-8. PR-8 X OAuth + follow/like verification implementation.
-9. PR-9 Discord OAuth + community verification implementation.
+8. PR-8 X OAuth + follow/like verification implementation. [IN PROGRESS 2026-02-12: code implemented in `D:\Code\tbowebsite-backend`, pending live DB-backed verification]
+9. PR-9 Discord OAuth + community verification implementation. [IN PROGRESS 2026-02-12: code implemented in `D:\Code\tbowebsite-backend`, pending live DB-backed verification]
 10. PR-10 Security hardening, rate limits, and audit logging.
 11. PR-11 E2E/contract/load tests in CI.
 12. PR-12 Canary rollout and full production cutover.
@@ -309,7 +372,7 @@ Use a consistent envelope:
 ## Start-Here Notes For Next Agent
 
 1. PR-1, PR-2, PR-4, and PR-7 are complete in frontend repo `C:\Users\gazin\tbowebsite`.
-2. PR-3, PR-5, and PR-6 are complete in backend repo `C:\Code\tbowebsite-backend`.
+2. PR-3, PR-5, and PR-6 are complete in backend repo `D:\Code\tbowebsite-backend`.
 3. PR-7 frontend updates landed in `src/ui/EarlyAccessOverlay.ts`:
 - Step 3 now re-syncs canonical backend status after guild mutations.
 - Accepted users with `/claim?guild=CODE` can join invite from the accepted no-guild panel.
@@ -322,3 +385,11 @@ Use a consistent envelope:
 7. Verification baseline after each PR:
 - Run `npm.cmd run build`.
 - Manually validate `/claim` and `/claim?guild=CODE` in `http` mode.
+
+## Immediate Unblock Needed (2026-02-12)
+
+1. Provide working backend `DATABASE_URL` (or local Postgres credentials) for `D:\Code\tbowebsite-backend`.
+2. Run `npm.cmd run db:migrate` successfully.
+3. Start backend and execute:
+- live endpoint smoke checks for the new social endpoints,
+- manual checklist in `docs/early-access-http-checklist.md` for `/claim` and `/claim?guild=CODE`.

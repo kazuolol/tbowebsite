@@ -347,13 +347,13 @@ export class EarlyAccessOverlay {
             </div>
             <div class="dc-early-status-row dc-early-status-row-action">
               <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-action="x-follow" ${
-                !social.xConnected || this.asyncState.verifyXFollow ? 'disabled' : ''
+                this.asyncState.verifyXFollow ? 'disabled' : ''
               }>${this.asyncState.verifyXFollow ? 'Verifying...' : `Verify Follow ${this.config.twitterHandle}`}</button>
               ${this.renderBadge(social.followingVerified)}
             </div>
             <div class="dc-early-status-row dc-early-status-row-action">
               <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-action="x-like" ${
-                !social.xConnected || this.asyncState.verifyXLike ? 'disabled' : ''
+                this.asyncState.verifyXLike ? 'disabled' : ''
               }>${this.asyncState.verifyXLike ? 'Verifying...' : 'Verify Like Campaign Tweet'}</button>
               ${this.renderBadge(social.likeVerified)}
             </div>
@@ -591,7 +591,7 @@ export class EarlyAccessOverlay {
     const deepLinkCode = this.state.deepLinkGuildCode;
     const verificationChecklist = [
       { label: 'Wallet verified', verified: this.state.wallet.verified },
-      { label: 'X connected + follow + like', verified: this.isXComplete() },
+      { label: 'X follow + like verified', verified: this.isXComplete() },
       { label: 'Community action complete', verified: this.isCommunityComplete() },
     ];
     const checklistHtml = verificationChecklist
@@ -854,9 +854,14 @@ export class EarlyAccessOverlay {
     this.render();
     try {
       const result = await earlyAccessApi.connectX();
-      this.state.social.xConnected = result.connected;
-      this.socialNotice = result.connected ? 'X account connected.' : 'Failed to connect X account.';
-      this.persistState();
+      if (result.connected) {
+        this.state.social.xConnected = true;
+        this.socialNotice = 'X account already connected. Verify follow and like to continue.';
+        this.persistState();
+      } else {
+        this.socialNotice =
+          'Finish X authentication in the popup, then run follow/like verification.';
+      }
     } catch (error) {
       this.socialNotice = error instanceof Error ? error.message : 'Failed to connect X account.';
     } finally {
@@ -869,20 +874,16 @@ export class EarlyAccessOverlay {
     if (this.asyncState.verifyXFollow) {
       return;
     }
-    if (!this.state.social.xConnected) {
-      this.socialNotice = 'Connect X before verifying follow status.';
-      this.render();
-      return;
-    }
     this.asyncState.verifyXFollow = true;
     this.socialNotice = '';
     this.render();
     try {
       const result = await earlyAccessApi.verifyXFollow();
+      this.state.social.xConnected = this.state.social.xConnected || result.verified;
       this.state.social.followingVerified = result.verified;
       this.socialNotice = result.verified
         ? `Follow verification complete for ${this.config.twitterHandle}.`
-        : 'Follow verification failed.';
+        : `Follow not detected for ${this.config.twitterHandle} yet. Complete it on X and try again.`;
       this.persistState();
     } catch (error) {
       this.socialNotice = error instanceof Error ? error.message : 'Follow verification failed.';
@@ -896,20 +897,16 @@ export class EarlyAccessOverlay {
     if (this.asyncState.verifyXLike) {
       return;
     }
-    if (!this.state.social.xConnected) {
-      this.socialNotice = 'Connect X before verifying like status.';
-      this.render();
-      return;
-    }
     this.asyncState.verifyXLike = true;
     this.socialNotice = '';
     this.render();
     try {
       const result = await earlyAccessApi.verifyXLike();
+      this.state.social.xConnected = this.state.social.xConnected || result.verified;
       this.state.social.likeVerified = result.verified;
       this.socialNotice = result.verified
         ? 'Campaign tweet like verified.'
-        : 'Like verification failed.';
+        : 'Campaign tweet like not detected yet. Complete it on X and try again.';
       this.persistState();
     } catch (error) {
       this.socialNotice = error instanceof Error ? error.message : 'Like verification failed.';
@@ -1286,7 +1283,6 @@ export class EarlyAccessOverlay {
 
   private isXComplete(): boolean {
     return (
-      this.state.social.xConnected &&
       this.state.social.followingVerified &&
       this.state.social.likeVerified
     );

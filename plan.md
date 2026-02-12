@@ -1,227 +1,280 @@
-# Performance Optimization Plan
+# Claim Early Access Backend Integration Plan
 
-Date: 2026-02-10
-Repo: `D:\code\tbowebsite`
+Date: 2026-02-12
+Repo: `C:\Users\gazin\tbowebsite`
+Owner: Frontend + Backend implementation agents
 
 ## Objective
 
-Deliver the highest possible runtime performance gain with minimal change to the current website aesthetic.
+Make Claim Early Access fully functional and production-ready by replacing the mock local API layer with a real backend while preserving the existing frontend flow and event contracts.
 
-The primary bottleneck is render submission overhead (draw calls), not triangle count.
-Current reference capture shows about `453` draw calls with about `36k` triangles.
+## Progress Snapshot (2026-02-12)
 
-## Progress Snapshot (Updated 2026-02-10)
-
-Overall status: `In progress`
+Status: PR-1, PR-2, and PR-4 are completed in the frontend repo. PR-3, PR-5, and PR-6 are completed in backend repo `C:\Code\tbowebsite-backend`.
 
 Completed work:
-- P0 core work implemented in `buildFriendsIcon.ts` and `buildGlobeIcon.ts`.
-- P1 implemented in `FallingScene.ts` with instanced cubes and instanced fragments.
-- P2 implemented in `FallingScene.ts` with sustained-pressure adaptive scaling (fragments first, then cube density).
-- P3 implemented in `MenuIcon3D.ts`, `CharacterOrbitCarousel.ts`, and `HeaderOverlay.ts`:
-  - removed redundant per-frame static icon transform writes
-  - froze matrix updates for static icon subtrees while keeping animated nodes live
-  - cached carousel render-order/scale writes to avoid redundant property churn
-  - gated header weather icon redraw/text writes to state changes
-- Runtime perf toggles added in `FallingScene.ts`:
-  - `tboOrbitIcons`
-  - `tboCubes`
-  - `tboWeather`
-- Weather visibility hook added in `WeatherParticles.ts`.
-- Post-P3 integrated runtime perf capture recorded in `perf-capture.latest.json`.
-- Post-P3 warm runtime perf capture recorded in `perf-capture.warm.latest.json`.
-- Build verification currently passing with `npm.cmd run build`.
 
-Pending work:
-- Collect per-phase/toggle-isolated captures with `?tboPerf=1` for attribution.
-- Confirm draw-call target (`<200`) across additional comparable captures.
-- Run visual parity QA against references.
-- Optional P0 follow-up for `buildInboxIcon.ts` if capture results show it remains a significant call contributor.
+1. Frontend API abstraction completed.
+- Added API contract/interface file: `src/ui/earlyAccessApiContract.ts`.
+- Moved prior mock implementation into `src/ui/MockEarlyAccessApi.ts`.
+- Added HTTP implementation in `src/ui/HttpEarlyAccessApi.ts` with:
+  - centralized `fetch` request helper,
+  - envelope parsing for `{ ok: true, data }` and `{ ok: false, error }`,
+  - typed response normalization and error conversion.
+- Replaced `src/ui/earlyAccessApi.ts` with mode-based wiring:
+  - `VITE_EARLY_ACCESS_API_MODE=mock|http`
+  - defaults to `mock`.
+- Preserved existing method names used by `EarlyAccessOverlay` so overlay call sites remained unchanged.
 
-## Latest Capture Snapshots (2026-02-10)
+2. Guardrail fix completed.
+- Updated `src/main.ts` so early-access localStorage clearing now runs only when `import.meta.env.DEV` is true.
 
-- Capture A source: `perf-capture.latest.json`
-- Timestamp (UTC): `2026-02-10T20:05:41.614Z`
-- URL: `http://127.0.0.1:43234/?tboPerf=1`
-- Mode: `edge-cdp-headless`
-- GPU renderer: `ANGLE (NVIDIA GeForce RTX 3090, D3D11)`
-- Frame avg/p95/worst: `5.24 / 14.80 / 29.30 ms`
-- Estimated FPS / samples: `190.7 / 600`
-- Renderer calls/triangles/lines/points: `126 / 41117 / 4680 / 0`
-- Renderer textures/geometries/programs: `30 / 79 / 26`
-- Page warning counts: `0 warnings`, `0 errors`
-- Draw-call target check (`<200`): `Pass` in this capture
-- Capture B source: `perf-capture.warm.latest.json` (22s warmup before sampling)
-- Timestamp (UTC): `2026-02-10T21:04:25.031Z`
-- URL: `http://127.0.0.1:43234/?tboPerf=1`
-- Mode: `edge-cdp-headless-warm`
-- GPU renderer: `ANGLE (NVIDIA GeForce RTX 3090, D3D11)`
-- Frame avg/p95/worst: `5.40 / 14.80 / 26.40 ms`
-- Estimated FPS / samples: `185.0 / 600`
-- Renderer calls/triangles/lines/points: `130 / 41361 / 4680 / 0`
-- Renderer textures/geometries/programs: `32 / 80 / 26`
-- Page warning counts: `0 warnings`, `0 errors`
-- Draw-call target check (`<200`): `Pass` in warmed capture
-- Capture C source: `perf-capture.warm.after-cull.json` (post near-camera hard cull)
-- Timestamp (UTC): `2026-02-10T21:49:59.694Z`
-- URL: `http://127.0.0.1:43234/?tboPerf=1`
-- Mode: `edge-cdp-headless-warm-after-cull`
-- GPU renderer: `ANGLE (NVIDIA GeForce RTX 3090, D3D11)`
-- Frame avg/p95/worst: `4.64 / 8.60 / 17.60 ms`
-- Estimated FPS / samples: `215.3 / 600`
-- Renderer calls/triangles/lines/points: `126 / 41294 / 4680 / 0`
-- Renderer textures/geometries/programs: `30 / 79 / 26`
-- Draw-call target check (`<200`): `Pass` in post-cull warmed capture
+3. Build verification completed.
+- Ran `npm.cmd run build` after changes; TypeScript + Vite build succeeded.
+- Existing Three.js chunk-size warning remains informational only.
 
-## Visual and Contract Guardrails
+4. Wallet challenge flow completed (frontend protocol wiring).
+- Updated API contract in `src/ui/earlyAccessApiContract.ts` to include:
+  - `createWalletChallenge({ publicKey })`,
+  - nonce-aware `verifyWallet({ publicKey, nonce, signature })`.
+- Updated `src/ui/HttpEarlyAccessApi.ts`:
+  - added `POST /wallet/challenge`,
+  - updated `POST /wallet/verify` payload to include `nonce`,
+  - added strict challenge payload normalization.
+- Updated `src/ui/MockEarlyAccessApi.ts`:
+  - added mock challenge issuance with nonce + expiry,
+  - added nonce/expiry validation in `verifyWallet` to mirror backend flow.
+- Updated `src/ui/EarlyAccessOverlay.ts` wallet step to:
+  - request challenge from API,
+  - sign backend-provided challenge message,
+  - verify with `{ publicKey, nonce, signature }`,
+  - preserve existing UX/loading/notices and event contracts.
 
-No visual drift from the current design language:
-- No changes to page layout, typography, palette, or scene art direction.
-- Preserve existing motion style and interaction behavior.
-- Keep icon silhouettes and proportions visually equivalent.
+Important handoff notes:
 
-No contract drift from AGENTS.md:
-- Keep `tbo:menu-action` payload as `{ action, label }`.
-- Keep `tbo:local-weather-update` feeding `FallingScene`.
-- Keep `ORBIT_LAYER = 2` behavior intact.
+1. Backend PR-3, PR-5, and PR-6 are complete in backend repo `C:\Code\tbowebsite-backend`.
+- Implemented endpoints: wallet challenge/verify, status, and guild lifecycle endpoints.
+- Implemented schema/migrations: `users`, `wallet_challenges`, `auth_sessions`, `early_access_state`, `founder_keys`, `guilds`, `guild_memberships`.
+- Founder identifiers are incremental and exposed as `acceptanceId`.
 
-## Performance Targets
+2. Status payload contract update in HTTP mode:
+- `GET /status` now returns `acceptanceId` (incremental founder identifier) plus `acceptance` and optional `guild`.
+- Frontend keeps legacy fallback support for `founderKey.serial` during transition compatibility.
 
-- Reduce draw calls from about `453` to below `200`.
-- Improve or hold p95 frame time in interactive desktop capture.
-- Maintain visual parity under normal user viewing distance.
+3. OAuth/community behavior in HTTP mode is still pending:
+- `connectX()` opens backend `social/x/connect-url`.
+- Discord verification path opens `community/discord/connect-url` then calls `community/discord/verify`.
+- Backend callback/session logic for OAuth remains pending (PR-8 and PR-9).
 
-## Measurement Method (Before and After Each Phase)
+## Non-Negotiable Contracts
 
-1. Add temporary runtime toggles in `FallingScene` for:
-- orbit carousel icons
-- cubes and fragments
-- weather particles
+1. Keep `tbo:menu-action` payload as `{ action, label }`.
+2. Keep `tbo:early-access-claimed` payload as `{ walletPublicKey, status, acceptanceId?, guildCode? }`.
+3. Keep current 3-step UX in `src/ui/EarlyAccessOverlay.ts`:
+- Step 1 Wallet
+- Step 2 Social
+- Step 3 Claim/Queue
+4. Keep deep-link behavior for `/claim` and `?guild=CODE`.
 
-Status:
-- Implemented via query params:
-  - `tboOrbitIcons`
-  - `tboCubes`
-  - `tboWeather`
+## Current Frontend Touchpoints
 
-2. For each phase, capture:
-- average, p95, worst frame time
-- estimated FPS
-- `renderer.info` calls, triangles, textures, geometries, programs
+1. Entry and deep links: `src/main.ts`.
+2. Trigger UI button: `src/ui/HeaderOverlay.ts`.
+3. Core flow and state machine: `src/ui/EarlyAccessOverlay.ts`.
+4. API seam to replace: `src/ui/earlyAccessApi.ts`.
+5. Shared types: `src/types/EarlyAccess.ts`.
 
-3. Keep captures comparable:
-- same URL mode (`?tboPerf=1`)
-- same viewport class
-- same warmup time
+## Immediate Guardrail Fix
 
-## Prioritized Work Plan
+Before backend work, update `src/main.ts` so early-access localStorage keys are cleared only in development.
+Current behavior clears on every refresh, which is unacceptable in production.
 
-### P0 (Highest ROI): Reduce in-world icon draw calls
+## Target Architecture
 
-Status: `Partially complete (core implemented, integrated capture complete, phase-isolated capture pending)`
+1. Frontend keeps current overlay logic and calls an API interface.
+2. `HttpEarlyAccessApi` replaces mock behavior for production.
+3. Backend service exposes `/v1/early-access/*`.
+4. Postgres is the source of truth.
+5. Redis job queue handles async verification where needed.
+6. OAuth flows for X and Discord terminate on backend callbacks.
+7. Frontend localStorage is UI cache only, never source of truth.
 
-Primary target:
-- `src/ui/menu-icon/buildFriendsIcon.ts`
-- `src/ui/menu-icon/buildGlobeIcon.ts`
-- `src/ui/menu-icon/buildInboxIcon.ts`
-- used by `src/environment/CharacterOrbitCarousel.ts`
+## Backend API Contract (v1)
 
-Actions:
-- Convert repeated friends icon mesh sets to `InstancedMesh` where geometry/material are shared.
-- Collapse globe line objects into fewer buffers/objects.
-- Keep current transforms, color values, and material styling so appearance remains consistent.
+Use a consistent envelope:
 
-Implemented:
-- Friends icon repeated key/screw meshes now use instancing.
-- Globe icon line objects were consolidated into batched line segment buffers.
-- Globe connector and hub marker meshes were converted to instanced rendering.
+- Success: `{ ok: true, data: ... }`
+- Error: `{ ok: false, error: { code, message } }`
 
-Outstanding:
-- `buildInboxIcon.ts` was not changed in this pass.
+### Endpoints
 
-Expected result:
-- Largest draw-call reduction with low aesthetic risk.
+1. `POST /v1/early-access/wallet/challenge`
+- Request: `{ walletPublicKey }`
+- Response: `{ nonce, message, expiresAt }`
 
-### P1: Batch cubes and fragments
+2. `POST /v1/early-access/wallet/verify`
+- Request: `{ walletPublicKey, nonce, signature }`
+- Response: `{ verified, flagged }`
 
-Status: `Implemented, integrated capture complete, phase-isolated capture pending`
+3. `GET /v1/early-access/social/x/connect-url?returnTo=...`
+- Response: `{ url }`
 
-Primary target:
-- `src/scene/FallingScene.ts`
+4. `POST /v1/early-access/social/x/verify-follow`
+- Request: `{}`
+- Response: `{ verified }`
 
-Actions:
-- Replace per-cube meshes/material clones with bucketed instancing.
-- Instance fragment rendering where practical while preserving lifecycle and fade behavior.
-- Keep weather-driven motion profile and current size distribution.
+5. `POST /v1/early-access/social/x/verify-like`
+- Request: `{}`
+- Response: `{ verified }`
 
-Implemented:
-- Cubes now render through a single `InstancedMesh` path with per-instance opacity/emissive attributes.
-- Fragments now render through a single `InstancedMesh` path with per-instance lifecycle-driven opacity/emissive updates.
-- Existing weather-driven movement and randomness profile were retained.
+6. `GET /v1/early-access/community/discord/connect-url?returnTo=...`
+- Response: `{ url }`
 
-Expected result:
-- Major additional draw-call and CPU update reduction with minimal visible change.
+7. `POST /v1/early-access/community/discord/verify`
+- Request: `{}`
+- Response: `{ verified }`
 
-### P2: Adaptive quality only when performance is constrained
+8. `GET /v1/early-access/status`
+- Response: `{ acceptance, acceptanceId?, guild? }`
 
-Status: `Implemented, integrated capture complete, phase-isolated capture pending`
+9. `POST /v1/early-access/guild`
+- Request: `{}`
+- Response: `{ guild }`
 
-Primary target:
-- `src/environment/WeatherParticles.ts`
-- `src/scene/FallingScene.ts`
+10. `POST /v1/early-access/guild/join`
+- Request: `{ code }`
+- Response: `{ guild }`
 
-Actions:
-- Expand adaptive scaling to reduce fragment load first, then cube density, only after sustained frame-pressure thresholds.
-- Avoid quality reduction on capable hardware.
+11. `POST /v1/early-access/guild/lock`
+- Request: `{ code }`
+- Response: `{ guild }`
 
-Implemented:
-- Added sustained-frame-pressure logic in `FallingScene`.
-- Degrade order is fragment budget first, then cube density.
-- Recovery order is reversed to restore full quality on stable frame times.
+12. `POST /v1/early-access/guild/unlock`
+- Request: `{ code }`
+- Response: `{ guild }`
 
-Expected result:
-- Better stability on low-end devices without changing high-end visual output.
+13. `POST /v1/early-access/guild/kick`
+- Request: `{ memberId }`
+- Response: `{ guild }`
 
-### P3: Micro-optimizations and cleanup
+## Data Model (Postgres)
 
-Targets:
-- `src/ui/MenuIcon3D.ts`
-- `src/environment/CharacterOrbitCarousel.ts`
-- `src/ui/HeaderOverlay.ts`
+1. `users`
+- `id`, `wallet_public_key` unique, timestamps
 
-Status: `Implemented, integrated capture complete, phase-isolated capture pending`
+2. `wallet_challenges`
+- `id`, `user_id`, `nonce` unique, `message`, `expires_at`, `used_at`
 
-Actions:
-- Keep canvas texture uploads gated to meaningful state changes.
-- Remove any redundant per-frame transforms or property writes in icon paths.
-- Retain current interaction behavior and animation cadence.
+3. `social_accounts`
+- `id`, `user_id`, `provider` (`x` or `discord`), provider user id, encrypted tokens
 
-Implemented:
-- `MenuIcon3D.ts`: moved static transforms to initialization, removed redundant per-frame static assignments, and froze matrix updates for static icon nodes.
-- `CharacterOrbitCarousel.ts`: cached scale/render-order writes to avoid unnecessary per-frame property updates.
-- `HeaderOverlay.ts`: weather icon redraw and date/weather text writes now run only when visible state changes.
+4. `early_access_state`
+- `user_id` PK
+- wallet/social/community verification flags
+- acceptance status and score
 
-Expected result:
-- Small but reliable frame-time improvements and less jitter.
+5. `founder_keys`
+- `id`, `user_id` unique, `serial` unique, `key_id` unique
 
-## Execution Cadence
+6. `guilds`
+- `id`, `code` unique, `capacity`, `is_locked`, `captain_user_id`
 
-1. `Complete` Baseline reference capture recorded (`~453` draw calls).
-2. `Implemented / integrated capture complete / phase-isolated capture pending` P0.
-3. `Implemented / integrated capture complete / phase-isolated capture pending` P1.
-4. `Implemented / integrated capture complete / phase-isolated capture pending` P2.
-5. `Implemented / integrated capture complete / phase-isolated capture pending` P3.
-6. `Pending` visual parity QA against reference screenshots.
+7. `guild_memberships`
+- `id`, `guild_id`, `user_id`, `status` (`PENDING` or `VERIFIED`)
+- unique `(guild_id, user_id)`
 
-## Success Criteria
+8. `audit_events`
+- immutable record for critical actions
 
-- Draw calls reduced below target or materially lower than baseline.
-- No regression in event contracts or orbit carousel interaction.
-- No meaningful aesthetic drift in icon appearance, scene composition, or animation feel.
-- Build passes with `npm.cmd run build`.
+## Security Requirements
 
-## Rollback Strategy
+1. Wallet verification must use single-use nonce challenge with strict expiry and replay protection.
+2. Session auth must use secure HttpOnly cookies.
+3. Add CSRF protection for mutating endpoints if cookie auth is used.
+4. Rate-limit sensitive routes per IP and per wallet/session.
+5. Enforce backend validation for all request payloads.
+6. Encrypt OAuth tokens at rest and rotate keys.
+7. Keep guild permission checks server-authoritative (captain-only actions).
 
-Each phase is scoped to a small set of files.
-If visual drift appears, rollback the specific phase and keep prior wins.
-Do not merge optimization changes without paired perf capture and visual check.
+## Frontend Integration Tasks
+
+1. Create `EarlyAccessApi` interface.
+2. Move current mock into `MockEarlyAccessApi`.
+3. Add `HttpEarlyAccessApi` with fetch, typed parsing, and centralized error handling.
+4. Wire environment selection (`mock` vs `http`) by Vite env var.
+5. Keep all method names used by `EarlyAccessOverlay` unchanged.
+6. Update wallet sign flow:
+- `challenge` from backend
+- sign returned message
+- `verify` with signature
+7. Keep existing notices/loading states in overlay action handlers.
+8. Keep `dispatchClaimedEvent` behavior unchanged.
+
+## Backend Implementation Tasks
+
+1. Define OpenAPI spec first, then generate types.
+2. Implement wallet challenge and verify endpoints.
+3. Implement session issuance and identity middleware.
+4. Implement status resolver and eligibility computation.
+5. Implement founder key issuance as idempotent transaction.
+6. Implement guild create/join/lock/unlock/kick with captain authorization.
+7. Implement OAuth connect and callback handlers for X and Discord.
+8. Implement async verification jobs and status refresh jobs where needed.
+9. Add structured logs, metrics, and tracing.
+
+## Testing and Quality Gates
+
+1. Unit tests:
+- eligibility logic
+- founder key idempotency
+- guild authorization rules
+
+2. Integration tests:
+- wallet challenge/verify
+- social verification endpoints
+- guild lifecycle endpoints
+
+3. E2E tests:
+- full step 1 -> 2 -> 3 flow
+- accepted flow
+- queue flow
+- `/claim?guild=CODE` join flow
+
+4. Contract tests:
+- frontend API client against OpenAPI mock or test server
+
+5. Load tests:
+- `GET /status`
+- wallet verify
+- guild join
+
+## Rollout Plan
+
+1. Ship behind feature flag: `VITE_EARLY_ACCESS_API_MODE=mock|http`.
+2. Deploy backend to staging and run complete E2E suite.
+3. Enable canary users in production with `http` mode.
+4. Monitor failures, latencies, and verification success rates for 48 hours.
+5. Roll to 100% and keep mock mode only for local development.
+
+## Implementation Backlog (PR by PR)
+
+1. PR-1 Frontend API abstraction (interface + split mock/http). [DONE 2026-02-12]
+2. PR-2 Gate localStorage clearing in `src/main.ts` to dev-only. [DONE 2026-02-12]
+3. PR-3 Backend wallet auth endpoints + DB tables. [DONE 2026-02-12]
+4. PR-4 Frontend wallet challenge/sign/verify flow. [DONE 2026-02-12]
+5. PR-5 Backend status computation + founder key issuance. [DONE 2026-02-12]
+6. PR-6 Backend guild endpoints + authorization. [DONE 2026-02-12]
+7. PR-7 Frontend guild integration against backend.
+8. PR-8 X OAuth + follow/like verification implementation.
+9. PR-9 Discord OAuth + community verification implementation.
+10. PR-10 Security hardening, rate limits, and audit logging.
+11. PR-11 E2E/contract/load tests in CI.
+12. PR-12 Canary rollout and full production cutover.
+
+## Start-Here Notes For Next Agent
+
+1. PR-1, PR-2, and PR-4 are complete in frontend repo `C:\Users\gazin\tbowebsite`.
+2. PR-3, PR-5, and PR-6 are complete in backend repo `C:\Code\tbowebsite-backend`.
+3. Continue with PR-7 (frontend guild integration against backend), then PR-8 (X OAuth) and PR-9 (Discord OAuth).
+4. Preserve all event payload contracts exactly (`tbo:menu-action`, `tbo:early-access-claimed` with `acceptanceId`).
+5. Treat backend status as canonical and frontend local state as cache only.

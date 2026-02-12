@@ -20,6 +20,7 @@ import type {
 const MOCK_STATE_STORAGE_KEY = 'tbo:early-access-api:mock-state:v1';
 const MOCK_CLIENT_ID_STORAGE_KEY = 'tbo:early-access-api:client-id:v1';
 const MOCK_EMAIL_CODE = '424242';
+const SOLANA_CONNECT_TIMEOUT_MS = 15000;
 const LATENCY_MIN_MS = 300;
 const LATENCY_MAX_MS = 800;
 const DEFAULT_GUILD_CAPACITY = 5;
@@ -390,23 +391,78 @@ const getPublicKeyFromProviderResult = (result: SolanaConnectResult | null | und
   return null;
 };
 
-const getInjectedSolanaPublicKey = async (): Promise<string | null> => {
+const getInjectedSolanaProvider = (): SolanaProvider | null => {
   const provider = (window as Window & { solana?: SolanaProvider }).solana;
   if (!provider || typeof provider.connect !== 'function') {
     return null;
   }
+  return provider;
+};
+
+const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> => {
+  let timer: number | null = null;
   try {
-    const result = await provider.connect();
-    return getPublicKeyFromProviderResult(result);
-  } catch {
-    return null;
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timer = window.setTimeout(() => {
+          reject(new Error(message));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== null) {
+      window.clearTimeout(timer);
+    }
+  }
+};
+
+const normalizeProviderConnectError = (error: unknown): Error => {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  const normalized = message.trim().toLowerCase();
+
+  if (
+    normalized.includes('locked') ||
+    normalized.includes('unlock') ||
+    normalized.includes('password') ||
+    normalized.includes('timed out')
+  ) {
+    return new Error('Wallet is locked. Unlock it and try Connect Wallet again.');
+  }
+
+  if (
+    normalized.includes('reject') ||
+    normalized.includes('denied') ||
+    normalized.includes('declin') ||
+    normalized.includes('cancel')
+  ) {
+    return new Error('Wallet connection was canceled.');
+  }
+
+  return new Error('Unable to connect wallet. Unlock your wallet and try again.');
+};
+
+const getInjectedSolanaPublicKey = async (provider: SolanaProvider): Promise<string> => {
+  try {
+    const result = await withTimeout(
+      provider.connect(),
+      SOLANA_CONNECT_TIMEOUT_MS,
+      'Wallet connection timed out.'
+    );
+    const publicKey = getPublicKeyFromProviderResult(result);
+    if (!publicKey) {
+      throw new Error('Wallet public key is unavailable.');
+    }
+    return publicKey;
+  } catch (error) {
+    throw normalizeProviderConnectError(error);
   }
 };
 
 const getOrCreateDevWallet = async (): Promise<string> => {
-  const fromProvider = await getInjectedSolanaPublicKey();
-  if (fromProvider) {
-    return fromProvider;
+  const provider = getInjectedSolanaProvider();
+  if (provider) {
+    return getInjectedSolanaPublicKey(provider);
   }
   const stored = window.localStorage.getItem('tbo:early-access:dev-wallet');
   if (stored && stored.trim().length > 0) {

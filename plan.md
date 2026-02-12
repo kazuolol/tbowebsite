@@ -10,7 +10,7 @@ Make Claim Early Access fully functional and production-ready by replacing the m
 
 ## Progress Snapshot (2026-02-12)
 
-Status: PR-1, PR-2, and PR-4 are completed in the frontend repo. PR-3, PR-5, and PR-6 are completed in backend repo `C:\Code\tbowebsite-backend`.
+Status: PR-1, PR-2, PR-4, and PR-7 are completed in the frontend repo. PR-3, PR-5, and PR-6 are completed in backend repo `C:\Code\tbowebsite-backend`.
 
 Completed work:
 
@@ -50,6 +50,12 @@ Completed work:
   - verify with `{ publicKey, nonce, signature }`,
   - preserve existing UX/loading/notices and event contracts.
 
+5. Guild integration hardening completed (frontend PR-7).
+- Updated `src/ui/EarlyAccessOverlay.ts` so Step 3 re-syncs canonical status (`acceptance`, `acceptanceId`, `guild`) from backend `GET /status` after guild mutations.
+- Added accepted-state deep-link join support (`/claim?guild=CODE`) in the no-guild panel.
+- Preserved event payload contracts and acceptance ID dispatch behavior.
+- Ran `npm.cmd run build`; TypeScript + Vite build succeeded.
+
 Important handoff notes:
 
 1. Backend PR-3, PR-5, and PR-6 are complete in backend repo `C:\Code\tbowebsite-backend`.
@@ -65,6 +71,35 @@ Important handoff notes:
 - `connectX()` opens backend `social/x/connect-url`.
 - Discord verification path opens `community/discord/connect-url` then calls `community/discord/verify`.
 - Backend callback/session logic for OAuth remains pending (PR-8 and PR-9).
+
+## Verification Snapshot (2026-02-12)
+
+Latest verification run completed on 2026-02-12.
+
+1. Frontend repo (`C:\Users\gazin\tbowebsite`)
+- Ran `npm.cmd run build`; build passed.
+
+2. Backend repo (`C:\Code\tbowebsite-backend`)
+- Ran `npm.cmd run typecheck`; passed.
+- Ran `npm.cmd run build`; passed.
+- Ran `npm.cmd test`; passed (`2` test files, `6` tests).
+- Ran `npm.cmd run db:migrate`; passed.
+
+3. Live backend smoke checks (`http://localhost:4000`)
+- `GET /healthz` returned `200` with `{ ok: true, data: { status: 'ok' } }`.
+- `GET /v1/early-access/status` without session returned `401 UNAUTHORIZED`.
+- End-to-end scripted checks passed for:
+  - wallet challenge and wallet verify (session cookie issuance),
+  - nonce single-use replay protection,
+  - invalid signature handling,
+  - status read with session,
+  - guild create/join/lock/unlock/kick,
+  - invalid guild code and unauthorized guard behavior.
+
+4. Pending scope confirmation
+- `GET /v1/early-access/social/x/connect-url` returned `404 NOT_FOUND`.
+- `GET /v1/early-access/community/discord/connect-url` returned `404 NOT_FOUND`.
+- This is expected at current stage (PR-8 and PR-9 still pending).
 
 ## Non-Negotiable Contracts
 
@@ -264,7 +299,7 @@ Use a consistent envelope:
 4. PR-4 Frontend wallet challenge/sign/verify flow. [DONE 2026-02-12]
 5. PR-5 Backend status computation + founder key issuance. [DONE 2026-02-12]
 6. PR-6 Backend guild endpoints + authorization. [DONE 2026-02-12]
-7. PR-7 Frontend guild integration against backend.
+7. PR-7 Frontend guild integration against backend. [DONE 2026-02-12]
 8. PR-8 X OAuth + follow/like verification implementation.
 9. PR-9 Discord OAuth + community verification implementation.
 10. PR-10 Security hardening, rate limits, and audit logging.
@@ -273,8 +308,17 @@ Use a consistent envelope:
 
 ## Start-Here Notes For Next Agent
 
-1. PR-1, PR-2, and PR-4 are complete in frontend repo `C:\Users\gazin\tbowebsite`.
+1. PR-1, PR-2, PR-4, and PR-7 are complete in frontend repo `C:\Users\gazin\tbowebsite`.
 2. PR-3, PR-5, and PR-6 are complete in backend repo `C:\Code\tbowebsite-backend`.
-3. Continue with PR-7 (frontend guild integration against backend), then PR-8 (X OAuth) and PR-9 (Discord OAuth).
-4. Preserve all event payload contracts exactly (`tbo:menu-action`, `tbo:early-access-claimed` with `acceptanceId`).
-5. Treat backend status as canonical and frontend local state as cache only.
+3. PR-7 frontend updates landed in `src/ui/EarlyAccessOverlay.ts`:
+- Step 3 now re-syncs canonical backend status after guild mutations.
+- Accepted users with `/claim?guild=CODE` can join invite from the accepted no-guild panel.
+4. Continue with PR-8 (X OAuth) and PR-9 (Discord OAuth) in this order:
+- Backend: finish callback/session flow for X and Discord so verify endpoints can return real status.
+- Frontend (`src/ui/HttpEarlyAccessApi.ts` + `src/ui/EarlyAccessOverlay.ts`): stop treating popup-open as success signal and rely on backend verification responses/status refresh as source of truth.
+- Keep community mode in HTTP path as `discord` only unless backend adds email/lore parity.
+5. Preserve all event payload contracts exactly (`tbo:menu-action`, `tbo:early-access-claimed` with `acceptanceId`).
+6. Treat backend status as canonical and frontend local state as cache only.
+7. Verification baseline after each PR:
+- Run `npm.cmd run build`.
+- Manually validate `/claim` and `/claim?guild=CODE` in `http` mode.

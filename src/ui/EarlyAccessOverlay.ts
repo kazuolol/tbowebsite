@@ -496,13 +496,32 @@ export class EarlyAccessOverlay {
   private renderAcceptedGuildPanel(): string {
     const guild = this.state.guild;
     if (!guild) {
+      const deepLinkCode = this.state.deepLinkGuildCode;
+      const hasDeepLink = typeof deepLinkCode === 'string' && deepLinkCode.length > 0;
       return `
         <div class="dc-early-guild-card">
           <h4 class="dc-early-section-title text-normal-shadow">Guild Captain Panel</h4>
-          <p class="dc-early-help text-normal-shadow">Create a guild link and invite by sharing <span class="dc-early-mono">/claim?guild=CODE</span>.</p>
-          <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-action="guild-create" ${
-            this.asyncState.guildAction ? 'disabled' : ''
-          }>${this.asyncState.guildAction ? 'Creating...' : 'Create Guild'}</button>
+          ${
+            hasDeepLink
+              ? `<p class="dc-early-help text-normal-shadow">Invite code detected: <span class="dc-early-mono">${this.escapeHtml(
+                  deepLinkCode ?? ''
+                )}</span></p>`
+              : '<p class="dc-early-help text-normal-shadow">Create a guild link and invite by sharing <span class="dc-early-mono">/claim?guild=CODE</span>.</p>'
+          }
+          <div class="dc-early-guild-actions">
+            ${
+              hasDeepLink
+                ? `<button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-action="guild-join" data-guild-code="${this.escapeHtml(
+                    deepLinkCode ?? ''
+                  )}" ${this.asyncState.guildAction ? 'disabled' : ''}>${
+                    this.asyncState.guildAction ? 'Working...' : 'Join Guild'
+                  }</button>`
+                : ''
+            }
+            <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-action="guild-create" ${
+              this.asyncState.guildAction ? 'disabled' : ''
+            }>${this.asyncState.guildAction ? 'Working...' : 'Create Guild'}</button>
+          </div>
         </div>
       `;
     }
@@ -1042,18 +1061,11 @@ export class EarlyAccessOverlay {
     this.claimNotice = '';
     this.render();
     try {
-      const result = await earlyAccessApi.getStatus();
-      this.state.acceptance = result.acceptance;
-      this.state.acceptanceId = result.acceptanceId;
-      this.state.guild = result.guild;
-      if (result.acceptance.status === 'ACCEPTED' && this.state.wallet.publicKey) {
-        this.dispatchClaimedEvent(result.acceptance, result.acceptanceId, result.guild?.code);
-      }
+      await this.refreshStatusCacheFromBackend();
       this.claimNotice =
-        result.acceptance.status === 'ACCEPTED'
+        this.state.acceptance.status === 'ACCEPTED'
           ? 'Access granted. Your Early Access ID is ready.'
           : "You're in the queue. We'll update this status as slots open.";
-      this.persistState();
     } catch (error) {
       this.claimNotice = error instanceof Error ? error.message : 'Unable to refresh claim status.';
     } finally {
@@ -1093,8 +1105,9 @@ export class EarlyAccessOverlay {
     try {
       const result = await earlyAccessApi.createGuild();
       this.state.guild = result.guild;
-      this.claimNotice = 'Guild created.';
       this.persistState();
+      await this.refreshStatusCacheFromBackend().catch(() => undefined);
+      this.claimNotice = 'Guild created.';
     } catch (error) {
       this.claimNotice = error instanceof Error ? error.message : 'Could not create guild.';
     } finally {
@@ -1120,9 +1133,10 @@ export class EarlyAccessOverlay {
     try {
       const result = await earlyAccessApi.joinGuild({ code });
       this.state.guild = result.guild;
-      this.claimNotice = 'Joined guild as pending member.';
+      this.state.deepLinkGuildCode = undefined;
       this.persistState();
-      await this.refreshStepThreeStatus();
+      await this.refreshStatusCacheFromBackend().catch(() => undefined);
+      this.claimNotice = 'Joined guild.';
     } catch (error) {
       this.claimNotice = error instanceof Error ? error.message : 'Could not join guild.';
       this.render();
@@ -1163,8 +1177,9 @@ export class EarlyAccessOverlay {
         ? await earlyAccessApi.lockGuild({ code })
         : await earlyAccessApi.unlockGuild({ code });
       this.state.guild = result.guild;
-      this.claimNotice = lock ? 'Guild locked.' : 'Guild unlocked.';
       this.persistState();
+      await this.refreshStatusCacheFromBackend().catch(() => undefined);
+      this.claimNotice = lock ? 'Guild locked.' : 'Guild unlocked.';
     } catch (error) {
       this.claimNotice =
         error instanceof Error ? error.message : 'Could not update guild lock state.';
@@ -1184,8 +1199,9 @@ export class EarlyAccessOverlay {
     try {
       const result = await earlyAccessApi.kickPending({ memberId });
       this.state.guild = result.guild;
-      this.claimNotice = 'Pending member removed.';
       this.persistState();
+      await this.refreshStatusCacheFromBackend().catch(() => undefined);
+      this.claimNotice = 'Pending member removed.';
     } catch (error) {
       this.claimNotice =
         error instanceof Error ? error.message : 'Unable to remove member.';
@@ -1424,6 +1440,25 @@ export class EarlyAccessOverlay {
       window.localStorage.setItem(FLOW_STORAGE_KEY, JSON.stringify(this.state));
     } catch {
       // Ignore storage failures.
+    }
+  }
+
+  private async refreshStatusCacheFromBackend(): Promise<void> {
+    const result = await earlyAccessApi.getStatus();
+    this.applyStatusResult(result);
+    this.persistState();
+  }
+
+  private applyStatusResult(result: {
+    acceptance: AcceptanceState;
+    acceptanceId?: number;
+    guild?: GuildState;
+  }): void {
+    this.state.acceptance = result.acceptance;
+    this.state.acceptanceId = result.acceptanceId;
+    this.state.guild = result.guild;
+    if (result.acceptance.status === 'ACCEPTED' && this.state.wallet.publicKey) {
+      this.dispatchClaimedEvent(result.acceptance, result.acceptanceId, result.guild?.code);
     }
   }
 

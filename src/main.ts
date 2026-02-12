@@ -30,7 +30,9 @@ const clearEarlyAccessCacheOnRefresh = (): void => {
   }
 };
 
-clearEarlyAccessCacheOnRefresh();
+if (import.meta.env.DEV) {
+  clearEarlyAccessCacheOnRefresh();
+}
 
 const fallingScene = new FallingScene(canvas);
 const headerOverlay = new HeaderOverlay(uiRoot);

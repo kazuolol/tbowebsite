@@ -9,6 +9,7 @@ import {
   type LocalWeatherSnapshot,
   type OpenMeteoWeatherCondition,
 } from '../utils/LocalWeather';
+import { publicAssetPath } from '../utils/publicAssetPath';
 
 interface FloatingCube {
   size: number;
@@ -390,10 +391,10 @@ export class FallingScene {
   private async loadCharacter(): Promise<void> {
     try {
       await this.characterPool.preload(
-        '/models/YoughFemale_Rig.fbx',
-        '/models/YoughFemale_Jump_Loop.fbx',
-        '/models/YoughMale_Rig.fbx',
-        '/models/YoughMale_Jump_Loop.fbx',
+        publicAssetPath('models/YoughFemale_Rig.fbx'),
+        publicAssetPath('models/YoughFemale_Jump_Loop.fbx'),
+        publicAssetPath('models/YoughMale_Rig.fbx'),
+        publicAssetPath('models/YoughMale_Jump_Loop.fbx'),
         CHARACTER_SCALE
       );
     } catch (error) {

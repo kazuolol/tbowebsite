@@ -5,6 +5,7 @@ import {
   LOCAL_WEATHER_UPDATE_EVENT,
   type LocalWeatherSnapshot,
 } from '../utils/LocalWeather';
+import { publicAssetPath } from '../utils/publicAssetPath';
 
 const ICON_RENDER_SIZE = 216;
 const WEATHER_ICON_SIZE = 34;
@@ -146,7 +147,7 @@ export class HeaderOverlay {
 
     const title = document.createElement('img');
     title.className = 'dc-title';
-    title.src = '/whiteText.png';
+    title.src = publicAssetPath('whiteText.png');
     title.alt = 'The Big One';
 
     const datetime = document.createElement('span');

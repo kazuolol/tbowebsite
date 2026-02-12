@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { withFbxWarningFilter } from './fbxWarningFilter';
+import { publicAssetPath } from '../utils/publicAssetPath';
 
 const SKIN_TONE_MIN_SRGB = 0.6;
 const SKIN_TONE_MAX_SRGB = 1.0;
@@ -148,7 +149,11 @@ export class FallingCharacter {
     const textureLoader = new THREE.TextureLoader();
     const textureMap: CharacterTextureMap = {};
     const files = gender === 'male' ? FallingCharacter.maleTextureFiles : FallingCharacter.femaleTextureFiles;
-    const uniquePaths = [...new Set(files.map((file) => file.path))];
+    const resolvedFiles = files.map((file) => ({
+      matName: file.matName,
+      path: publicAssetPath(file.path),
+    }));
+    const uniquePaths = [...new Set(resolvedFiles.map((file) => file.path))];
     const texturesByPath = new Map<string, THREE.Texture>();
 
     await Promise.all(
@@ -176,7 +181,7 @@ export class FallingCharacter {
       })
     );
 
-    for (const { matName, path } of files) {
+    for (const { matName, path } of resolvedFiles) {
       const texture = texturesByPath.get(path);
       if (texture) {
         textureMap[matName] = texture;

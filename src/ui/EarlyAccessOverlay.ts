@@ -1,10 +1,11 @@
+import * as THREE from 'three';
 import { earlyAccessApi } from './earlyAccessApi';
+import { MenuIcon3D } from './MenuIcon3D';
 import type {
   AcceptanceState,
   CommunityActionMode,
   CommunityActionState,
   EarlyAccessFlowState,
-  FounderKeyState,
   GuildMemberState,
   GuildState,
 } from '../types/EarlyAccess';
@@ -34,7 +35,7 @@ interface SolanaProvider {
 interface EarlyAccessClaimedDetail {
   walletPublicKey: string;
   status: AcceptanceState['status'];
-  founderKey?: FounderKeyState;
+  acceptanceId?: number;
   guildCode?: string;
 }
 
@@ -95,6 +96,7 @@ export class EarlyAccessOverlay {
   private claimNotice = '';
   private toastMessage = '';
   private toastTimer: number | null = null;
+  private claimKeyVisualSrc: string | null = null;
 
   private openState = false;
   private destroyed = false;
@@ -469,17 +471,23 @@ export class EarlyAccessOverlay {
   }
 
   private renderAcceptedContent(): string {
-    const founderKey = this.state.founderKey;
-    const serial = founderKey?.serial;
-    const keyId = founderKey?.keyId;
+    const acceptanceId = this.state.acceptanceId;
+    const idLabel = acceptanceId ? `#${acceptanceId}` : 'Not assigned';
+    const keyVisualSrc = this.getClaimKeyVisualSrc();
+    const keyVisualHtml = keyVisualSrc
+      ? `<img class="dc-early-keymog-image" src="${this.escapeHtml(keyVisualSrc)}" alt="The Big One 3D key model" />`
+      : '<div class="dc-early-keymog-fallback text-normal-shadow">KEY</div>';
     return `
       <h3 class="dc-early-claim-title text-normal-shadow">Access Granted</h3>
       <div class="dc-early-claim-card">
-        <p class="dc-early-help text-normal-shadow">Founder Key #${serial ?? '----'}</p>
-        <p class="dc-early-help text-normal-shadow">Key ID: <span class="dc-early-mono">${this.escapeHtml(keyId ?? 'Not assigned')}</span></p>
-        <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-action="claim-copy-key" ${
-          keyId ? '' : 'disabled'
-        }>Copy Key ID</button>
+        <p class="dc-early-help text-normal-shadow">Early Access ID: <span class="dc-early-mono">${this.escapeHtml(idLabel)}</span></p>
+        <div class="dc-early-keymog-card">
+          <div class="dc-early-keymog-inline">
+            <p class="dc-early-keymog-title text-normal-shadow">Keymog your friends!</p>
+            ${keyVisualHtml}
+            <button type="button" class="dc-early-btn basic-button text-normal-shadow dc-early-keymog-copy-btn" data-action="keymog-copy-image">Share</button>
+          </div>
+        </div>
       </div>
       ${this.renderAcceptedGuildPanel()}
     `;
@@ -688,8 +696,8 @@ export class EarlyAccessOverlay {
       case 'claim-refresh':
         await this.refreshStepThreeStatus();
         return;
-      case 'claim-copy-key':
-        await this.handleCopyKeyId();
+      case 'keymog-copy-image':
+        await this.handleCopyKeymogImage();
         return;
       case 'guild-create':
         await this.handleCreateGuild();
@@ -795,9 +803,11 @@ export class EarlyAccessOverlay {
     this.walletNotice = '';
     this.render();
     try {
-      const signature = await this.signWalletOwnership(publicKey);
+      const challenge = await earlyAccessApi.createWalletChallenge({ publicKey });
+      const signature = await this.signWalletOwnership(publicKey, challenge.message);
       const result = await earlyAccessApi.verifyWallet({
         publicKey,
+        nonce: challenge.nonce,
         signature,
       });
       this.state.wallet.connected = true;
@@ -1034,14 +1044,14 @@ export class EarlyAccessOverlay {
     try {
       const result = await earlyAccessApi.getStatus();
       this.state.acceptance = result.acceptance;
-      this.state.founderKey = result.founderKey;
+      this.state.acceptanceId = result.acceptanceId;
       this.state.guild = result.guild;
       if (result.acceptance.status === 'ACCEPTED' && this.state.wallet.publicKey) {
-        this.dispatchClaimedEvent(result.acceptance, result.founderKey, result.guild?.code);
+        this.dispatchClaimedEvent(result.acceptance, result.acceptanceId, result.guild?.code);
       }
       this.claimNotice =
         result.acceptance.status === 'ACCEPTED'
-          ? 'Access granted. Your Founder Key is ready.'
+          ? 'Access granted. Your Early Access ID is ready.'
           : "You're in the queue. We'll update this status as slots open.";
       this.persistState();
     } catch (error) {
@@ -1052,18 +1062,25 @@ export class EarlyAccessOverlay {
     }
   }
 
-  private async handleCopyKeyId(): Promise<void> {
-    const keyId = this.state.founderKey?.keyId;
-    if (!keyId) {
+  private async handleCopyKeymogImage(): Promise<void> {
+    const dataUrl = this.createKeymogShareImage();
+    if (!dataUrl) {
+      this.claimNotice = 'Unable to generate image. Try again.';
+      this.render();
       return;
     }
-    const copied = await this.copyToClipboard(keyId);
-    if (copied) {
-      this.showToast('Key ID copied.');
-    } else {
-      this.claimNotice = 'Copy failed. Please copy the Key ID manually.';
-      this.render();
+    const copiedImage = await this.copyImageToClipboard(dataUrl);
+    if (copiedImage) {
+      this.showToast('Image copied.');
+      return;
     }
+    const copiedText = await this.copyToClipboard(dataUrl);
+    if (copiedText) {
+      this.showToast('Image data copied.');
+      return;
+    }
+    this.claimNotice = 'Copy failed. Clipboard image access was blocked.';
+    this.render();
   }
 
   private async handleCreateGuild(): Promise<void> {
@@ -1178,8 +1195,7 @@ export class EarlyAccessOverlay {
     }
   }
 
-  private async signWalletOwnership(publicKey: string): Promise<string> {
-    const message = `The Big One Early Access wallet verification for ${publicKey}`;
+  private async signWalletOwnership(publicKey: string, message: string): Promise<string> {
     const provider = (window as Window & { solana?: SolanaProvider }).solana;
     if (provider?.signMessage) {
       const bytes = new TextEncoder().encode(message);
@@ -1191,7 +1207,7 @@ export class EarlyAccessOverlay {
 
   private dispatchClaimedEvent(
     acceptance: AcceptanceState,
-    founderKey?: FounderKeyState,
+    acceptanceId?: number,
     guildCode?: string
   ): void {
     const walletPublicKey = this.state.wallet.publicKey;
@@ -1203,7 +1219,7 @@ export class EarlyAccessOverlay {
         detail: {
           walletPublicKey,
           status: acceptance.status,
-          founderKey,
+          acceptanceId,
           guildCode,
         },
       })
@@ -1213,6 +1229,22 @@ export class EarlyAccessOverlay {
   private async copyToClipboard(value: string): Promise<boolean> {
     try {
       await navigator.clipboard.writeText(value);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private async copyImageToClipboard(dataUrl: string): Promise<boolean> {
+    if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) {
+      return false;
+    }
+    try {
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      const imageType = blob.type || 'image/png';
+      const item = new ClipboardItem({ [imageType]: blob });
+      await navigator.clipboard.write([item]);
       return true;
     } catch {
       return false;
@@ -1257,7 +1289,7 @@ export class EarlyAccessOverlay {
     };
     this.state.communityAction = this.createDefaultCommunityAction(this.communityActionMode);
     this.state.acceptance = { status: 'IN_QUEUE' };
-    this.state.founderKey = undefined;
+    this.state.acceptanceId = undefined;
     this.state.guild = undefined;
     this.socialNotice = '';
     this.claimNotice = '';
@@ -1279,7 +1311,7 @@ export class EarlyAccessOverlay {
       acceptance: {
         status: 'IN_QUEUE',
       },
-      founderKey: undefined,
+      acceptanceId: undefined,
       guild: undefined,
       deepLinkGuildCode: undefined,
     };
@@ -1333,6 +1365,12 @@ export class EarlyAccessOverlay {
         status: acceptanceStatus,
         score: parsed.acceptance?.score,
       };
+      const parsedWithLegacy = parsed as Partial<EarlyAccessFlowState> & {
+        founderKey?: { serial?: unknown };
+      };
+      const acceptanceId =
+        this.normalizeAcceptanceId(parsed.acceptanceId) ??
+        this.normalizeAcceptanceId(parsedWithLegacy.founderKey?.serial);
 
       const community =
         parsed.communityAction?.mode === this.communityActionMode
@@ -1345,7 +1383,7 @@ export class EarlyAccessOverlay {
         social,
         communityAction: community,
         acceptance,
-        founderKey: parsed.founderKey,
+        acceptanceId,
         guild: parsed.guild,
         deepLinkGuildCode: this.normalizeGuildCode(parsed.deepLinkGuildCode),
       };
@@ -1435,6 +1473,91 @@ export class EarlyAccessOverlay {
       return undefined;
     }
     return normalized;
+  }
+
+  private normalizeAcceptanceId(value: unknown): number | undefined {
+    if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+      return undefined;
+    }
+    return value;
+  }
+
+  private getClaimKeyVisualSrc(): string {
+    if (this.claimKeyVisualSrc !== null) {
+      return this.claimKeyVisualSrc;
+    }
+
+    const iconCanvas = document.createElement('canvas');
+    iconCanvas.width = 256;
+    iconCanvas.height = 256;
+
+    const renderer = new THREE.WebGLRenderer({
+      alpha: true,
+      antialias: true,
+      powerPreference: 'high-performance',
+    });
+    const icon = new MenuIcon3D(iconCanvas, 'key');
+
+    try {
+      renderer.setSize(256, 256, false);
+      renderer.setPixelRatio(1);
+      renderer.setClearColor(0x000000, 0);
+      icon.update(0.016, renderer);
+      this.claimKeyVisualSrc = iconCanvas.toDataURL('image/png');
+      return this.claimKeyVisualSrc;
+    } catch {
+      this.claimKeyVisualSrc = '';
+      return this.claimKeyVisualSrc;
+    } finally {
+      icon.dispose();
+      renderer.dispose();
+    }
+  }
+
+  private createKeymogShareImage(): string | null {
+    const acceptanceId = this.state.acceptanceId;
+    const idText = acceptanceId ? `ID #${acceptanceId}` : 'ID pending';
+
+    const iconCanvas = document.createElement('canvas');
+    iconCanvas.width = 256;
+    iconCanvas.height = 256;
+    const shareCanvas = document.createElement('canvas');
+    shareCanvas.width = 560;
+    shareCanvas.height = 256;
+    const shareCtx = shareCanvas.getContext('2d');
+    if (!shareCtx) {
+      return null;
+    }
+
+    const renderer = new THREE.WebGLRenderer({
+      alpha: true,
+      antialias: true,
+      powerPreference: 'high-performance',
+    });
+    const icon = new MenuIcon3D(iconCanvas, 'key');
+
+    try {
+      renderer.setSize(256, 256, false);
+      renderer.setPixelRatio(1);
+      renderer.setClearColor(0x000000, 0);
+      icon.update(0.016, renderer);
+
+      shareCtx.clearRect(0, 0, shareCanvas.width, shareCanvas.height);
+      shareCtx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+      shareCtx.fillRect(0, 0, shareCanvas.width, shareCanvas.height);
+      shareCtx.drawImage(iconCanvas, 0, 0, 256, 256);
+      shareCtx.fillStyle = 'rgba(255, 255, 255, 0.96)';
+      shareCtx.font = '500 28px Jost, sans-serif';
+      shareCtx.fillText('Keymog your friends!', 268, 106);
+      shareCtx.font = '600 42px Jost, sans-serif';
+      shareCtx.fillText(idText, 268, 160);
+      return shareCanvas.toDataURL('image/png');
+    } catch {
+      return null;
+    } finally {
+      icon.dispose();
+      renderer.dispose();
+    }
   }
 
   private renderBadge(verified: boolean): string {

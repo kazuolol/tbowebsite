@@ -48,11 +48,6 @@ export interface AcceptanceState {
   score?: number;
 }
 
-export interface FounderKeyState {
-  serial: number;
-  keyId: string;
-}
-
 export interface GuildMemberState {
   id: string;
   display: string;
@@ -73,7 +68,7 @@ export interface EarlyAccessFlowState {
   social: SocialState;
   communityAction: CommunityActionState;
   acceptance: AcceptanceState;
-  founderKey?: FounderKeyState;
+  acceptanceId?: number;
   guild?: GuildState;
   deepLinkGuildCode?: string;
 }

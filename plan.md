@@ -135,6 +135,8 @@ Current blockers:
 - `password authentication failed for user "postgres"` for `postgres://postgres:postgres@localhost:5432/tbo_early_access`.
 2. Until `DATABASE_URL`/credentials are corrected and migrations run, live backend smoke checks and end-to-end `/claim` + `/claim?guild=CODE` HTTP-mode validation are blocked.
 
+4. PR-10 production hardening now needs limiter persistence (in-memory vs shared store such as Redis) for multi-instance deployments.
+
 ## Verification Snapshot (2026-02-12)
 
 Latest verification run completed on 2026-02-12.
@@ -363,11 +365,29 @@ Use a consistent envelope:
 5. PR-5 Backend status computation + founder key issuance. [DONE 2026-02-12]
 6. PR-6 Backend guild endpoints + authorization. [DONE 2026-02-12]
 7. PR-7 Frontend guild integration against backend. [DONE 2026-02-12]
-8. PR-8 X OAuth + follow/like verification implementation. [IN PROGRESS 2026-02-12: code implemented in `D:\Code\tbowebsite-backend`, pending live DB-backed verification]
-9. PR-9 Discord OAuth + community verification implementation. [IN PROGRESS 2026-02-12: code implemented in `D:\Code\tbowebsite-backend`, pending live DB-backed verification]
-10. PR-10 Security hardening, rate limits, and audit logging.
+8. PR-8 X OAuth + follow/like verification implementation. [DONE 2026-02-12: callbacks + verify endpoints implemented in `D:\Code\tbowebsite-backend`; live DB-backed verification still validation-dependent]
+9. PR-9 Discord OAuth + community verification implementation. [DONE 2026-02-12: callbacks + verify endpoints implemented in `D:\Code\tbowebsite-backend`; live DB-backed verification still validation-dependent]
+10. PR-10 Security hardening, rate limits, and audit logging. [IN PROGRESS 2026-02-13: in-memory rate limiting and origin enforcement added; audit event persistence and route-level logging added]
 11. PR-11 E2E/contract/load tests in CI.
 12. PR-12 Canary rollout and full production cutover.
+
+## PR-10 Active Work Log
+
+1. Completed now:
+  - Added `src/middleware/rateLimit.ts` with request-window enforcement and request-keying by IP/session/wallet.
+  - Mounted limiter on `/v1/early-access` in `src/app.ts` with stricter limits for state-changing endpoints.
+  - Added backend config entries in `src/config.ts` and `.env.example`:
+    - `EARLY_ACCESS_RATE_LIMIT_WINDOW_SECONDS`
+    - `EARLY_ACCESS_RATE_LIMIT_MAX_REQUESTS`
+    - `EARLY_ACCESS_RATE_LIMIT_SENSITIVE_MAX_REQUESTS`
+  - Added origin validation for non-GET requests when `CORS_ORIGIN` is configured.
+  - Added `migrations/0005_audit_events.sql` and `src/services/auditService.ts`.
+  - Wired non-intrusive audit logging into sensitive routes in `src/routes/earlyAccessRoutes.ts`.
+  - Added rate-limit unit test coverage in `tests/rateLimit.test.ts`.
+
+2. Next for PR-10:
+  - Add coverage for origin violation behavior in `app.ts` request flow.
+  - Decide on production limiter persistence strategy (in-memory vs shared store such as Redis).
 
 ## Start-Here Notes For Next Agent
 

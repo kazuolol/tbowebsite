@@ -34,9 +34,9 @@ Purpose: temporary cross-session context only.
 - Preserve `/claim` and `/claim?guild=CODE` flow behavior and existing event contracts.
 
 5. CI and smoke transition (in progress):
-- Add Telegram credential-backed true-positive smoke coverage.
-- Switch CI from Discord fixture lane to Telegram fixture lane once Telegram endpoints are live.
-- Retire Discord-specific fixture requirements after Telegram lane is green.
+- Telegram credential-backed true-positive smoke coverage is implemented in code (`social-true-positive-smoke` job), but is fixture-secret gated.
+- Once Telegram fixture secrets are configured, run CI and capture the first green run URL + timestamp here.
+- Decommission any remaining Discord-specific fixture docs/policy after Telegram lane is stable (no Discord-only lanes remain in CI).
 
 6. Rollout and deprecation:
 - Run canary on Telegram flow with real accounts, then full cutover.
@@ -126,20 +126,28 @@ Backend (`D:\Code\tbowebsite-backend`):
 - `npm.cmd test` -> passed (`6` test files, `22` tests)
 - `npm.cmd run smoke:contract` -> passed
 - `npm.cmd run smoke:e2e` -> passed (authenticated assertions run only when DB reachable; local run skipped auth path because `DATABASE_URL` was unreachable)
-- `npm.cmd run smoke:load` -> passed (`requests=120`, `concurrency=12`, `avgMs=17.58`, `p95Ms=28.89`)
+- `npm.cmd run smoke:load` -> passed (`requests=120`, `concurrency=12`, `avgMs=17.84`, `p95Ms=29.71`)
 - `npm.cmd run smoke:social-true-positive` -> expected fail-fast locally (`X_TARGET_USER_ID`/`X_TARGET_HANDLE` fixture targets are not set in this environment)
 
 Notes:
 - Frontend build still emits the known Three.js chunk-size warning (>500kB); informational.
 - Credential-backed social smoke remains fixture-gated in this environment.
-- Backend smoke runners may require elevated execution in this environment due sandbox `spawn EPERM` with `tsx/esbuild`.
+- Backend smoke runners executed successfully in this environment (no `spawn EPERM` observed); if you hit `spawn EPERM`, rerun outside sandbox/elevation.
 
 ## Outstanding Work
 
 1. CI migration:
-- Add Telegram fixture secrets and Telegram true-positive smoke lane.
+- Configure GitHub Actions secrets so the backend `social-true-positive-smoke` job can run (note: lane is gated to non-PR events).
+- Required secrets:
+  - `SMOKE_SOCIAL_X_PROVIDER_USER_ID`
+  - `SMOKE_SOCIAL_X_ACCESS_TOKEN`
+  - `SMOKE_SOCIAL_X_TARGET_TWEET_ID`
+  - `SMOKE_SOCIAL_X_TARGET_USER_ID` (or `SMOKE_SOCIAL_X_TARGET_HANDLE`)
+  - `SMOKE_SOCIAL_TELEGRAM_PROVIDER_USER_ID`
+  - `SMOKE_SOCIAL_TELEGRAM_ACCESS_TOKEN`
+  - `SMOKE_SOCIAL_TELEGRAM_CHAT_ID`
+  - Optional: `SMOKE_SOCIAL_X_USERNAME`, `SMOKE_SOCIAL_TELEGRAM_USERNAME`
 - Execute first green Telegram credential-backed smoke run in CI and capture run URL + outcome in this file.
-- Decommission Discord-specific smoke fixture lane after Telegram lane is stable.
 
 2. Rollout execution:
 - Run Telegram canary checklist and full cutover checklist from `docs/early-access-http-checklist.md`.

@@ -95,6 +95,15 @@ Scope: frontend `/claim` and `/claim?guild=CODE` with `VITE_EARLY_ACCESS_API_MOD
 5. Confirm CI smoke coverage is green for active provider path:
    - Existing authenticated smoke lanes
    - Credential-backed true-positive community lane (Telegram target lane)
+6. CI secrets required to enable the Telegram credential-backed true-positive lane:
+   - `SMOKE_SOCIAL_X_PROVIDER_USER_ID`
+   - `SMOKE_SOCIAL_X_ACCESS_TOKEN`
+   - `SMOKE_SOCIAL_X_TARGET_TWEET_ID`
+   - `SMOKE_SOCIAL_X_TARGET_USER_ID` (or `SMOKE_SOCIAL_X_TARGET_HANDLE`)
+   - `SMOKE_SOCIAL_TELEGRAM_PROVIDER_USER_ID`
+   - `SMOKE_SOCIAL_TELEGRAM_ACCESS_TOKEN`
+   - `SMOKE_SOCIAL_TELEGRAM_CHAT_ID`
+   - Optional: `SMOKE_SOCIAL_X_USERNAME`, `SMOKE_SOCIAL_TELEGRAM_USERNAME`
 
 ## Full Cutover Checklist
 

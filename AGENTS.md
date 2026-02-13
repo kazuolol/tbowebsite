@@ -2,7 +2,7 @@
 
 Purpose: keep new-session startup cheap. This file is bootstrap-only and should stay concise.
 
-Last verified: 2026-02-11
+Last verified: 2026-02-12
 Line budget: keep this file under 160 lines.
 
 ## Session Start Protocol
@@ -31,7 +31,8 @@ Read `src/ui/MenuIcon3D.ts` only when icon visuals or icon animation are directl
 
 - Event `tbo:menu-action` payload: `{ action, label }`.
 - Event `tbo:local-weather-update` feeds weather state into `FallingScene`.
-- Event `tbo:early-access-claimed` payload: `{ walletPublicKey, status, founderKey?, guildCode? }`.
+- Event `tbo:early-access-claimed` payload: `{ walletPublicKey, status, acceptanceId?, guildCode? }`.
+- (Legacy `founderKey?.serial` handling is preserved during local state restore/migration only.)
 - Environment component pattern:
   - Constructor accepts `THREE.Scene`.
   - Implements `update(delta: number)`.
@@ -48,7 +49,7 @@ Read `src/ui/MenuIcon3D.ts` only when icon visuals or icon animation are directl
   - `inbox` -> `B-mail` (`inbox`)
   - `friends` -> `B-social` (`friends`)
 - Hit detection uses invisible hit meshes + `THREE.Raycaster`.
-- Selection is sticky (`activeIndex`) until another click or dispose.
+- Selection is hover-focused; no sticky `activeIndex` click selection is currently used.
 - In-world icon/button size constants live in `CharacterOrbitCarousel`:
   - `ICON_DISPLAY_SIZE_PX`
   - `BUTTON_WIDTH_PX`
@@ -68,6 +69,8 @@ Read `src/ui/MenuIcon3D.ts` only when icon visuals or icon animation are directl
 - Early access claim/social/key/guild flow:
   - `src/ui/EarlyAccessOverlay.ts`
   - `src/ui/earlyAccessApi.ts`
+  - `src/ui/HttpEarlyAccessApi.ts`
+  - `src/ui/earlyAccessApiContract.ts`
   - `src/types/EarlyAccess.ts`
   - `src/style.css` (`.dc-early-*`, `.dc-overlay-card`, `.dc-header-extension-*`)
 - Scene wiring, render loop, lifecycle:
@@ -92,8 +95,8 @@ Do not scan these unless the task explicitly requires them:
 ## Known Caveats
 
 - `main.ts` registers a global `tbo:menu-action` listener and opens the overlay when `action === 'early-access'`.
-- Both header and carousel dispatch `tbo:menu-action` with `{ action, label }`.
-- `main.ts` clears early-access localStorage keys on each refresh (`tbo:early-access-overlay:state:v2`, `tbo:early-access-api:mock-state:v1`, `tbo:early-access-api:client-id:v1`, `tbo:early-access:dev-wallet`).
+- Header dispatches `tbo:menu-action` with `{ action, label }`; carousel currently does not dispatch actions.
+- `main.ts` clears early-access localStorage keys only in dev mode (`import.meta.env.DEV`) using keys (`tbo:early-access-overlay:state:v2`, `tbo:early-access-api:mock-state:v1`, `tbo:early-access-api:client-id:v1`, `tbo:early-access:dev-wallet`).
 - Build commonly warns about chunk size (`>500 kB`); informational unless bundling is in scope.
 
 ## Verification

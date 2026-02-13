@@ -1,6 +1,6 @@
 # Early Access HTTP-Mode Verification Checklist
 
-Last updated: 2026-02-12
+Last updated: 2026-02-13
 Scope: frontend `/claim` and `/claim?guild=CODE` with `VITE_EARLY_ACCESS_API_MODE=http`
 
 ## Prerequisites
@@ -8,7 +8,7 @@ Scope: frontend `/claim` and `/claim?guild=CODE` with `VITE_EARLY_ACCESS_API_MOD
 1. Backend is running and reachable at `http://localhost:4000`.
 2. Frontend env uses HTTP mode:
    - PowerShell: `$env:VITE_EARLY_ACCESS_API_MODE='http'`
-3. Frontend dev server is running (`npm.cmd run dev`) from `D:\Code\tbowebsite`.
+3. Frontend dev server is running (`npm.cmd run dev`) from `C:\Users\gazin\tbowebsite`.
 
 ## Quick Backend Smoke
 
@@ -60,3 +60,4 @@ Scope: frontend `/claim` and `/claim?guild=CODE` with `VITE_EARLY_ACCESS_API_MOD
    - `tbo:menu-action` -> `{ action, label }`
    - `tbo:early-access-claimed` -> `{ walletPublicKey, status, acceptanceId?, guildCode? }`
 3. No console WebGL/Three disposal errors introduced by overlay use.
+

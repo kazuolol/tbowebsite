@@ -10,11 +10,14 @@ import type {
   GuildState,
 } from '../types/EarlyAccess';
 
-const DEFAULT_TWITTER_HANDLE = '@TheBigOneGame';
-const DEFAULT_TWITTER_FOLLOW_URL = 'https://x.com/TheBigOneGame';
-const DEFAULT_LIKE_TWEET_URL = 'https://x.com/TheBigOneGame/status/0000000000000000000';
+const DEFAULT_TWITTER_HANDLE = '@THEBIGONEGG';
+const DEFAULT_TWITTER_FOLLOW_URL = 'https://x.com/THEBIGONEGG';
+const DEFAULT_LIKE_TWEET_URL = 'https://x.com/THEBIGONEGG/status/2022049710362829065';
 const EARLY_ACCESS_CLAIMED_EVENT = 'tbo:early-access-claimed';
 const FLOW_STORAGE_KEY = 'tbo:early-access-overlay:state:v2';
+const REQUIRE_DISCORD_VERIFICATION =
+  String(import.meta.env.VITE_EARLY_ACCESS_REQUIRE_DISCORD_VERIFICATION ?? 'false').toLowerCase() ===
+  'true';
 
 const COMMUNITY_ACTION_MODE: CommunityActionMode = 'discord';
 
@@ -357,7 +360,11 @@ export class EarlyAccessOverlay {
               }>${this.asyncState.verifyXLike ? 'Verifying...' : 'Verify Like Campaign Tweet'}</button>
               ${this.renderBadge(social.likeVerified)}
             </div>
-            ${community.mode === 'discord' ? this.renderDiscordCommunityRow() : ''}
+            ${
+              community.mode === 'discord' && this.isDiscordVerificationRequired()
+                ? this.renderDiscordCommunityRow()
+                : ''
+            }
           </div>
           ${communitySection}
         </div>
@@ -374,7 +381,7 @@ export class EarlyAccessOverlay {
 
   private renderDiscordCommunityRow(): string {
     const community = this.state.communityAction;
-    if (community.mode !== 'discord') {
+    if (community.mode !== 'discord' || !this.isDiscordVerificationRequired()) {
       return '';
     }
     return `
@@ -1289,7 +1296,14 @@ export class EarlyAccessOverlay {
   }
 
   private isCommunityComplete(): boolean {
+    if (this.state.communityAction.mode === 'discord' && !this.isDiscordVerificationRequired()) {
+      return true;
+    }
     return this.state.communityAction.verified;
+  }
+
+  private isDiscordVerificationRequired(): boolean {
+    return this.communityActionMode === 'discord' && REQUIRE_DISCORD_VERIFICATION;
   }
 
   private resetDownstreamFlowState(): void {
@@ -1333,7 +1347,7 @@ export class EarlyAccessOverlay {
     if (mode === 'discord') {
       return {
         mode: 'discord',
-        verified: false,
+        verified: !this.isDiscordVerificationRequired(),
       };
     }
     if (mode === 'email') {
@@ -1408,7 +1422,7 @@ export class EarlyAccessOverlay {
     if (input.mode === 'discord') {
       return {
         mode: 'discord',
-        verified: input.verified === true,
+        verified: this.isDiscordVerificationRequired() ? input.verified === true : true,
       };
     }
     if (input.mode === 'email') {

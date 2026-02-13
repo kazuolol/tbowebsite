@@ -1,69 +1,80 @@
 # Claim Early Access Session Bridge
 
 Date: 2026-02-13
-Frontend repo: `C:\Users\gazin\tbowebsite`
-Backend repo: `C:\Code\tbowebsite-backend`
 Purpose: temporary cross-session context only.
+
+## Repository Paths (This Environment)
+
+- Frontend repo in this workspace: `D:\Code\tbowebsite`
+- Backend repo in this workspace: `D:\Code\tbowebsite-backend`
+- Note: `D:\Users\gazin\tbowebsite*` paths were not present in this runtime.
 
 ## Current Truth (Authoritative)
 
-1. Frontend and backend are aligned on event contracts:
+1. Frontend and backend contracts are aligned:
 - `tbo:menu-action` payload is `{ action, label }`.
 - `tbo:early-access-claimed` payload is `{ walletPublicKey, status, acceptanceId?, guildCode? }`.
 
-2. Backend hardening is implemented:
-- OAuth callback mock mode is config-controlled only (not query-controlled).
-- Connect-url endpoints fail with `503 OAUTH_NOT_CONFIGURED` when OAuth creds are missing and fallback is disabled.
-- Social verification fails closed with `503 SOCIAL_VERIFICATION_NOT_CONFIGURED` when required targets are missing.
-- X follow/like verification scans paginated X API responses (bounded pages, early exit on match).
-- Mutating cookie-auth requests require valid `Origin` and reject missing/mismatched origin.
+2. Frontend is now wired for full-stack local flow by default:
+- `src/ui/earlyAccessApi.ts` now defaults to `http` mode (mock still supported via env override).
+- `VITE_EARLY_ACCESS_API_BASE_URL` is supported.
+- `vite.config.ts` now proxies `/v1` and `/healthz` to backend origin (`VITE_DEV_BACKEND_ORIGIN`, default `http://localhost:4000`).
+- `.env.example` added for frontend env defaults.
 
-3. Frontend flow decisions:
-- X defaults updated to `@THEBIGONEGG` and tweet `2022049710362829065`.
-- Discord verification is currently optional in UI flow by default.
-- Discord can be re-required by setting `VITE_EARLY_ACCESS_REQUIRE_DISCORD_VERIFICATION=true`.
+3. PR-11 CI quality gates are automated:
+- Frontend CI workflow added: install + build on push/PR.
+- Backend CI workflow added with lanes:
+  - contract/unit: `typecheck`, `build`, `test`, `smoke:contract`
+  - `smoke:e2e`
+  - `smoke:load`
 
-4. Local env state now used for smoke:
-- Backend `.env` includes `X_TARGET_HANDLE=THEBIGONEGG` and `X_TARGET_TWEET_ID=2022049710362829065`.
-- Discord guild target intentionally unset for now.
+4. Backend smoke coverage is now codified:
+- Added scripts in `package.json`:
+  - `smoke:contract`
+  - `smoke:e2e`
+  - `smoke:load`
+- Added smoke runners:
+  - `tests/smoke/runtime.ts`
+  - `tests/smoke/contractSmoke.ts`
+  - `tests/smoke/e2eSmoke.ts`
+  - `tests/smoke/loadSmoke.ts`
 
-## Outstanding Work
-
-1. PR-11 quality gates:
-- Add CI automation for contract/E2E/load coverage.
-- Promote smoke checks into repeatable CI jobs.
-
-2. PR-12 rollout prep:
-- Decide production rate-limit persistence (in-memory vs shared store such as Redis).
-- Define canary and full-cutover checklist.
-
-3. Social verification production readiness:
-- Configure real X OAuth credentials and validate true positive follow/like path.
-- Keep Discord optional or re-require it explicitly, then update this file accordingly.
+5. Backend typing blocker resolved:
+- Fixed strict TypeScript test typing in `tests/rateLimit.test.ts`.
+- `typecheck` and `build` now pass again.
 
 ## Latest Verification (2026-02-13)
 
-Commands run and passing:
+Frontend (`D:\Code\tbowebsite`):
+- `npm.cmd run build` -> passed
 
-Frontend (`C:\Users\gazin\tbowebsite`):
-- `npm.cmd run build`
+Backend (`D:\Code\tbowebsite-backend`):
+- `npm.cmd run typecheck` -> passed
+- `npm.cmd run build` -> passed
+- `npm.cmd test` -> passed (`3` test files, `9` tests)
+- `npm.cmd run smoke:contract` -> passed
+- `npm.cmd run smoke:e2e` -> passed
+- `npm.cmd run smoke:load` -> passed (`requests=120`, `concurrency=12`, `avgMs=17.20`, `p95Ms=29.74`)
 
-Backend (`C:\Code\tbowebsite-backend`):
-- `npm.cmd run typecheck`
-- `npm.cmd run build`
-- `npm.cmd test` (6 test files, 21 tests)
-- `npm.cmd run db:migrate`
+Notes:
+- Frontend build still emits the known Three.js chunk-size warning (>500kB); informational.
+- In this environment, smoke scripts required elevated execution due to sandbox `spawn EPERM` with `tsx/esbuild`.
 
-Manual/smoke outcomes:
-- `/claim` and `/claim?guild=CODE` load.
-- Wallet challenge/verify/session flow works.
-- OAuth connect-url and callback routing works.
-- X verify endpoints return `200` with `verified: false` (expected until real OAuth provider tokens/relationship checks succeed in a real user flow).
-- Discord verify returns `503 SOCIAL_VERIFICATION_NOT_CONFIGURED` (expected in current optional-Discord mode).
-- Guild create/join/lock/unlock/kick flows work when mutating requests include valid origin.
+## Outstanding Work
+
+1. PR-12 rollout prep:
+- Decide production rate-limit persistence strategy (in-memory vs shared store such as Redis).
+- Define canary and full-cutover checklist.
+
+2. Social verification production readiness:
+- Configure real X OAuth credentials and validate true-positive follow/like path.
+- Decide final Discord requirement policy and keep frontend/backend/docs aligned.
+
+3. CI depth expansion:
+- Add deeper authenticated endpoint contract/e2e assertions as rollout work lands.
 
 ## Session Notes
 
-1. Backend listener currently runs from built output (`node dist/server.js`) after env reload.
-2. Keep `docs/early-access-http-checklist.md` in sync with any future flow-policy changes.
-3. This file should stay concise and only track live operational state.
+1. Keep this file concise and operationally current.
+2. If flow policy changes, update this file and `docs/early-access-http-checklist.md` together.
+3. Use this file as the resume point for the next session.

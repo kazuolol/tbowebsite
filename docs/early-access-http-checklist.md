@@ -1,7 +1,18 @@
 # Early Access HTTP-Mode Verification Checklist
 
-Last updated: 2026-02-13
+Last updated: 2026-02-13 (PR-12 rollout prep)
 Scope: frontend `/claim` and `/claim?guild=CODE` with `VITE_EARLY_ACCESS_API_MODE=http`
+
+## Production Policy (Decided)
+
+1. Rate limit persistence uses a shared store in production:
+   - Backend `EARLY_ACCESS_RATE_LIMIT_STORE=postgres` (default in production).
+   - `memory` store is local/test fallback only.
+2. Discord verification is required in production claim flow:
+   - Frontend `VITE_EARLY_ACCESS_REQUIRE_DISCORD_VERIFICATION=true` in production.
+   - Backend must provide `DISCORD_GUILD_ID` and Discord OAuth credentials.
+3. OAuth mock fallback is disabled in production:
+   - Backend `EARLY_ACCESS_OAUTH_ALLOW_MOCK_FALLBACK=false`.
 
 ## Prerequisites
 
@@ -60,4 +71,28 @@ Scope: frontend `/claim` and `/claim?guild=CODE` with `VITE_EARLY_ACCESS_API_MOD
    - `tbo:menu-action` -> `{ action, label }`
    - `tbo:early-access-claimed` -> `{ walletPublicKey, status, acceptanceId?, guildCode? }`
 3. No console WebGL/Three disposal errors introduced by overlay use.
+
+## Canary Rollout Checklist
+
+1. Backend env is production-safe before traffic:
+   - `EARLY_ACCESS_RATE_LIMIT_STORE=postgres`
+   - `EARLY_ACCESS_OAUTH_ALLOW_MOCK_FALLBACK=false`
+   - Real X OAuth + target config set (`X_OAUTH_CLIENT_ID`, `X_OAUTH_CLIENT_SECRET`, `X_TARGET_USER_ID`/`X_TARGET_HANDLE`, `X_TARGET_TWEET_ID`)
+   - Real Discord OAuth + guild config set (`DISCORD_OAUTH_CLIENT_ID`, `DISCORD_OAUTH_CLIENT_SECRET`, `DISCORD_GUILD_ID`)
+2. Frontend env is production-safe:
+   - `VITE_EARLY_ACCESS_API_MODE=http`
+   - `VITE_EARLY_ACCESS_REQUIRE_DISCORD_VERIFICATION=true`
+   - API base URL points at production backend origin/path.
+3. Deploy canary slice and run Flow A + Flow B end-to-end with real accounts.
+4. Observe for at least one full rate-limit window:
+   - Error envelope rates (`4xx`, `5xx`), especially `RATE_LIMIT_*`, OAuth errors, and guild authorization failures.
+   - Audit trail integrity for wallet/social/guild action outcomes.
+5. Confirm authenticated smoke path remains green in CI and post-deploy checks.
+
+## Full Cutover Checklist
+
+1. Promote same build artifacts/config used in successful canary.
+2. Repeat Flow A + Flow B verification against production after full traffic shift.
+3. Confirm Discord requirement is enforced in step-2 gating and backend verify behavior.
+4. Capture post-cutover health notes in `plan.md` and keep this checklist in sync.
 

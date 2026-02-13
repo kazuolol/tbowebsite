@@ -43,6 +43,15 @@ Purpose: temporary cross-session context only.
 - Fixed strict TypeScript test typing in `tests/rateLimit.test.ts`.
 - `typecheck` and `build` now pass again.
 
+6. PR-12 rollout prep is now codified in source:
+- Backend rate limiter supports shared persistence via `EARLY_ACCESS_RATE_LIMIT_STORE` (`postgres` or `memory`).
+- Production default strategy is now shared `postgres`; local/test default remains `memory`.
+- Added migration `0006_rate_limit_buckets.sql` for shared rate-limit buckets.
+- Rollout docs now include explicit canary and full cutover checklists.
+- Discord policy is now explicit: required in production flow (`VITE_EARLY_ACCESS_REQUIRE_DISCORD_VERIFICATION=true`).
+- Backend CI now provisions Postgres, runs migrations, and can enforce DB-required e2e smoke via `SMOKE_E2E_REQUIRE_DB=true`.
+- `tests/smoke/e2eSmoke.ts` now includes authenticated wallet/session/status/social/guild assertions when DB is reachable.
+
 ## Latest Verification (2026-02-13)
 
 Frontend (`D:\Code\tbowebsite`):
@@ -51,10 +60,10 @@ Frontend (`D:\Code\tbowebsite`):
 Backend (`D:\Code\tbowebsite-backend`):
 - `npm.cmd run typecheck` -> passed
 - `npm.cmd run build` -> passed
-- `npm.cmd test` -> passed (`3` test files, `9` tests)
+- `npm.cmd test` -> passed (`6` test files, `22` tests)
 - `npm.cmd run smoke:contract` -> passed
-- `npm.cmd run smoke:e2e` -> passed
-- `npm.cmd run smoke:load` -> passed (`requests=120`, `concurrency=12`, `avgMs=17.20`, `p95Ms=29.74`)
+- `npm.cmd run smoke:e2e` -> passed (authenticated assertions run only when DB reachable; local run skipped auth path because `DATABASE_URL` was unreachable)
+- `npm.cmd run smoke:load` -> passed (`requests=120`, `concurrency=12`, `avgMs=17.69`, `p95Ms=29.88`)
 
 Notes:
 - Frontend build still emits the known Three.js chunk-size warning (>500kB); informational.
@@ -62,16 +71,16 @@ Notes:
 
 ## Outstanding Work
 
-1. PR-12 rollout prep:
-- Decide production rate-limit persistence strategy (in-memory vs shared store such as Redis).
-- Define canary and full-cutover checklist.
+1. Social verification production readiness:
+- Configure real X OAuth + Discord OAuth credentials and `DISCORD_GUILD_ID` in production env.
+- Validate true-positive follow/like/discord verification path against real providers.
 
-2. Social verification production readiness:
-- Configure real X OAuth credentials and validate true-positive follow/like path.
-- Decide final Discord requirement policy and keep frontend/backend/docs aligned.
+2. Rollout execution:
+- Run canary checklist and full cutover checklist from `docs/early-access-http-checklist.md`.
+- Capture canary/cutover outcomes and any corrective actions in this file.
 
-3. CI depth expansion:
-- Add deeper authenticated endpoint contract/e2e assertions as rollout work lands.
+3. CI depth (next increment):
+- Add credential-backed preprod e2e coverage for true-positive social verification when secure test fixtures are available.
 
 ## Session Notes
 

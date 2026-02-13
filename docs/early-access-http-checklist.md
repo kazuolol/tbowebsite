@@ -1,12 +1,13 @@
 # Early Access HTTP-Mode Verification Checklist
 
-Last updated: 2026-02-13 (Telegram pivot draft)
+Last updated: 2026-02-13 (Telegram contract frozen + implemented)
 Scope: frontend `/claim` and `/claim?guild=CODE` with `VITE_EARLY_ACCESS_API_MODE=http`
 
 ## Direction (2026-02-13)
 
 - Community funnel target is Telegram.
-- Current shipped implementation is Discord-based and treated as temporary bridge behavior only.
+- Current shipped implementation is Telegram-based.
+- Legacy Discord community endpoints are temporary compatibility aliases to Telegram handlers.
 - Do not expand Discord scope beyond bridge support while Telegram migration is in progress.
 
 ## Transition Policy (Decided)
@@ -18,26 +19,26 @@ Scope: frontend `/claim` and `/claim?guild=CODE` with `VITE_EARLY_ACCESS_API_MOD
    - Backend `EARLY_ACCESS_OAUTH_ALLOW_MOCK_FALLBACK=false`.
 3. Community verification policy:
    - Target cutover state: Telegram-based community verification.
-   - Bridge state (temporary): Discord-based community verification only if required to keep step-2 gating active before Telegram ships.
+   - Bridge state (temporary): Discord route aliases may remain enabled for compatibility while Telegram is the canonical provider.
 4. X follow/like verification requirements remain unchanged during migration.
 
-## Immediate Migration Checklist (Telegram)
+## Telegram Contract (Frozen)
 
-1. Contract freeze:
-   - Define Telegram verification evidence model and backend canonical status field(s).
-   - Define frontend step-2 UX contract (connect/join, verify, retry, failure states).
-   - Confirm no payload drift for `tbo:menu-action` and `tbo:early-access-claimed`.
-2. Backend implementation:
-   - Add Telegram integration config and verification endpoints.
-   - Preserve compatibility with existing status/event contracts.
-   - Keep rate-limit and audit parity with current social/community endpoints.
-3. Frontend implementation:
-   - Replace Discord step-2 actions with Telegram actions.
-   - Keep backend as source of truth for verification state (no optimistic completion).
-4. CI migration:
-   - Add Telegram credential-backed true-positive smoke lane.
-   - Move fixture secrets from Discord lane to Telegram lane.
-   - Retire Discord fixture lane after Telegram lane is stable.
+1. Backend evidence model:
+   - `communityVerified=true` is canonical only when `early_access_state.telegram_verified_at` is set.
+   - `telegram_verified_at` is set only after backend `POST /community/telegram/verify` confirms Telegram community membership via provider check.
+2. Endpoint contract:
+   - `GET /v1/early-access/community/telegram/connect-url`
+   - `GET /v1/early-access/community/telegram/callback`
+   - `POST /v1/early-access/community/telegram/verify`
+   - Legacy `/community/discord/*` routes remain alias-compatible during transition.
+3. Frontend step-2 UX contract:
+   - Button copy: `Connect Telegram + Verify`.
+   - Verify state is backend-driven only (no optimistic completion from popup open).
+   - Retry/failure state is surfaced from backend envelope errors/messages.
+4. Event compatibility:
+   - `tbo:menu-action` remains `{ action, label }`.
+   - `tbo:early-access-claimed` remains `{ walletPublicKey, status, acceptanceId?, guildCode? }`.
 
 ## Local Validation Prerequisites
 
@@ -53,8 +54,8 @@ Scope: frontend `/claim` and `/claim?guild=CODE` with `VITE_EARLY_ACCESS_API_MOD
 3. Confirm X connect endpoint exists (non-404):
    - `GET /v1/early-access/social/x/connect-url?returnTo=http://localhost:5173/claim`
 4. Community connect endpoint check:
-   - Bridge mode: confirm Discord connect endpoint exists (non-404).
-   - Telegram mode: confirm Telegram connect/verify endpoints exist (non-404) after implementation.
+   - Confirm Telegram connect/verify endpoints exist (non-404).
+   - Optional bridge check: legacy Discord alias endpoints still return non-404 while alias mode is enabled.
 
 ## Flow Validation Matrix
 
@@ -84,6 +85,7 @@ Scope: frontend `/claim` and `/claim?guild=CODE` with `VITE_EARLY_ACCESS_API_MOD
    - Real Telegram integration config set (provider-specific keys/tokens + target community mapping)
 2. Frontend env is production-safe:
    - `VITE_EARLY_ACCESS_API_MODE=http`
+   - `VITE_EARLY_ACCESS_REQUIRE_TELEGRAM_VERIFICATION=true`
    - Community gating policy points to Telegram implementation (or explicit bridge override if still in temporary Discord mode)
    - API base URL points at production backend origin/path
 3. Deploy canary slice and run `/claim` + `/claim?guild=CODE` end-to-end with real accounts.

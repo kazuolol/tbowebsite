@@ -2,7 +2,7 @@ export type EarlyAccessStep = 1 | 2 | 3;
 
 export type AcceptanceStatus = 'ACCEPTED' | 'IN_QUEUE';
 
-export type CommunityActionMode = 'discord' | 'email' | 'lore';
+export type CommunityActionMode = 'telegram' | 'discord' | 'email' | 'lore';
 
 export type GuildMemberStatus = 'PENDING' | 'VERIFIED';
 
@@ -17,6 +17,11 @@ export interface SocialState {
   xConnected: boolean;
   followingVerified: boolean;
   likeVerified: boolean;
+}
+
+export interface TelegramCommunityActionState {
+  mode: 'telegram';
+  verified: boolean;
 }
 
 export interface DiscordCommunityActionState {
@@ -39,6 +44,7 @@ export interface LoreCommunityActionState {
 }
 
 export type CommunityActionState =
+  | TelegramCommunityActionState
   | DiscordCommunityActionState
   | EmailCommunityActionState
   | LoreCommunityActionState;

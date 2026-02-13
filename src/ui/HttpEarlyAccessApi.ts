@@ -403,19 +403,19 @@ class HttpEarlyAccessApi implements EarlyAccessApi {
   }
 
   async verifyCommunityAction(payload: CommunityActionPayload): Promise<CommunityActionResult> {
-    if (payload.mode !== 'discord') {
+    if (payload.mode !== 'telegram' && payload.mode !== 'discord') {
       throw new Error(
-        `Community mode "${payload.mode}" is only available in mock mode. Use discord for http mode.`
+        `Community mode "${payload.mode}" is only available in mock mode. Use telegram for http mode.`
       );
     }
     const returnTo = `${window.location.origin}${window.location.pathname}${window.location.search}`;
     const params = new URLSearchParams({ returnTo });
-    const connect = await this.request(`/community/discord/connect-url?${params.toString()}`, {
+    const connect = await this.request(`/community/telegram/connect-url?${params.toString()}`, {
       method: 'GET',
       parse: normalizeConnectUrl,
     });
-    openPopupOrThrow(connect.url, 'Discord authentication');
-    return this.request('/community/discord/verify', {
+    openPopupOrThrow(connect.url, 'Telegram authentication');
+    return this.request('/community/telegram/verify', {
       method: 'POST',
       body: {},
       parse: normalizeVerifySocialResult,

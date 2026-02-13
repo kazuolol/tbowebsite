@@ -15,11 +15,11 @@ const DEFAULT_TWITTER_FOLLOW_URL = 'https://x.com/THEBIGONEGG';
 const DEFAULT_LIKE_TWEET_URL = 'https://x.com/THEBIGONEGG/status/2022049710362829065';
 const EARLY_ACCESS_CLAIMED_EVENT = 'tbo:early-access-claimed';
 const FLOW_STORAGE_KEY = 'tbo:early-access-overlay:state:v2';
-const REQUIRE_DISCORD_VERIFICATION =
-  String(import.meta.env.VITE_EARLY_ACCESS_REQUIRE_DISCORD_VERIFICATION ?? 'false').toLowerCase() ===
+const REQUIRE_TELEGRAM_VERIFICATION =
+  String(import.meta.env.VITE_EARLY_ACCESS_REQUIRE_TELEGRAM_VERIFICATION ?? 'false').toLowerCase() ===
   'true';
 
-const COMMUNITY_ACTION_MODE: CommunityActionMode = 'discord';
+const COMMUNITY_ACTION_MODE: CommunityActionMode = 'telegram';
 
 const LORE_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'shard', label: 'Recover the Ancient Shard' },
@@ -335,7 +335,7 @@ export class EarlyAccessOverlay {
   private renderSocialStep(): string {
     const social = this.state.social;
     const community = this.state.communityAction;
-    const communitySection = community.mode === 'discord' ? '' : this.renderCommunitySection();
+    const communitySection = community.mode === 'telegram' ? '' : this.renderCommunitySection();
     const canContinue = this.isSocialStepVerified();
     return `
       <section class="dc-early-step is-active" data-step="social">
@@ -361,8 +361,8 @@ export class EarlyAccessOverlay {
               ${this.renderBadge(social.likeVerified)}
             </div>
             ${
-              community.mode === 'discord' && this.isDiscordVerificationRequired()
-                ? this.renderDiscordCommunityRow()
+              community.mode === 'telegram' && this.isTelegramVerificationRequired()
+                ? this.renderTelegramCommunityRow()
                 : ''
             }
           </div>
@@ -379,16 +379,16 @@ export class EarlyAccessOverlay {
     `;
   }
 
-  private renderDiscordCommunityRow(): string {
+  private renderTelegramCommunityRow(): string {
     const community = this.state.communityAction;
-    if (community.mode !== 'discord' || !this.isDiscordVerificationRequired()) {
+    if (community.mode !== 'telegram' || !this.isTelegramVerificationRequired()) {
       return '';
     }
     return `
       <div class="dc-early-status-row dc-early-status-row-action">
-        <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-action="community-discord-verify" ${
+        <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-action="community-telegram-verify" ${
           this.asyncState.verifyCommunity ? 'disabled' : ''
-        }>${this.asyncState.verifyCommunity ? 'Verifying...' : 'Connect Discord + Verify'}</button>
+        }>${this.asyncState.verifyCommunity ? 'Verifying...' : 'Connect Telegram + Verify'}</button>
         ${this.renderBadge(community.verified)}
       </div>
     `;
@@ -396,13 +396,13 @@ export class EarlyAccessOverlay {
 
   private renderCommunitySection(): string {
     const community = this.state.communityAction;
-    if (community.mode === 'discord') {
+    if (community.mode === 'telegram' || community.mode === 'discord') {
       return `
         <div class="dc-early-status-list">
           <div class="dc-early-status-row dc-early-status-row-action">
-            <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-action="community-discord-verify" ${
+            <button type="button" class="dc-early-btn basic-button text-normal-shadow menu-button-width" data-action="community-telegram-verify" ${
               this.asyncState.verifyCommunity ? 'disabled' : ''
-            }>${this.asyncState.verifyCommunity ? 'Verifying...' : 'Connect Discord + Verify'}</button>
+            }>${this.asyncState.verifyCommunity ? 'Verifying...' : 'Connect Telegram + Verify'}</button>
             ${this.renderBadge(community.verified)}
           </div>
         </div>
@@ -702,8 +702,8 @@ export class EarlyAccessOverlay {
       case 'x-like':
         await this.handleVerifyXLike();
         return;
-      case 'community-discord-verify':
-        await this.handleVerifyDiscord();
+      case 'community-telegram-verify':
+        await this.handleVerifyTelegram();
         return;
       case 'community-email-send':
         await this.handleSendEmailCode();
@@ -923,25 +923,25 @@ export class EarlyAccessOverlay {
     }
   }
 
-  private async handleVerifyDiscord(): Promise<void> {
-    if (this.asyncState.verifyCommunity || this.state.communityAction.mode !== 'discord') {
+  private async handleVerifyTelegram(): Promise<void> {
+    if (this.asyncState.verifyCommunity || this.state.communityAction.mode !== 'telegram') {
       return;
     }
     this.asyncState.verifyCommunity = true;
     this.socialNotice = '';
-    this.render();
+      this.render();
     try {
       const result = await earlyAccessApi.verifyCommunityAction({
-        mode: 'discord',
+        mode: 'telegram',
       });
       this.state.communityAction.verified = result.verified;
       this.socialNotice = result.verified
-        ? 'Discord verification complete.'
-        : 'Discord verification failed.';
+        ? 'Telegram verification complete.'
+        : 'Telegram verification failed.';
       this.persistState();
     } catch (error) {
       this.socialNotice =
-        error instanceof Error ? error.message : 'Discord verification failed.';
+        error instanceof Error ? error.message : 'Telegram verification failed.';
     } finally {
       this.asyncState.verifyCommunity = false;
       this.render();
@@ -1296,14 +1296,14 @@ export class EarlyAccessOverlay {
   }
 
   private isCommunityComplete(): boolean {
-    if (this.state.communityAction.mode === 'discord' && !this.isDiscordVerificationRequired()) {
+    if (this.state.communityAction.mode === 'telegram' && !this.isTelegramVerificationRequired()) {
       return true;
     }
     return this.state.communityAction.verified;
   }
 
-  private isDiscordVerificationRequired(): boolean {
-    return this.communityActionMode === 'discord' && REQUIRE_DISCORD_VERIFICATION;
+  private isTelegramVerificationRequired(): boolean {
+    return this.communityActionMode === 'telegram' && REQUIRE_TELEGRAM_VERIFICATION;
   }
 
   private resetDownstreamFlowState(): void {
@@ -1344,10 +1344,10 @@ export class EarlyAccessOverlay {
   }
 
   private createDefaultCommunityAction(mode: CommunityActionMode): CommunityActionState {
-    if (mode === 'discord') {
+    if (mode === 'telegram' || mode === 'discord') {
       return {
-        mode: 'discord',
-        verified: !this.isDiscordVerificationRequired(),
+        mode: 'telegram',
+        verified: !this.isTelegramVerificationRequired(),
       };
     }
     if (mode === 'email') {
@@ -1398,9 +1398,12 @@ export class EarlyAccessOverlay {
         this.normalizeAcceptanceId(parsed.acceptanceId) ??
         this.normalizeAcceptanceId(parsedWithLegacy.founderKey?.serial);
 
+      const parsedCommunityAction = parsed.communityAction;
+      const parsedCommunityMode = parsedCommunityAction?.mode;
       const community =
-        parsed.communityAction?.mode === this.communityActionMode
-          ? this.normalizeCommunityState(parsed.communityAction)
+        parsedCommunityAction &&
+        (parsedCommunityMode === this.communityActionMode || parsedCommunityMode === 'discord')
+          ? this.normalizeCommunityState(parsedCommunityAction)
           : this.createDefaultCommunityAction(this.communityActionMode);
 
       return {
@@ -1419,10 +1422,10 @@ export class EarlyAccessOverlay {
   }
 
   private normalizeCommunityState(input: Partial<CommunityActionState>): CommunityActionState {
-    if (input.mode === 'discord') {
+    if (input.mode === 'telegram' || input.mode === 'discord') {
       return {
-        mode: 'discord',
-        verified: this.isDiscordVerificationRequired() ? input.verified === true : true,
+        mode: 'telegram',
+        verified: this.isTelegramVerificationRequired() ? input.verified === true : true,
       };
     }
     if (input.mode === 'email') {

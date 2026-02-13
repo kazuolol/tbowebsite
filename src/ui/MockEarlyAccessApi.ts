@@ -150,7 +150,7 @@ const createDefaultMockState = (): MockStateShape => {
         xConnected: false,
         xFollowVerified: false,
         xLikeVerified: false,
-        communityMode: 'discord',
+        communityMode: 'telegram',
         communityVerified: false,
       },
     },
@@ -215,7 +215,7 @@ const getActiveSession = (state: MockStateShape): MockSessionState => {
       xConnected: false,
       xFollowVerified: false,
       xLikeVerified: false,
-      communityMode: 'discord',
+      communityMode: 'telegram',
       communityVerified: false,
     };
   }
@@ -623,6 +623,7 @@ export const createMockEarlyAccessApi = (): EarlyAccessApi => ({
     return executeWithState((_state, session) => {
       session.communityMode = payload.mode;
       switch (payload.mode) {
+        case 'telegram':
         case 'discord':
           session.communityVerified = true;
           return { verified: true };

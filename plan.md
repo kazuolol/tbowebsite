@@ -3,6 +3,43 @@
 Date: 2026-02-13
 Purpose: temporary cross-session context only.
 
+## Decision Note (2026-02-13)
+
+- Product direction update: community funnel should move from Discord to Telegram.
+- Current source/CI behavior is still Discord-based today; treat Discord flow as temporary until Telegram migration is implemented.
+
+## Telegram Migration Plan (Draft, 2026-02-13)
+
+1. Freeze + bridge policy (immediate):
+- Do not invest in new Discord-only product work.
+- Keep Discord behavior only as a temporary bridge if step-2 gating must remain enforced before Telegram is live.
+- If bridge is not required, temporarily relax community gating rather than shipping new Discord dependencies.
+
+2. Contract decisions (before code changes):
+- Define Telegram verification contract (what backend evidence marks `communityVerified=true`).
+- Decide UX contract for step-2 (button copy, verify state, retry/failure state).
+- Define event/API compatibility requirements so `tbo:early-access-claimed` and status payloads do not drift.
+
+3. Backend implementation:
+- Add Telegram integration config and verification service path.
+- Add/adjust API endpoints for Telegram connect/verify flow.
+- Add data-model support for Telegram verification state while preserving backward compatibility with current records.
+- Keep rate-limit/audit coverage equivalent to current social/community endpoints.
+
+4. Frontend implementation:
+- Replace Discord UI/actions in early-access step-2 with Telegram funnel actions.
+- Keep backend as source of truth for verification status (no optimistic completion).
+- Preserve `/claim` and `/claim?guild=CODE` flow behavior and existing event contracts.
+
+5. CI and smoke transition:
+- Add Telegram credential-backed true-positive smoke coverage.
+- Switch CI from Discord fixture lane to Telegram fixture lane once Telegram endpoints are live.
+- Retire Discord-specific fixture requirements after Telegram lane is green.
+
+6. Rollout and deprecation:
+- Run canary on Telegram flow with real accounts, then full cutover.
+- After stable cutover, remove Discord-required gating/config from production policy and docs.
+
 ## Repository Paths (This Environment)
 
 - Frontend repo in this workspace: `D:\Code\tbowebsite`
@@ -48,9 +85,17 @@ Purpose: temporary cross-session context only.
 - Production default strategy is now shared `postgres`; local/test default remains `memory`.
 - Added migration `0006_rate_limit_buckets.sql` for shared rate-limit buckets.
 - Rollout docs now include explicit canary and full cutover checklists.
-- Discord policy is now explicit: required in production flow (`VITE_EARLY_ACCESS_REQUIRE_DISCORD_VERIFICATION=true`).
+- Current shipped implementation still uses Discord verification policy (`VITE_EARLY_ACCESS_REQUIRE_DISCORD_VERIFICATION=true`) as temporary behavior pending Telegram migration.
 - Backend CI now provisions Postgres, runs migrations, and can enforce DB-required e2e smoke via `SMOKE_E2E_REQUIRE_DB=true`.
 - `tests/smoke/e2eSmoke.ts` now includes authenticated wallet/session/status/social/guild assertions when DB is reachable.
+
+7. CI depth increment is now implemented for credential-backed social true-positive checks:
+- Added backend smoke script: `npm.cmd run smoke:social-true-positive`.
+- Added smoke helpers and runner:
+  - `tests/smoke/helpers.ts`
+  - `tests/smoke/socialTruePositiveSmoke.ts`
+- Backend CI now includes optional `social-true-positive-smoke` lane (runs only when required fixture secrets are present).
+- Rollout checklist now explicitly includes validating this lane when fixture secrets are configured.
 
 ## Latest Verification (2026-02-13)
 
@@ -63,7 +108,8 @@ Backend (`D:\Code\tbowebsite-backend`):
 - `npm.cmd test` -> passed (`6` test files, `22` tests)
 - `npm.cmd run smoke:contract` -> passed
 - `npm.cmd run smoke:e2e` -> passed (authenticated assertions run only when DB reachable; local run skipped auth path because `DATABASE_URL` was unreachable)
-- `npm.cmd run smoke:load` -> passed (`requests=120`, `concurrency=12`, `avgMs=17.69`, `p95Ms=29.88`)
+- `npm.cmd run smoke:load` -> passed (`requests=120`, `concurrency=12`, `avgMs=17.24`, `p95Ms=29.25`)
+- `npm.cmd run smoke:social-true-positive` -> expected fail-fast locally (`X_TARGET_USER_ID`/`X_TARGET_HANDLE` fixture targets are not set in this environment)
 
 Notes:
 - Frontend build still emits the known Three.js chunk-size warning (>500kB); informational.
@@ -71,16 +117,23 @@ Notes:
 
 ## Outstanding Work
 
-1. Social verification production readiness:
-- Configure real X OAuth + Discord OAuth credentials and `DISCORD_GUILD_ID` in production env.
-- Validate true-positive follow/like/discord verification path against real providers.
+1. Telegram contract freeze:
+- Finalize Telegram verification evidence model and endpoint contract.
+- Record approved contract here and in `docs/early-access-http-checklist.md`.
 
-2. Rollout execution:
-- Run canary checklist and full cutover checklist from `docs/early-access-http-checklist.md`.
+2. Telegram implementation:
+- Implement backend Telegram integration + verification endpoints.
+- Implement frontend step-2 Telegram UX and gating behavior.
+- Maintain existing event/status compatibility contracts.
+
+3. CI migration:
+- Add Telegram fixture secrets and Telegram true-positive smoke lane.
+- Execute first green Telegram credential-backed smoke run in CI and capture run URL + outcome in this file.
+- Decommission Discord-specific smoke fixture lane after Telegram lane is stable.
+
+4. Rollout execution:
+- Run Telegram canary checklist and full cutover checklist from `docs/early-access-http-checklist.md`.
 - Capture canary/cutover outcomes and any corrective actions in this file.
-
-3. CI depth (next increment):
-- Add credential-backed preprod e2e coverage for true-positive social verification when secure test fixtures are available.
 
 ## Session Notes
 

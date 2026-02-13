@@ -1,98 +1,103 @@
 # Early Access HTTP-Mode Verification Checklist
 
-Last updated: 2026-02-13 (PR-12 rollout prep)
+Last updated: 2026-02-13 (Telegram pivot draft)
 Scope: frontend `/claim` and `/claim?guild=CODE` with `VITE_EARLY_ACCESS_API_MODE=http`
 
-## Production Policy (Decided)
+## Direction (2026-02-13)
 
-1. Rate limit persistence uses a shared store in production:
-   - Backend `EARLY_ACCESS_RATE_LIMIT_STORE=postgres` (default in production).
-   - `memory` store is local/test fallback only.
-2. Discord verification is required in production claim flow:
-   - Frontend `VITE_EARLY_ACCESS_REQUIRE_DISCORD_VERIFICATION=true` in production.
-   - Backend must provide `DISCORD_GUILD_ID` and Discord OAuth credentials.
-3. OAuth mock fallback is disabled in production:
+- Community funnel target is Telegram.
+- Current shipped implementation is Discord-based and treated as temporary bridge behavior only.
+- Do not expand Discord scope beyond bridge support while Telegram migration is in progress.
+
+## Transition Policy (Decided)
+
+1. Rate-limit persistence remains production-shared:
+   - Backend `EARLY_ACCESS_RATE_LIMIT_STORE=postgres` (production default).
+   - `memory` is local/test fallback only.
+2. OAuth mock fallback remains disabled in production:
    - Backend `EARLY_ACCESS_OAUTH_ALLOW_MOCK_FALLBACK=false`.
+3. Community verification policy:
+   - Target cutover state: Telegram-based community verification.
+   - Bridge state (temporary): Discord-based community verification only if required to keep step-2 gating active before Telegram ships.
+4. X follow/like verification requirements remain unchanged during migration.
 
-## Prerequisites
+## Immediate Migration Checklist (Telegram)
 
-1. Backend is running and reachable at `http://localhost:4000`.
+1. Contract freeze:
+   - Define Telegram verification evidence model and backend canonical status field(s).
+   - Define frontend step-2 UX contract (connect/join, verify, retry, failure states).
+   - Confirm no payload drift for `tbo:menu-action` and `tbo:early-access-claimed`.
+2. Backend implementation:
+   - Add Telegram integration config and verification endpoints.
+   - Preserve compatibility with existing status/event contracts.
+   - Keep rate-limit and audit parity with current social/community endpoints.
+3. Frontend implementation:
+   - Replace Discord step-2 actions with Telegram actions.
+   - Keep backend as source of truth for verification state (no optimistic completion).
+4. CI migration:
+   - Add Telegram credential-backed true-positive smoke lane.
+   - Move fixture secrets from Discord lane to Telegram lane.
+   - Retire Discord fixture lane after Telegram lane is stable.
+
+## Local Validation Prerequisites
+
+1. Backend is reachable at `http://localhost:4000`.
 2. Frontend env uses HTTP mode:
    - PowerShell: `$env:VITE_EARLY_ACCESS_API_MODE='http'`
-3. Frontend dev server is running (`npm.cmd run dev`) from `C:\Users\gazin\tbowebsite`.
+3. Frontend dev server is running (`npm.cmd run dev`) from `D:\Code\tbowebsite`.
 
-## Quick Backend Smoke
+## Quick Backend Smoke (Transition-Safe)
 
 1. `GET http://localhost:4000/healthz` returns 200 with `{ ok: true, data: { status: "ok" } }`.
 2. `GET http://localhost:4000/v1/early-access/status` without auth returns `401`.
-3. Confirm OAuth connect-url endpoints exist (non-404):
+3. Confirm X connect endpoint exists (non-404):
    - `GET /v1/early-access/social/x/connect-url?returnTo=http://localhost:5173/claim`
-   - `GET /v1/early-access/community/discord/connect-url?returnTo=http://localhost:5173/claim`
+4. Community connect endpoint check:
+   - Bridge mode: confirm Discord connect endpoint exists (non-404).
+   - Telegram mode: confirm Telegram connect/verify endpoints exist (non-404) after implementation.
 
-## Flow A: `/claim` Baseline
+## Flow Validation Matrix
 
-1. Open `http://localhost:5173/claim`.
-2. Step 1 Wallet:
-   - Click `Connect Wallet`.
-   - Click `Sign to Verify`.
-   - Expected: wallet badge shows `Verified`.
-3. Continue to Step 2 Social.
-4. Click `Connect X`.
-   - Expected: OAuth popup opens.
-   - Expected notice: finish auth in popup, then run follow/like verification.
-5. Click `Verify Follow`.
-   - Expected: backend response controls badge (no optimistic success).
-6. Click `Verify Like Campaign Tweet`.
-   - Expected: backend response controls badge (no optimistic success).
-7. Click `Connect Discord + Verify`.
-   - Expected: OAuth popup opens and verify result is backend-driven.
-8. Once follow+like+community are verified, click `Continue`.
-9. Step 3:
-   - Click `Refresh status`.
-   - Expected: acceptance state and `acceptanceId` come from backend status.
-   - If accepted: verify key visual/ID section appears and claim event behavior still works.
-
-## Flow B: `/claim?guild=CODE` Deep Link
-
-1. Open `http://localhost:5173/claim?guild=TEST123` (use a valid backend guild code).
-2. Complete Step 1 and Step 2.
-3. Step 3 behavior:
-   - If not in guild: invite card appears with detected code and `Join Guild`.
-   - If accepted and no guild: accepted no-guild panel should still allow join via deep link.
-4. After join:
-   - `guild.code` and member list match backend.
-   - Captain-only actions (lock/unlock/kick) enforce backend authorization.
-5. Click `Refresh status` and verify backend remains canonical.
+1. `/claim` baseline:
+   - Step 1 wallet verifies with backend-issued challenge and signed proof.
+   - Step 2 X follow/like badges are backend-driven (no optimistic success).
+   - Step 2 community badge is backend-driven for the active provider (bridge Discord or Telegram).
+   - Step 3 status and `acceptanceId` remain backend canonical.
+2. `/claim?guild=CODE` deep link:
+   - Guild join and captain-only controls remain backend-authorized.
+   - Refresh status keeps backend canonical guild state.
 
 ## Regression Watch
 
-1. No optimistic completion from popup-open alone.
+1. No optimistic completion from popup/deeplink open alone.
 2. No payload drift for:
    - `tbo:menu-action` -> `{ action, label }`
    - `tbo:early-access-claimed` -> `{ walletPublicKey, status, acceptanceId?, guildCode? }`
 3. No console WebGL/Three disposal errors introduced by overlay use.
 
-## Canary Rollout Checklist
+## Canary Rollout Checklist (Telegram Target)
 
-1. Backend env is production-safe before traffic:
+1. Backend env is production-safe:
    - `EARLY_ACCESS_RATE_LIMIT_STORE=postgres`
    - `EARLY_ACCESS_OAUTH_ALLOW_MOCK_FALLBACK=false`
-   - Real X OAuth + target config set (`X_OAUTH_CLIENT_ID`, `X_OAUTH_CLIENT_SECRET`, `X_TARGET_USER_ID`/`X_TARGET_HANDLE`, `X_TARGET_TWEET_ID`)
-   - Real Discord OAuth + guild config set (`DISCORD_OAUTH_CLIENT_ID`, `DISCORD_OAUTH_CLIENT_SECRET`, `DISCORD_GUILD_ID`)
+   - Real X OAuth + target config set
+   - Real Telegram integration config set (provider-specific keys/tokens + target community mapping)
 2. Frontend env is production-safe:
    - `VITE_EARLY_ACCESS_API_MODE=http`
-   - `VITE_EARLY_ACCESS_REQUIRE_DISCORD_VERIFICATION=true`
-   - API base URL points at production backend origin/path.
-3. Deploy canary slice and run Flow A + Flow B end-to-end with real accounts.
-4. Observe for at least one full rate-limit window:
-   - Error envelope rates (`4xx`, `5xx`), especially `RATE_LIMIT_*`, OAuth errors, and guild authorization failures.
-   - Audit trail integrity for wallet/social/guild action outcomes.
-5. Confirm authenticated smoke path remains green in CI and post-deploy checks.
+   - Community gating policy points to Telegram implementation (or explicit bridge override if still in temporary Discord mode)
+   - API base URL points at production backend origin/path
+3. Deploy canary slice and run `/claim` + `/claim?guild=CODE` end-to-end with real accounts.
+4. Observe at least one full rate-limit window:
+   - Error envelope rates (`4xx`, `5xx`), especially rate-limit, OAuth/provider, and guild authorization failures
+   - Audit trail integrity for wallet/social/community/guild outcomes
+5. Confirm CI smoke coverage is green for active provider path:
+   - Existing authenticated smoke lanes
+   - Credential-backed true-positive community lane (Telegram target lane)
 
 ## Full Cutover Checklist
 
 1. Promote same build artifacts/config used in successful canary.
-2. Repeat Flow A + Flow B verification against production after full traffic shift.
-3. Confirm Discord requirement is enforced in step-2 gating and backend verify behavior.
-4. Capture post-cutover health notes in `plan.md` and keep this checklist in sync.
-
+2. Repeat `/claim` and `/claim?guild=CODE` end-to-end verification at full traffic.
+3. Confirm Telegram community requirement is enforced in step-2 gating and backend verify behavior.
+4. Remove Discord bridge requirements/config from production policy and CI once Telegram path is stable.
+5. Capture post-cutover health notes in `plan.md` and keep this checklist in sync.

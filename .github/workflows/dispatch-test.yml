@@ -8,10 +8,17 @@ on:
         required: true
         default: "thebigone.gg"
         type: string
+      bar_baz:
+        description: second input
+        required: true
+        default: "www.thebigone.gg"
+        type: string
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - name: Echo
-        run: echo "foo_bar=${{ github.event.inputs.foo_bar }}"
+        run: |
+          echo "foo_bar=${{ github.event.inputs.foo_bar }}"
+          echo "bar_baz=${{ github.event.inputs.bar_baz }}"

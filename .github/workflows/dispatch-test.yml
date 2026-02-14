@@ -3,7 +3,7 @@ name: Dispatch Test
 on:
   workflow_dispatch:
     inputs:
-      foo:
+      foo_bar:
         description: test input
         required: true
         default: "bar"
@@ -13,5 +13,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Echo
-        run: echo "foo=${{ github.event.inputs.foo }}"
-
+        run: echo "foo_bar=${{ github.event.inputs.foo_bar }}"

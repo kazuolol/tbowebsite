@@ -97,7 +97,7 @@ jobs:
           fi
 
           echo "Pages domains (current):"
-          echo "${list_resp}" | jq -r '.result[]? | "\(.name) status=\(.status // \"\")"'
+          echo "${list_resp}" | jq -r '.result[]? | "\(.name) status=\(.status // "")"'
 
           ensure_domain () {
             local domain="$1"

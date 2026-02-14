@@ -2,6 +2,15 @@ name: Configure Cloudflare (Domains + Redirects)
 
 on:
   workflow_dispatch:
+    inputs:
+      apex_domain:
+        description: Apex domain to serve from Pages (example: thebigone.gg)
+        required: true
+        default: thebigone.gg
+      www_domain:
+        description: WWW domain to redirect to apex (example: www.thebigone.gg)
+        required: true
+        default: www.thebigone.gg
 
 jobs:
   noop:

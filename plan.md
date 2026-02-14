@@ -42,11 +42,13 @@ Purpose: temporary cross-session context only.
 - Run canary on Telegram flow with real accounts, then full cutover.
 - After stable cutover, remove Discord-required gating/config from production policy and docs.
 
-## Repository Paths (This Environment)
+## Repository Paths (Machine-Dependent)
 
-- Frontend repo in this workspace: `D:\Code\tbowebsite`
-- Backend repo in this workspace: `D:\Code\tbowebsite-backend`
-- Note: `D:\Users\gazin\tbowebsite*` paths were not present in this runtime.
+Avoid drive-letter pinning (laptop uses `C:\`, desktop uses `D:\`).
+
+- Frontend repo root (from anywhere inside repo): `git rev-parse --show-toplevel`
+- Backend repo root (from anywhere inside repo): `git rev-parse --show-toplevel`
+- Optional helper (from frontend repo): `powershell -ExecutionPolicy Bypass -File .\scripts\where-repos.ps1`
 
 ## Current Truth (Authoritative)
 
@@ -115,18 +117,18 @@ Purpose: temporary cross-session context only.
   - Legacy local state with `mode='discord'` is normalized to Telegram on restore.
   - Env flag updated to `VITE_EARLY_ACCESS_REQUIRE_TELEGRAM_VERIFICATION`.
 
-## Latest Verification (2026-02-13)
+## Latest Verification (2026-02-14)
 
-Frontend (`D:\Code\tbowebsite`):
+Frontend (`tbowebsite`):
 - `npm.cmd run build` -> passed
 
-Backend (`D:\Code\tbowebsite-backend`):
+Backend (`tbowebsite-backend`):
 - `npm.cmd run typecheck` -> passed
 - `npm.cmd run build` -> passed
 - `npm.cmd test` -> passed (`6` test files, `22` tests)
 - `npm.cmd run smoke:contract` -> passed
 - `npm.cmd run smoke:e2e` -> passed (authenticated assertions run only when DB reachable; local run skipped auth path because `DATABASE_URL` was unreachable)
-- `npm.cmd run smoke:load` -> passed (`requests=120`, `concurrency=12`, `avgMs=17.84`, `p95Ms=29.71`)
+- `npm.cmd run smoke:load` -> passed (`requests=120`, `concurrency=12`, `avgMs=22.07`, `p95Ms=39.16`)
 - `npm.cmd run smoke:social-true-positive` -> expected fail-fast locally (`X_TARGET_USER_ID`/`X_TARGET_HANDLE` fixture targets are not set in this environment)
 
 Notes:

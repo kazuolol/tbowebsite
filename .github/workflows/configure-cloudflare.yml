@@ -12,32 +12,24 @@ on:
         required: true
         default: www.thebigone.gg
 
-permissions:
-  contents: read
-
-concurrency:
-  group: cloudflare-configure
-  cancel-in-progress: false
-
 jobs:
   configure:
     runs-on: ubuntu-latest
-    env:
-      CF_API_BASE: https://api.cloudflare.com/client/v4
-      # Prefer a scoped API token. Fallback supports a legacy secret name.
-      CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CLOUDFLARE_API_KEY }}
-      CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CF_PAGES_PROJECT_NAME: ${{ secrets.CF_PAGES_PROJECT_NAME }}
-      # workflow_dispatch inputs are available via github.event.inputs.*
-      APEX_DOMAIN: ${{ github.event.inputs.apex_domain }}
-      WWW_DOMAIN: ${{ github.event.inputs.www_domain }}
     steps:
-      - name: Validate Required Secrets
+      - name: Configure Cloudflare (Pages Domains + Redirect Rule)
+        env:
+          CF_API_BASE: https://api.cloudflare.com/client/v4
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_PAGES_PROJECT_NAME: ${{ secrets.CF_PAGES_PROJECT_NAME }}
+          # workflow_dispatch inputs are available via github.event.inputs.*
+          APEX_DOMAIN: ${{ github.event.inputs.apex_domain }}
+          WWW_DOMAIN: ${{ github.event.inputs.www_domain }}
         run: |
           set -euo pipefail
 
           if [ -z "${CF_API_TOKEN:-}" ]; then
-            echo "Missing secret: CLOUDFLARE_API_TOKEN (or CLOUDFLARE_API_KEY fallback)" >&2
+            echo "Missing secret: CLOUDFLARE_API_TOKEN" >&2
             exit 1
           fi
           if [ -z "${CF_ACCOUNT_ID:-}" ]; then
@@ -48,35 +40,35 @@ jobs:
             echo "Missing secret: CF_PAGES_PROJECT_NAME" >&2
             exit 1
           fi
+          if [ -z "${APEX_DOMAIN:-}" ]; then
+            echo "Missing workflow input: apex_domain" >&2
+            exit 1
+          fi
+          if [ -z "${WWW_DOMAIN:-}" ]; then
+            echo "Missing workflow input: www_domain" >&2
+            exit 1
+          fi
 
-      - name: Resolve Zone ID
-        id: zone
-        run: |
-          set -euo pipefail
-
-          resp="$(curl -sS -H "Authorization: Bearer ${CF_API_TOKEN}" \
+          echo "Resolving zone id for: ${APEX_DOMAIN}"
+          zone_resp="$(curl -sS -H "Authorization: Bearer ${CF_API_TOKEN}" \
             "${CF_API_BASE}/zones?name=${APEX_DOMAIN}")"
 
-          ok="$(echo "${resp}" | jq -r '.success')"
+          ok="$(echo "${zone_resp}" | jq -r '.success')"
           if [ "${ok}" != "true" ]; then
-            echo "${resp}" | jq .
+            echo "${zone_resp}" | jq .
             echo "Failed to resolve zone by name: ${APEX_DOMAIN}" >&2
             exit 1
           fi
 
-          zone_id="$(echo "${resp}" | jq -r '.result[0].id // empty')"
-          if [ -z "${zone_id}" ]; then
-            echo "${resp}" | jq .
+          CF_ZONE_ID="$(echo "${zone_resp}" | jq -r '.result[0].id // empty')"
+          if [ -z "${CF_ZONE_ID}" ]; then
+            echo "${zone_resp}" | jq .
             echo "Zone not found (or no access): ${APEX_DOMAIN}" >&2
             exit 1
           fi
+          echo "Zone id: ${CF_ZONE_ID}"
 
-          echo "CF_ZONE_ID=${zone_id}" >> "${GITHUB_ENV}"
-
-      - name: Ensure Pages Project Exists
-        run: |
-          set -euo pipefail
-
+          echo "Ensuring Pages project exists: ${CF_PAGES_PROJECT_NAME}"
           http_code="$(curl -sS -o project.json -w "%{http_code}" \
             -H "Authorization: Bearer ${CF_API_TOKEN}" \
             "${CF_API_BASE}/accounts/${CF_ACCOUNT_ID}/pages/projects/${CF_PAGES_PROJECT_NAME}")"
@@ -88,36 +80,27 @@ jobs:
               echo "Failed to fetch Pages project." >&2
               exit 1
             fi
-            echo "Pages project exists: ${CF_PAGES_PROJECT_NAME}"
-            exit 0
-          fi
+          elif [ "${http_code}" = "404" ]; then
+            echo "Pages project not found; creating: ${CF_PAGES_PROJECT_NAME}"
+            create_resp="$(curl -sS -X POST \
+              -H "Authorization: Bearer ${CF_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data "$(jq -n --arg name "${CF_PAGES_PROJECT_NAME}" --arg branch "master" '{name: $name, production_branch: $branch}')" \
+              "${CF_API_BASE}/accounts/${CF_ACCOUNT_ID}/pages/projects")"
 
-          if [ "${http_code}" != "404" ]; then
+            ok="$(echo "${create_resp}" | jq -r '.success')"
+            if [ "${ok}" != "true" ]; then
+              echo "${create_resp}" | jq .
+              echo "Failed to create Pages project: ${CF_PAGES_PROJECT_NAME}" >&2
+              exit 1
+            fi
+          else
             echo "Unexpected status when fetching Pages project: ${http_code}" >&2
             cat project.json | jq .
             exit 1
           fi
 
-          echo "Pages project not found; creating: ${CF_PAGES_PROJECT_NAME}"
-          create_resp="$(curl -sS -X POST \
-            -H "Authorization: Bearer ${CF_API_TOKEN}" \
-            -H "Content-Type: application/json" \
-            --data "$(jq -n --arg name "${CF_PAGES_PROJECT_NAME}" --arg branch "master" '{name: $name, production_branch: $branch}')" \
-            "${CF_API_BASE}/accounts/${CF_ACCOUNT_ID}/pages/projects")"
-
-          ok="$(echo "${create_resp}" | jq -r '.success')"
-          if [ "${ok}" != "true" ]; then
-            echo "${create_resp}" | jq .
-            echo "Failed to create Pages project: ${CF_PAGES_PROJECT_NAME}" >&2
-            exit 1
-          fi
-
-          echo "Created Pages project: ${CF_PAGES_PROJECT_NAME}"
-
-      - name: Attach Custom Domains To Pages Project
-        run: |
-          set -euo pipefail
-
+          echo "Attaching custom domains to Pages project..."
           list_resp="$(curl -sS -H "Authorization: Bearer ${CF_API_TOKEN}" \
             "${CF_API_BASE}/accounts/${CF_ACCOUNT_ID}/pages/projects/${CF_PAGES_PROJECT_NAME}/domains")"
 
@@ -157,10 +140,7 @@ jobs:
           ensure_domain "${APEX_DOMAIN}"
           ensure_domain "${WWW_DOMAIN}"
 
-      - name: Ensure WWW -> Apex Single Redirect Rule
-        run: |
-          set -euo pipefail
-
+          echo "Ensuring redirect rule: ${WWW_DOMAIN} -> ${APEX_DOMAIN}"
           entrypoint_url="${CF_API_BASE}/zones/${CF_ZONE_ID}/rulesets/phases/http_request_dynamic_redirect/entrypoint"
           http_code="$(curl -sS -o entrypoint.json -w "%{http_code}" \
             -H "Authorization: Bearer ${CF_API_TOKEN}" \
@@ -201,7 +181,6 @@ jobs:
               echo "Failed to create redirect entrypoint ruleset." >&2
               exit 1
             fi
-
             echo "Created redirect entrypoint ruleset."
             exit 0
           fi
@@ -248,3 +227,4 @@ jobs:
           fi
 
           echo "Added redirect rule."
+

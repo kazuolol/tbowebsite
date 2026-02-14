@@ -110,6 +110,23 @@ jobs:
           echo "${list_resp}" | jq -r '.result[]? | "\(.name) status=\(.status // "")"'
           echo "Pages domains (detail):"
           echo "${list_resp}" | jq -c '.result[]? | {name, status, zone_tag, validation_data, verification_data}'
+          echo "Pages domains (GET):"
+          fetch_pages_domain () {
+            local domain="$1"
+            domain_resp="$(curl -sS -H "Authorization: Bearer ${CF_API_TOKEN}" \
+              "${CF_API_BASE}/accounts/${CF_ACCOUNT_ID}/pages/projects/${CF_PAGES_PROJECT_NAME}/domains/${domain}")"
+
+            ok="$(echo "${domain_resp}" | jq -r '.success')"
+            if [ "${ok}" != "true" ]; then
+              echo "${domain_resp}" | jq .
+              echo "Failed to fetch Pages domain: ${domain}" >&2
+              exit 1
+            fi
+
+            echo "${domain_resp}" | jq -c '.result'
+          }
+          fetch_pages_domain "${APEX_DOMAIN}"
+          fetch_pages_domain "${WWW_DOMAIN}"
 
           ensure_domain () {
             local domain="$1"
@@ -159,6 +176,9 @@ jobs:
               echo "Failed to list DNS records for: ${record_name}" >&2
               exit 1
             fi
+
+            echo "DNS records (current) for ${record_name}:"
+            echo "${resp}" | jq -c '.result[]? | {type, name, content, proxied, ttl}' | head -n 20
 
             existing_cname_id="$(echo "${resp}" | jq -r --arg name "${record_name}" '.result[]? | select(.type == "CNAME" and .name == $name) | .id' | head -n 1)"
             existing_cname_content="$(echo "${resp}" | jq -r --arg name "${record_name}" '.result[]? | select(.type == "CNAME" and .name == $name) | .content' | head -n 1)"

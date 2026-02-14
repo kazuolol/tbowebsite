@@ -28,8 +28,9 @@ jobs:
       CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CLOUDFLARE_API_KEY }}
       CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CF_PAGES_PROJECT_NAME: ${{ secrets.CF_PAGES_PROJECT_NAME }}
-      APEX_DOMAIN: ${{ inputs.apex_domain }}
-      WWW_DOMAIN: ${{ inputs.www_domain }}
+      # workflow_dispatch inputs are available via github.event.inputs.*
+      APEX_DOMAIN: ${{ github.event.inputs.apex_domain }}
+      WWW_DOMAIN: ${{ github.event.inputs.www_domain }}
     steps:
       - name: Validate Required Secrets
         run: |
@@ -76,15 +77,42 @@ jobs:
         run: |
           set -euo pipefail
 
-          resp="$(curl -sS -H "Authorization: Bearer ${CF_API_TOKEN}" \
+          http_code="$(curl -sS -o project.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${CF_API_TOKEN}" \
             "${CF_API_BASE}/accounts/${CF_ACCOUNT_ID}/pages/projects/${CF_PAGES_PROJECT_NAME}")"
 
-          ok="$(echo "${resp}" | jq -r '.success')"
-          if [ "${ok}" != "true" ]; then
-            echo "${resp}" | jq .
-            echo "Pages project not found: ${CF_PAGES_PROJECT_NAME} (deploy once first to create it)" >&2
+          if [ "${http_code}" = "200" ]; then
+            ok="$(jq -r '.success' project.json)"
+            if [ "${ok}" != "true" ]; then
+              cat project.json | jq .
+              echo "Failed to fetch Pages project." >&2
+              exit 1
+            fi
+            echo "Pages project exists: ${CF_PAGES_PROJECT_NAME}"
+            exit 0
+          fi
+
+          if [ "${http_code}" != "404" ]; then
+            echo "Unexpected status when fetching Pages project: ${http_code}" >&2
+            cat project.json | jq .
             exit 1
           fi
+
+          echo "Pages project not found; creating: ${CF_PAGES_PROJECT_NAME}"
+          create_resp="$(curl -sS -X POST \
+            -H "Authorization: Bearer ${CF_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data "$(jq -n --arg name "${CF_PAGES_PROJECT_NAME}" --arg branch "master" '{name: $name, production_branch: $branch}')" \
+            "${CF_API_BASE}/accounts/${CF_ACCOUNT_ID}/pages/projects")"
+
+          ok="$(echo "${create_resp}" | jq -r '.success')"
+          if [ "${ok}" != "true" ]; then
+            echo "${create_resp}" | jq .
+            echo "Failed to create Pages project: ${CF_PAGES_PROJECT_NAME}" >&2
+            exit 1
+          fi
+
+          echo "Created Pages project: ${CF_PAGES_PROJECT_NAME}"
 
       - name: Attach Custom Domains To Pages Project
         run: |
@@ -220,4 +248,3 @@ jobs:
           fi
 
           echo "Added redirect rule."
-

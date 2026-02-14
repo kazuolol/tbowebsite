@@ -126,7 +126,6 @@ jobs:
             echo "${domain_resp}" | jq -c '.result'
           }
           fetch_pages_domain "${APEX_DOMAIN}"
-          fetch_pages_domain "${WWW_DOMAIN}"
 
           ensure_domain () {
             local domain="$1"
@@ -155,7 +154,33 @@ jobs:
           }
 
           ensure_domain "${APEX_DOMAIN}"
-          ensure_domain "${WWW_DOMAIN}"
+
+          detach_domain () {
+            local domain="$1"
+            local attached
+            attached="$(echo "${list_resp}" | jq -r --arg d "${domain}" '.result[]?.name | select(. == $d)')"
+            if [ -z "${attached}" ]; then
+              echo "Pages domain not attached: ${domain}"
+              return 0
+            fi
+
+            echo "Detaching Pages domain: ${domain}"
+            del_resp="$(curl -sS -X DELETE \
+              -H "Authorization: Bearer ${CF_API_TOKEN}" \
+              "${CF_API_BASE}/accounts/${CF_ACCOUNT_ID}/pages/projects/${CF_PAGES_PROJECT_NAME}/domains/${domain}")"
+
+            ok="$(echo "${del_resp}" | jq -r '.success')"
+            if [ "${ok}" != "true" ]; then
+              echo "${del_resp}" | jq .
+              echo "Failed to detach Pages domain: ${domain}" >&2
+              exit 1
+            fi
+
+            echo "Detached Pages domain: ${domain}"
+          }
+
+          # WWW is handled by a redirect rule; keep it off the Pages project.
+          detach_domain "${WWW_DOMAIN}"
 
           echo "Ensuring DNS records point to Pages..."
           PAGES_TARGET="${CF_PAGES_PROJECT_NAME}.pages.dev"
@@ -343,9 +368,8 @@ jobs:
             echo "Created A record: ${record_name}"
           }
 
-          # Pages custom domain CNAMEs can trigger Error 1014 when proxied. Keep apex DNS-only,
-          # and use a proxied placeholder A-record for WWW so the redirect rule can run.
-          ensure_pages_cname "${APEX_DOMAIN}" "${PAGES_TARGET}" false
+          # Apex must be proxied for Pages custom-domain validation to complete.
+          ensure_pages_cname "${APEX_DOMAIN}" "${PAGES_TARGET}" true
           ensure_redirect_a "${WWW_DOMAIN}" "192.0.2.1" true
 
           retry_pages_domain () {
@@ -370,7 +394,6 @@ jobs:
           }
 
           retry_pages_domain "${APEX_DOMAIN}"
-          retry_pages_domain "${WWW_DOMAIN}"
 
           echo "Ensuring redirect rule: ${WWW_DOMAIN} -> ${APEX_DOMAIN}"
           entrypoint_url="${CF_API_BASE}/zones/${CF_ZONE_ID}/rulesets/phases/http_request_dynamic_redirect/entrypoint"

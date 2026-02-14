@@ -51,6 +51,16 @@ jobs:
             echo "Zone not found (or no access): ${APEX_DOMAIN}" >&2
             exit 1
           fi
+
+          ZONE_ACCOUNT_ID="$(echo "${zone_resp}" | jq -r '.result[0].account.id // empty')"
+          ZONE_ACCOUNT_NAME="$(echo "${zone_resp}" | jq -r '.result[0].account.name // empty')"
+          echo "Zone account: ${ZONE_ACCOUNT_NAME} (${ZONE_ACCOUNT_ID})"
+
+          if [ -n "${ZONE_ACCOUNT_ID}" ] && [ "${ZONE_ACCOUNT_ID}" != "${CF_ACCOUNT_ID}" ]; then
+            echo "Zone account mismatch: the zone is not in the same Cloudflare account as CLOUDFLARE_ACCOUNT_ID." >&2
+            echo "Pages custom domains will stay pending (and can show Error 1014) until the zone and Pages project are in the same account." >&2
+            exit 1
+          fi
           echo "Zone id: ${CF_ZONE_ID}"
 
           echo "Ensuring Pages project exists: ${CF_PAGES_PROJECT_NAME}"

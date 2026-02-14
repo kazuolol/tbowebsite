@@ -368,8 +368,9 @@ jobs:
             echo "Created A record: ${record_name}"
           }
 
-          # Apex must be proxied for Pages custom-domain validation to complete.
-          ensure_pages_cname "${APEX_DOMAIN}" "${PAGES_TARGET}" true
+          # If the apex CNAME is proxied while pointing at *.pages.dev, Cloudflare can return Error 1014
+          # (CNAME Cross-User Banned) before Pages finishes domain validation. Keep it DNS-only.
+          ensure_pages_cname "${APEX_DOMAIN}" "${PAGES_TARGET}" false
           ensure_redirect_a "${WWW_DOMAIN}" "192.0.2.1" true
 
           retry_pages_domain () {

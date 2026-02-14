@@ -1,0 +1,223 @@
+name: Configure Cloudflare (Domains + Redirects)
+
+on:
+  workflow_dispatch:
+    inputs:
+      apex_domain:
+        description: Apex domain to serve from Pages (example: thebigone.gg)
+        required: true
+        default: thebigone.gg
+      www_domain:
+        description: WWW domain to redirect to apex (example: www.thebigone.gg)
+        required: true
+        default: www.thebigone.gg
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-configure
+  cancel-in-progress: false
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    env:
+      CF_API_BASE: https://api.cloudflare.com/client/v4
+      # Prefer a scoped API token. Fallback supports a legacy secret name.
+      CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CLOUDFLARE_API_KEY }}
+      CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CF_PAGES_PROJECT_NAME: ${{ secrets.CF_PAGES_PROJECT_NAME }}
+      APEX_DOMAIN: ${{ inputs.apex_domain }}
+      WWW_DOMAIN: ${{ inputs.www_domain }}
+    steps:
+      - name: Validate Required Secrets
+        run: |
+          set -euo pipefail
+
+          if [ -z "${CF_API_TOKEN:-}" ]; then
+            echo "Missing secret: CLOUDFLARE_API_TOKEN (or CLOUDFLARE_API_KEY fallback)" >&2
+            exit 1
+          fi
+          if [ -z "${CF_ACCOUNT_ID:-}" ]; then
+            echo "Missing secret: CLOUDFLARE_ACCOUNT_ID" >&2
+            exit 1
+          fi
+          if [ -z "${CF_PAGES_PROJECT_NAME:-}" ]; then
+            echo "Missing secret: CF_PAGES_PROJECT_NAME" >&2
+            exit 1
+          fi
+
+      - name: Resolve Zone ID
+        id: zone
+        run: |
+          set -euo pipefail
+
+          resp="$(curl -sS -H "Authorization: Bearer ${CF_API_TOKEN}" \
+            "${CF_API_BASE}/zones?name=${APEX_DOMAIN}")"
+
+          ok="$(echo "${resp}" | jq -r '.success')"
+          if [ "${ok}" != "true" ]; then
+            echo "${resp}" | jq .
+            echo "Failed to resolve zone by name: ${APEX_DOMAIN}" >&2
+            exit 1
+          fi
+
+          zone_id="$(echo "${resp}" | jq -r '.result[0].id // empty')"
+          if [ -z "${zone_id}" ]; then
+            echo "${resp}" | jq .
+            echo "Zone not found (or no access): ${APEX_DOMAIN}" >&2
+            exit 1
+          fi
+
+          echo "CF_ZONE_ID=${zone_id}" >> "${GITHUB_ENV}"
+
+      - name: Ensure Pages Project Exists
+        run: |
+          set -euo pipefail
+
+          resp="$(curl -sS -H "Authorization: Bearer ${CF_API_TOKEN}" \
+            "${CF_API_BASE}/accounts/${CF_ACCOUNT_ID}/pages/projects/${CF_PAGES_PROJECT_NAME}")"
+
+          ok="$(echo "${resp}" | jq -r '.success')"
+          if [ "${ok}" != "true" ]; then
+            echo "${resp}" | jq .
+            echo "Pages project not found: ${CF_PAGES_PROJECT_NAME} (deploy once first to create it)" >&2
+            exit 1
+          fi
+
+      - name: Attach Custom Domains To Pages Project
+        run: |
+          set -euo pipefail
+
+          list_resp="$(curl -sS -H "Authorization: Bearer ${CF_API_TOKEN}" \
+            "${CF_API_BASE}/accounts/${CF_ACCOUNT_ID}/pages/projects/${CF_PAGES_PROJECT_NAME}/domains")"
+
+          ok="$(echo "${list_resp}" | jq -r '.success')"
+          if [ "${ok}" != "true" ]; then
+            echo "${list_resp}" | jq .
+            echo "Failed to list Pages domains." >&2
+            exit 1
+          fi
+
+          ensure_domain () {
+            local domain="$1"
+            local already
+            already="$(echo "${list_resp}" | jq -r --arg d "${domain}" '.result[]?.name | select(. == $d)')"
+            if [ -n "${already}" ]; then
+              echo "Pages domain already attached: ${domain}"
+              return 0
+            fi
+
+            echo "Attaching Pages domain: ${domain}"
+            create_resp="$(curl -sS -H "Authorization: Bearer ${CF_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data "$(jq -n --arg name "${domain}" '{name: $name}')" \
+              "${CF_API_BASE}/accounts/${CF_ACCOUNT_ID}/pages/projects/${CF_PAGES_PROJECT_NAME}/domains")"
+
+            ok="$(echo "${create_resp}" | jq -r '.success')"
+            if [ "${ok}" != "true" ]; then
+              echo "${create_resp}" | jq .
+              echo "Failed to attach Pages domain: ${domain}" >&2
+              exit 1
+            fi
+
+            status="$(echo "${create_resp}" | jq -r '.result.status // empty')"
+            echo "Attached ${domain} (status=${status})"
+          }
+
+          ensure_domain "${APEX_DOMAIN}"
+          ensure_domain "${WWW_DOMAIN}"
+
+      - name: Ensure WWW -> Apex Single Redirect Rule
+        run: |
+          set -euo pipefail
+
+          entrypoint_url="${CF_API_BASE}/zones/${CF_ZONE_ID}/rulesets/phases/http_request_dynamic_redirect/entrypoint"
+          http_code="$(curl -sS -o entrypoint.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${CF_API_TOKEN}" \
+            "${entrypoint_url}")"
+
+          desired_rule="$(jq -n \
+            --arg www "${WWW_DOMAIN}" \
+            --arg apex "${APEX_DOMAIN}" \
+            '{
+              ref: "redirect_www_to_apex",
+              description: ("Redirect " + $www + " to " + $apex),
+              expression: ("(http.host eq \"" + $www + "\")"),
+              action: "redirect",
+              action_parameters: {
+                from_value: {
+                  target_url: {
+                    expression: ("concat(\"https://" + $apex + "\", http.request.uri.path)")
+                  },
+                  status_code: 301,
+                  preserve_query_string: true
+                }
+              },
+              enabled: true
+            }')"
+
+          if [ "${http_code}" = "404" ]; then
+            echo "No redirect entrypoint ruleset exists yet; creating."
+            create_body="$(jq -n --argjson rule "${desired_rule}" '{rules: [$rule]}')"
+            resp="$(curl -sS -X PUT \
+              -H "Authorization: Bearer ${CF_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data "${create_body}" \
+              "${entrypoint_url}")"
+
+            ok="$(echo "${resp}" | jq -r '.success')"
+            if [ "${ok}" != "true" ]; then
+              echo "${resp}" | jq .
+              echo "Failed to create redirect entrypoint ruleset." >&2
+              exit 1
+            fi
+
+            echo "Created redirect entrypoint ruleset."
+            exit 0
+          fi
+
+          if [ "${http_code}" != "200" ]; then
+            echo "Unexpected status when fetching entrypoint ruleset: ${http_code}" >&2
+            cat entrypoint.json | jq .
+            exit 1
+          fi
+
+          existing_ok="$(jq -r '.success' entrypoint.json)"
+          if [ "${existing_ok}" != "true" ]; then
+            cat entrypoint.json | jq .
+            echo "Failed to fetch redirect entrypoint ruleset." >&2
+            exit 1
+          fi
+
+          ruleset_id="$(jq -r '.result.id // empty' entrypoint.json)"
+          if [ -z "${ruleset_id}" ]; then
+            cat entrypoint.json | jq .
+            echo "No ruleset id found in entrypoint response." >&2
+            exit 1
+          fi
+
+          already="$(jq -r '.result.rules[]?.ref | select(. == "redirect_www_to_apex")' entrypoint.json)"
+          if [ -n "${already}" ]; then
+            echo "Redirect rule already present (ref=redirect_www_to_apex)."
+            exit 0
+          fi
+
+          echo "Adding redirect rule to ruleset: ${ruleset_id}"
+          add_url="${CF_API_BASE}/zones/${CF_ZONE_ID}/rulesets/${ruleset_id}/rules"
+          add_resp="$(curl -sS -X POST \
+            -H "Authorization: Bearer ${CF_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data "${desired_rule}" \
+            "${add_url}")"
+
+          ok="$(echo "${add_resp}" | jq -r '.success')"
+          if [ "${ok}" != "true" ]; then
+            echo "${add_resp}" | jq .
+            echo "Failed to add redirect rule." >&2
+            exit 1
+          fi
+
+          echo "Added redirect rule."
+

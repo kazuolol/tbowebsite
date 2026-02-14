@@ -125,6 +125,91 @@ jobs:
           ensure_domain "${APEX_DOMAIN}"
           ensure_domain "${WWW_DOMAIN}"
 
+          echo "Ensuring DNS records point to Pages..."
+          PAGES_TARGET="${CF_PAGES_PROJECT_NAME}.pages.dev"
+
+          ensure_pages_cname () {
+            local record_name="$1"
+            local target="$2"
+
+            echo "Ensuring CNAME ${record_name} -> ${target} (proxied)"
+
+            resp="$(curl -sS -H "Authorization: Bearer ${CF_API_TOKEN}" \
+              "${CF_API_BASE}/zones/${CF_ZONE_ID}/dns_records?name=${record_name}")"
+
+            ok="$(echo "${resp}" | jq -r '.success')"
+            if [ "${ok}" != "true" ]; then
+              echo "${resp}" | jq .
+              echo "Failed to list DNS records for: ${record_name}" >&2
+              exit 1
+            fi
+
+            existing_cname_id="$(echo "${resp}" | jq -r --arg name "${record_name}" '.result[]? | select(.type == "CNAME" and .name == $name) | .id' | head -n 1)"
+            existing_cname_content="$(echo "${resp}" | jq -r --arg name "${record_name}" '.result[]? | select(.type == "CNAME" and .name == $name) | .content' | head -n 1)"
+            existing_cname_proxied="$(echo "${resp}" | jq -r --arg name "${record_name}" '.result[]? | select(.type == "CNAME" and .name == $name) | .proxied' | head -n 1)"
+
+            if [ -n "${existing_cname_id}" ]; then
+              if [ "${existing_cname_content}" = "${target}" ] && [ "${existing_cname_proxied}" = "true" ]; then
+                echo "CNAME already correct: ${record_name}"
+                return 0
+              fi
+
+              echo "Updating CNAME: ${record_name}"
+              update_resp="$(curl -sS -X PUT \
+                -H "Authorization: Bearer ${CF_API_TOKEN}" \
+                -H "Content-Type: application/json" \
+                --data "$(jq -n --arg name "${record_name}" --arg content "${target}" '{type:"CNAME", name:$name, content:$content, ttl:1, proxied:true}')" \
+                "${CF_API_BASE}/zones/${CF_ZONE_ID}/dns_records/${existing_cname_id}")"
+
+              ok="$(echo "${update_resp}" | jq -r '.success')"
+              if [ "${ok}" != "true" ]; then
+                echo "${update_resp}" | jq .
+                echo "Failed to update CNAME for: ${record_name}" >&2
+                exit 1
+              fi
+
+              echo "Updated CNAME: ${record_name}"
+              return 0
+            fi
+
+            # No CNAME yet. If an A/AAAA exists for this name, remove it and replace with CNAME.
+            to_delete_ids="$(echo "${resp}" | jq -r --arg name "${record_name}" '.result[]? | select(.name == $name and (.type == "A" or .type == "AAAA")) | .id')"
+            if [ -n "${to_delete_ids}" ]; then
+              echo "Removing existing A/AAAA records for: ${record_name}"
+              echo "${to_delete_ids}" | while read -r id; do
+                [ -z "${id}" ] && continue
+                del_resp="$(curl -sS -X DELETE \
+                  -H "Authorization: Bearer ${CF_API_TOKEN}" \
+                  "${CF_API_BASE}/zones/${CF_ZONE_ID}/dns_records/${id}")"
+                ok="$(echo "${del_resp}" | jq -r '.success')"
+                if [ "${ok}" != "true" ]; then
+                  echo "${del_resp}" | jq .
+                  echo "Failed to delete DNS record id=${id} for ${record_name}" >&2
+                  exit 1
+                fi
+              done
+            fi
+
+            echo "Creating CNAME: ${record_name}"
+            create_resp="$(curl -sS -X POST \
+              -H "Authorization: Bearer ${CF_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data "$(jq -n --arg name "${record_name}" --arg content "${target}" '{type:"CNAME", name:$name, content:$content, ttl:1, proxied:true}')" \
+              "${CF_API_BASE}/zones/${CF_ZONE_ID}/dns_records")"
+
+            ok="$(echo "${create_resp}" | jq -r '.success')"
+            if [ "${ok}" != "true" ]; then
+              echo "${create_resp}" | jq .
+              echo "Failed to create CNAME for: ${record_name}" >&2
+              exit 1
+            fi
+
+            echo "Created CNAME: ${record_name}"
+          }
+
+          ensure_pages_cname "${APEX_DOMAIN}" "${PAGES_TARGET}"
+          ensure_pages_cname "${WWW_DOMAIN}" "${PAGES_TARGET}"
+
           echo "Ensuring redirect rule: ${WWW_DOMAIN} -> ${APEX_DOMAIN}"
           entrypoint_url="${CF_API_BASE}/zones/${CF_ZONE_ID}/rulesets/phases/http_request_dynamic_redirect/entrypoint"
           http_code="$(curl -sS -o entrypoint.json -w "%{http_code}" \

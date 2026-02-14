@@ -185,6 +185,12 @@ jobs:
           echo "Ensuring DNS records point to Pages..."
           PAGES_TARGET="${CF_PAGES_PROJECT_NAME}.pages.dev"
 
+          resolve_pages_ipv4 () {
+            local host="$1"
+            # Use OS resolver so we don't depend on dig being installed.
+            getent ahostsv4 "${host}" | awk '{print $1}' | sort -u
+          }
+
           ensure_pages_cname () {
             local record_name="$1"
             local target="$2"
@@ -278,6 +284,106 @@ jobs:
             echo "Created CNAME: ${record_name}"
           }
 
+          ensure_pages_apex_a () {
+            local record_name="$1"
+            local desired_proxied="$2" # "true" or "false"
+            local pages_target="$3"
+
+            echo "Resolving Pages IPv4 targets from: ${pages_target}"
+            readarray -t pages_ipv4s < <(resolve_pages_ipv4 "${pages_target}")
+            if [ "${#pages_ipv4s[@]}" -eq 0 ]; then
+              echo "Failed to resolve any IPv4 addresses for: ${pages_target}" >&2
+              exit 1
+            fi
+            echo "Pages IPv4 targets: ${pages_ipv4s[*]}"
+
+            echo "Ensuring A records ${record_name} -> [${pages_ipv4s[*]}] (proxied=${desired_proxied})"
+
+            resp="$(curl -sS -H "Authorization: Bearer ${CF_API_TOKEN}" \
+              "${CF_API_BASE}/zones/${CF_ZONE_ID}/dns_records?name=${record_name}")"
+
+            ok="$(echo "${resp}" | jq -r '.success')"
+            if [ "${ok}" != "true" ]; then
+              echo "${resp}" | jq .
+              echo "Failed to list DNS records for: ${record_name}" >&2
+              exit 1
+            fi
+
+            echo "DNS records (current) for ${record_name}:"
+            echo "${resp}" | jq -c '.result[]? | {type, name, content, proxied, ttl}' | head -n 50
+
+            # Remove any CNAME/AAAA records for this name (A records can coexist with MX/TXT for email).
+            to_delete_ids="$(echo "${resp}" | jq -r --arg name "${record_name}" '.result[]? | select(.name == $name and (.type == "CNAME" or .type == "AAAA")) | .id')"
+            if [ -n "${to_delete_ids}" ]; then
+              echo "Removing existing CNAME/AAAA records for: ${record_name}"
+              echo "${to_delete_ids}" | while read -r id; do
+                [ -z "${id}" ] && continue
+                del_resp="$(curl -sS -X DELETE \
+                  -H "Authorization: Bearer ${CF_API_TOKEN}" \
+                  "${CF_API_BASE}/zones/${CF_ZONE_ID}/dns_records/${id}")"
+                ok="$(echo "${del_resp}" | jq -r '.success')"
+                if [ "${ok}" != "true" ]; then
+                  echo "${del_resp}" | jq .
+                  echo "Failed to delete DNS record id=${id} for ${record_name}" >&2
+                  exit 1
+                fi
+              done
+            fi
+
+            # Ensure each Pages IPv4 exists as an A record.
+            for ip in "${pages_ipv4s[@]}"; do
+              existing_id="$(echo "${resp}" | jq -r --arg name "${record_name}" --arg ip "${ip}" '.result[]? | select(.type == "A" and .name == $name and .content == $ip) | .id' | head -n 1)"
+              existing_proxied="$(echo "${resp}" | jq -r --arg name "${record_name}" --arg ip "${ip}" '.result[]? | select(.type == "A" and .name == $name and .content == $ip) | .proxied' | head -n 1)"
+
+              if [ -n "${existing_id}" ]; then
+                if [ "${existing_proxied}" = "${desired_proxied}" ]; then
+                  echo "A record already present: ${record_name} -> ${ip}"
+                  continue
+                fi
+
+                echo "Updating A record proxy status: ${record_name} -> ${ip}"
+                update_body="$(jq -n \
+                  --arg name "${record_name}" \
+                  --arg content "${ip}" \
+                  --argjson proxied "${desired_proxied}" \
+                  '{type:"A", name:$name, content:$content, ttl:1, proxied:$proxied}')"
+                update_resp="$(curl -sS -X PUT \
+                  -H "Authorization: Bearer ${CF_API_TOKEN}" \
+                  -H "Content-Type: application/json" \
+                  --data "${update_body}" \
+                  "${CF_API_BASE}/zones/${CF_ZONE_ID}/dns_records/${existing_id}")"
+
+                ok="$(echo "${update_resp}" | jq -r '.success')"
+                if [ "${ok}" != "true" ]; then
+                  echo "${update_resp}" | jq .
+                  echo "Failed to update A record for: ${record_name} -> ${ip}" >&2
+                  exit 1
+                fi
+
+                continue
+              fi
+
+              echo "Creating A record: ${record_name} -> ${ip}"
+              create_body="$(jq -n \
+                --arg name "${record_name}" \
+                --arg content "${ip}" \
+                --argjson proxied "${desired_proxied}" \
+                '{type:"A", name:$name, content:$content, ttl:1, proxied:$proxied}')"
+              create_resp="$(curl -sS -X POST \
+                -H "Authorization: Bearer ${CF_API_TOKEN}" \
+                -H "Content-Type: application/json" \
+                --data "${create_body}" \
+                "${CF_API_BASE}/zones/${CF_ZONE_ID}/dns_records")"
+
+              ok="$(echo "${create_resp}" | jq -r '.success')"
+              if [ "${ok}" != "true" ]; then
+                echo "${create_resp}" | jq .
+                echo "Failed to create A record for: ${record_name} -> ${ip}" >&2
+                exit 1
+              fi
+            done
+          }
+
           ensure_redirect_a () {
             local record_name="$1"
             local ip="$2"
@@ -368,9 +474,9 @@ jobs:
             echo "Created A record: ${record_name}"
           }
 
-          # If the apex CNAME is proxied while pointing at *.pages.dev, Cloudflare can return Error 1014
-          # (CNAME Cross-User Banned) before Pages finishes domain validation. Keep it DNS-only.
-          ensure_pages_cname "${APEX_DOMAIN}" "${PAGES_TARGET}" false
+          # Avoid CNAME at apex (can trigger Cloudflare Error 1014 / cross-user CNAME restrictions).
+          # Use Pages' resolved IPv4 targets instead (A records coexist with MX/TXT for Google Workspace).
+          ensure_pages_apex_a "${APEX_DOMAIN}" false "${PAGES_TARGET}"
           ensure_redirect_a "${WWW_DOMAIN}" "192.0.2.1" true
 
           retry_pages_domain () {

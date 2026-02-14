@@ -96,6 +96,9 @@ jobs:
             exit 1
           fi
 
+          echo "Pages domains (current):"
+          echo "${list_resp}" | jq -r '.result[]? | "\(.name) status=\(.status // \"\")"'
+
           ensure_domain () {
             local domain="$1"
             local already
@@ -131,8 +134,9 @@ jobs:
           ensure_pages_cname () {
             local record_name="$1"
             local target="$2"
+            local desired_proxied="$3" # "true" or "false"
 
-            echo "Ensuring CNAME ${record_name} -> ${target} (proxied)"
+            echo "Ensuring CNAME ${record_name} -> ${target} (proxied=${desired_proxied})"
 
             resp="$(curl -sS -H "Authorization: Bearer ${CF_API_TOKEN}" \
               "${CF_API_BASE}/zones/${CF_ZONE_ID}/dns_records?name=${record_name}")"
@@ -149,16 +153,21 @@ jobs:
             existing_cname_proxied="$(echo "${resp}" | jq -r --arg name "${record_name}" '.result[]? | select(.type == "CNAME" and .name == $name) | .proxied' | head -n 1)"
 
             if [ -n "${existing_cname_id}" ]; then
-              if [ "${existing_cname_content}" = "${target}" ] && [ "${existing_cname_proxied}" = "true" ]; then
+              if [ "${existing_cname_content}" = "${target}" ] && [ "${existing_cname_proxied}" = "${desired_proxied}" ]; then
                 echo "CNAME already correct: ${record_name}"
                 return 0
               fi
 
               echo "Updating CNAME: ${record_name}"
+              update_body="$(jq -n \
+                --arg name "${record_name}" \
+                --arg content "${target}" \
+                --argjson proxied "${desired_proxied}" \
+                '{type:"CNAME", name:$name, content:$content, ttl:1, proxied:$proxied}')"
               update_resp="$(curl -sS -X PUT \
                 -H "Authorization: Bearer ${CF_API_TOKEN}" \
                 -H "Content-Type: application/json" \
-                --data "$(jq -n --arg name "${record_name}" --arg content "${target}" '{type:"CNAME", name:$name, content:$content, ttl:1, proxied:true}')" \
+                --data "${update_body}" \
                 "${CF_API_BASE}/zones/${CF_ZONE_ID}/dns_records/${existing_cname_id}")"
 
               ok="$(echo "${update_resp}" | jq -r '.success')"
@@ -191,10 +200,15 @@ jobs:
             fi
 
             echo "Creating CNAME: ${record_name}"
+            create_body="$(jq -n \
+              --arg name "${record_name}" \
+              --arg content "${target}" \
+              --argjson proxied "${desired_proxied}" \
+              '{type:"CNAME", name:$name, content:$content, ttl:1, proxied:$proxied}')"
             create_resp="$(curl -sS -X POST \
               -H "Authorization: Bearer ${CF_API_TOKEN}" \
               -H "Content-Type: application/json" \
-              --data "$(jq -n --arg name "${record_name}" --arg content "${target}" '{type:"CNAME", name:$name, content:$content, ttl:1, proxied:true}')" \
+              --data "${create_body}" \
               "${CF_API_BASE}/zones/${CF_ZONE_ID}/dns_records")"
 
             ok="$(echo "${create_resp}" | jq -r '.success')"
@@ -207,8 +221,100 @@ jobs:
             echo "Created CNAME: ${record_name}"
           }
 
-          ensure_pages_cname "${APEX_DOMAIN}" "${PAGES_TARGET}"
-          ensure_pages_cname "${WWW_DOMAIN}" "${PAGES_TARGET}"
+          ensure_redirect_a () {
+            local record_name="$1"
+            local ip="$2"
+            local desired_proxied="$3" # "true" or "false"
+
+            echo "Ensuring A ${record_name} -> ${ip} (proxied=${desired_proxied})"
+
+            resp="$(curl -sS -H "Authorization: Bearer ${CF_API_TOKEN}" \
+              "${CF_API_BASE}/zones/${CF_ZONE_ID}/dns_records?name=${record_name}")"
+
+            ok="$(echo "${resp}" | jq -r '.success')"
+            if [ "${ok}" != "true" ]; then
+              echo "${resp}" | jq .
+              echo "Failed to list DNS records for: ${record_name}" >&2
+              exit 1
+            fi
+
+            existing_a_id="$(echo "${resp}" | jq -r --arg name "${record_name}" '.result[]? | select(.type == "A" and .name == $name) | .id' | head -n 1)"
+            existing_a_content="$(echo "${resp}" | jq -r --arg name "${record_name}" '.result[]? | select(.type == "A" and .name == $name) | .content' | head -n 1)"
+            existing_a_proxied="$(echo "${resp}" | jq -r --arg name "${record_name}" '.result[]? | select(.type == "A" and .name == $name) | .proxied' | head -n 1)"
+
+            if [ -n "${existing_a_id}" ]; then
+              if [ "${existing_a_content}" = "${ip}" ] && [ "${existing_a_proxied}" = "${desired_proxied}" ]; then
+                echo "A record already correct: ${record_name}"
+                return 0
+              fi
+
+              echo "Updating A record: ${record_name}"
+              update_body="$(jq -n \
+                --arg name "${record_name}" \
+                --arg content "${ip}" \
+                --argjson proxied "${desired_proxied}" \
+                '{type:"A", name:$name, content:$content, ttl:1, proxied:$proxied}')"
+              update_resp="$(curl -sS -X PUT \
+                -H "Authorization: Bearer ${CF_API_TOKEN}" \
+                -H "Content-Type: application/json" \
+                --data "${update_body}" \
+                "${CF_API_BASE}/zones/${CF_ZONE_ID}/dns_records/${existing_a_id}")"
+
+              ok="$(echo "${update_resp}" | jq -r '.success')"
+              if [ "${ok}" != "true" ]; then
+                echo "${update_resp}" | jq .
+                echo "Failed to update A record for: ${record_name}" >&2
+                exit 1
+              fi
+
+              echo "Updated A record: ${record_name}"
+              return 0
+            fi
+
+            # Ensure this hostname is not a CNAME, and avoid any AAAA bypassing proxy.
+            to_delete_ids="$(echo "${resp}" | jq -r --arg name "${record_name}" '.result[]? | select(.name == $name and (.type == "CNAME" or .type == "AAAA")) | .id')"
+            if [ -n "${to_delete_ids}" ]; then
+              echo "Removing existing CNAME/AAAA records for: ${record_name}"
+              echo "${to_delete_ids}" | while read -r id; do
+                [ -z "${id}" ] && continue
+                del_resp="$(curl -sS -X DELETE \
+                  -H "Authorization: Bearer ${CF_API_TOKEN}" \
+                  "${CF_API_BASE}/zones/${CF_ZONE_ID}/dns_records/${id}")"
+                ok="$(echo "${del_resp}" | jq -r '.success')"
+                if [ "${ok}" != "true" ]; then
+                  echo "${del_resp}" | jq .
+                  echo "Failed to delete DNS record id=${id} for ${record_name}" >&2
+                  exit 1
+                fi
+              done
+            fi
+
+            echo "Creating A record: ${record_name}"
+            create_body="$(jq -n \
+              --arg name "${record_name}" \
+              --arg content "${ip}" \
+              --argjson proxied "${desired_proxied}" \
+              '{type:"A", name:$name, content:$content, ttl:1, proxied:$proxied}')"
+            create_resp="$(curl -sS -X POST \
+              -H "Authorization: Bearer ${CF_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data "${create_body}" \
+              "${CF_API_BASE}/zones/${CF_ZONE_ID}/dns_records")"
+
+            ok="$(echo "${create_resp}" | jq -r '.success')"
+            if [ "${ok}" != "true" ]; then
+              echo "${create_resp}" | jq .
+              echo "Failed to create A record for: ${record_name}" >&2
+              exit 1
+            fi
+
+            echo "Created A record: ${record_name}"
+          }
+
+          # Pages custom domain CNAMEs can trigger Error 1014 when proxied. Keep apex DNS-only,
+          # and use a proxied placeholder A-record for WWW so the redirect rule can run.
+          ensure_pages_cname "${APEX_DOMAIN}" "${PAGES_TARGET}" false
+          ensure_redirect_a "${WWW_DOMAIN}" "192.0.2.1" true
 
           echo "Ensuring redirect rule: ${WWW_DOMAIN} -> ${APEX_DOMAIN}"
           entrypoint_url="${CF_API_BASE}/zones/${CF_ZONE_ID}/rulesets/phases/http_request_dynamic_redirect/entrypoint"

@@ -6,7 +6,7 @@ on:
       foo_bar:
         description: test input
         required: true
-        default: "bar"
+        default: "thebigone.gg"
 
 jobs:
   test:

@@ -108,6 +108,8 @@ jobs:
 
           echo "Pages domains (current):"
           echo "${list_resp}" | jq -r '.result[]? | "\(.name) status=\(.status // "")"'
+          echo "Pages domains (detail):"
+          echo "${list_resp}" | jq -c '.result[]? | {name, status, zone_tag, validation_data, verification_data}'
 
           ensure_domain () {
             local domain="$1"
@@ -325,6 +327,30 @@ jobs:
           # and use a proxied placeholder A-record for WWW so the redirect rule can run.
           ensure_pages_cname "${APEX_DOMAIN}" "${PAGES_TARGET}" false
           ensure_redirect_a "${WWW_DOMAIN}" "192.0.2.1" true
+
+          retry_pages_domain () {
+            local domain="$1"
+            echo "Retrying Pages domain validation: ${domain}"
+
+            retry_resp="$(curl -sS -X PATCH \
+              -H "Authorization: Bearer ${CF_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data '{}' \
+              "${CF_API_BASE}/accounts/${CF_ACCOUNT_ID}/pages/projects/${CF_PAGES_PROJECT_NAME}/domains/${domain}")"
+
+            ok="$(echo "${retry_resp}" | jq -r '.success')"
+            if [ "${ok}" != "true" ]; then
+              echo "${retry_resp}" | jq .
+              echo "Failed to retry Pages domain validation: ${domain}" >&2
+              exit 1
+            fi
+
+            status="$(echo "${retry_resp}" | jq -r '.result.status // empty')"
+            echo "Pages domain ${domain} status: ${status}"
+          }
+
+          retry_pages_domain "${APEX_DOMAIN}"
+          retry_pages_domain "${WWW_DOMAIN}"
 
           echo "Ensuring redirect rule: ${WWW_DOMAIN} -> ${APEX_DOMAIN}"
           entrypoint_url="${CF_API_BASE}/zones/${CF_ZONE_ID}/rulesets/phases/http_request_dynamic_redirect/entrypoint"

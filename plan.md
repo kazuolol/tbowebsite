@@ -136,6 +136,34 @@ Notes:
 - Credential-backed social smoke remains fixture-gated in this environment.
 - Backend smoke runners executed successfully in this environment (no `spawn EPERM` observed); if you hit `spawn EPERM`, rerun outside sandbox/elevation.
 
+## Cloudflare Pages Cutover (2026-02-15)
+
+Goal: serve `https://thebigone.gg` from Cloudflare Pages with headless CI deploys, SPA deep links, and `www -> apex` redirect (without breaking Google Workspace email).
+
+Current truth:
+- Zone `thebigone.gg` is active in Cloudflare (DNS authority moved from GoDaddy).
+- Pages project: `tbowebsite` (default URL: `https://tbowebsite-4er.pages.dev`).
+- Custom domain `https://thebigone.gg` is attached to the Pages project and serves the frontend.
+- `https://www.thebigone.gg/*` redirects to `https://thebigone.gg/*` via Cloudflare redirect rules.
+- SPA deep link `/claim` works on direct hits:
+  - `/claim` -> `/claim/` (308)
+  - `/claim/*` -> `/index.html` (200)
+
+Implementation notes (repo):
+- Frontend deploy workflow (direct upload): `.github/workflows/deploy-cloudflare-pages.yml`
+- Cloudflare configuration workflow (domains + redirects + DNS): `.github/workflows/configure-cloudflare.yml`
+- SPA routing rules: `public/_redirects`
+
+Incident log:
+- Do not assume `${CF_PAGES_PROJECT_NAME}.pages.dev` is the Pages origin. Cloudflare assigns a suffixed subdomain.
+  - Actual project subdomain is read from Pages API `result.subdomain` (ex: `tbowebsite-4er.pages.dev`).
+- Attempting to A-record the apex to Pages anycast IPs can trigger Cloudflare Error 1000 ("DNS points to prohibited IP").
+
+Security:
+- Cloudflare API token was pasted into chat during troubleshooting. Treat it as compromised:
+  - Rotate the token in Cloudflare.
+  - Update GitHub Actions secret `CLOUDFLARE_API_TOKEN` with the rotated token.
+
 ## Outstanding Work
 
 1. CI migration:
@@ -154,6 +182,16 @@ Notes:
 2. Rollout execution:
 - Run Telegram canary checklist and full cutover checklist from `docs/early-access-http-checklist.md`.
 - Capture canary/cutover outcomes and any corrective actions in this file.
+
+3. Backend URL (production):
+- Frontend defaults to `http` mode with `VITE_EARLY_ACCESS_API_BASE_URL=/v1/early-access` (same-origin).
+- On production Pages, `/v1/early-access/*` currently resolves to Pages HTML, not backend JSON, so the claim flow will fail until the API is deployed and routed.
+- Decide and implement one of:
+  - Dedicated API host (recommended): deploy backend at `https://api.thebigone.gg` and set:
+    - Frontend: `VITE_EARLY_ACCESS_API_BASE_URL=https://api.thebigone.gg/v1/early-access`
+    - Backend: `PUBLIC_BASE_URL=https://api.thebigone.gg`, `CORS_ORIGIN=https://thebigone.gg`, `SESSION_COOKIE_SECURE=true`
+  - Same-origin proxy: keep frontend base URL as `/v1/early-access` and add a Cloudflare Worker route for `/v1/early-access/*` that proxies to the backend host (avoids CORS).
+
 
 ## Session Notes
 

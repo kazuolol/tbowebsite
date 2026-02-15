@@ -6,6 +6,23 @@ on:
       - master
       - main
   workflow_dispatch:
+    inputs:
+      pages_branch:
+        description: "Override the Pages deployment branch (use to create preview deployments, e.g. test-mode)."
+        required: false
+        default: ""
+      api_mode:
+        description: "Override VITE_EARLY_ACCESS_API_MODE for this build (mock|http)."
+        required: false
+        default: ""
+      api_base_url:
+        description: "Override VITE_EARLY_ACCESS_API_BASE_URL for this build."
+        required: false
+        default: ""
+      require_telegram_verification:
+        description: "Override VITE_EARLY_ACCESS_REQUIRE_TELEGRAM_VERIFICATION for this build (true|false)."
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -35,9 +52,9 @@ jobs:
         env:
           # Vite build-time configuration (baked into the bundle).
           # Defaults keep production usable even before the backend API is deployed.
-          VITE_EARLY_ACCESS_API_MODE: ${{ vars.VITE_EARLY_ACCESS_API_MODE || 'mock' }}
-          VITE_EARLY_ACCESS_API_BASE_URL: ${{ vars.VITE_EARLY_ACCESS_API_BASE_URL || '' }}
-          VITE_EARLY_ACCESS_REQUIRE_TELEGRAM_VERIFICATION: ${{ vars.VITE_EARLY_ACCESS_REQUIRE_TELEGRAM_VERIFICATION || 'true' }}
+          VITE_EARLY_ACCESS_API_MODE: ${{ inputs.api_mode || vars.VITE_EARLY_ACCESS_API_MODE || 'mock' }}
+          VITE_EARLY_ACCESS_API_BASE_URL: ${{ inputs.api_base_url || vars.VITE_EARLY_ACCESS_API_BASE_URL || '' }}
+          VITE_EARLY_ACCESS_REQUIRE_TELEGRAM_VERIFICATION: ${{ inputs.require_telegram_verification || vars.VITE_EARLY_ACCESS_REQUIRE_TELEGRAM_VERIFICATION || 'true' }}
         run: npm run build
 
       - name: Ensure Pages Project Exists
@@ -96,3 +113,4 @@ jobs:
           projectName: ${{ secrets.CF_PAGES_PROJECT_NAME }}
           directory: dist
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ inputs.pages_branch || github.ref_name }}

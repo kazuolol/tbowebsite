@@ -198,9 +198,31 @@ Security:
 
 Selected: Dedicated API host (`https://api.thebigone.gg`).
 Next steps:
-- Deploy backend and database to a hosting provider (Node + Postgres).
+- Deploy backend and Postgres to production.
+  - Current implementation target: Fly.io (Docker + `fly.toml` + GitHub Actions deploy).
+  - Backend repo now includes:
+    - `Dockerfile`, `.dockerignore`
+    - `fly.toml` (app name placeholder currently `tbo-api`)
+    - `.github/workflows/deploy-fly.yml` (deploys on push to `master`/`main`)
+  - Important fix: backend migrations now resolve `migrations/` from `process.cwd()` so compiled migrations can run in containers.
+  - Required production env (set as host secrets/vars, not committed):
+    - `DATABASE_URL`
+    - `NODE_ENV=production`
+    - `PUBLIC_BASE_URL=https://api.thebigone.gg`
+    - `CORS_ORIGIN=https://thebigone.gg`
+    - `SESSION_COOKIE_SECURE=true`
+    - `EARLY_ACCESS_RATE_LIMIT_STORE=postgres`
+    - Plus X + Telegram OAuth config when enabling step-2 social/community verification.
 - Create Cloudflare DNS record for `api.thebigone.gg` pointing at the backend origin.
-- Flip frontend build variable `VITE_EARLY_ACCESS_API_MODE` from `mock` -> `http`.
+  - `.github/workflows/configure-cloudflare.yml` now accepts `api_target` and can create/update the CNAME for `api`.
+- Flip frontend build variable `VITE_EARLY_ACCESS_API_MODE` from `mock` -> `http` and set:
+  - `VITE_EARLY_ACCESS_API_BASE_URL=https://api.thebigone.gg/v1/early-access`
+
+Test environment mode (avoid writing to production DB):
+- Use a non-production frontend deployment with `VITE_EARLY_ACCESS_API_MODE=mock` (no backend writes at all), or point to a staging API+DB.
+- Frontend deploy workflow supports manual “test-mode” preview deploys via `workflow_dispatch` inputs:
+  - `pages_branch=test-mode` (creates a preview deployment)
+  - `api_mode=mock` (or `http` with staging base URL)
 
 
 ## Session Notes

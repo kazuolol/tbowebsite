@@ -2,6 +2,19 @@ name: Configure Cloudflare (Domains + Redirects)
 
 on:
   workflow_dispatch:
+    inputs:
+      api_domain:
+        description: "API hostname to configure (optional)."
+        required: false
+        default: "api.thebigone.gg"
+      api_target:
+        description: "CNAME target for api_domain (optional), e.g. tbo-api.fly.dev."
+        required: false
+        default: ""
+      api_proxied:
+        description: "Whether api_domain should be proxied (true|false)."
+        required: false
+        default: "true"
 
 permissions:
   contents: read
@@ -18,6 +31,9 @@ jobs:
           CF_PAGES_PROJECT_NAME: ${{ secrets.CF_PAGES_PROJECT_NAME }}
           APEX_DOMAIN: thebigone.gg
           WWW_DOMAIN: www.thebigone.gg
+          API_DOMAIN: ${{ inputs.api_domain }}
+          API_TARGET: ${{ inputs.api_target }}
+          API_PROXIED: ${{ inputs.api_proxied }}
         run: |
           set -euo pipefail
 
@@ -390,6 +406,11 @@ jobs:
           # This fixes Error 1014 and avoids the prohibited-IP Error 1000 from trying to A-record to Cloudflare IPs.
           ensure_pages_cname "${APEX_DOMAIN}" "${PAGES_TARGET}" true
           ensure_redirect_a "${WWW_DOMAIN}" "192.0.2.1" true
+
+          if [ -n "${API_TARGET:-}" ]; then
+            echo "Ensuring API DNS record..."
+            ensure_pages_cname "${API_DOMAIN}" "${API_TARGET}" "${API_PROXIED:-true}"
+          fi
 
           retry_pages_domain () {
             local domain="$1"

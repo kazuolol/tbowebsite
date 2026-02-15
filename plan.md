@@ -153,6 +153,10 @@ Implementation notes (repo):
 - Frontend deploy workflow (direct upload): `.github/workflows/deploy-cloudflare-pages.yml`
 - Cloudflare configuration workflow (domains + redirects + DNS): `.github/workflows/configure-cloudflare.yml`
 - SPA routing rules: `public/_redirects`
+- Frontend production build config is injected via GitHub Actions repo variables:
+  - `VITE_EARLY_ACCESS_API_MODE` (currently set to `mock` until the production API is deployed)
+  - `VITE_EARLY_ACCESS_API_BASE_URL` (planned: `https://api.thebigone.gg/v1/early-access`)
+  - `VITE_EARLY_ACCESS_REQUIRE_TELEGRAM_VERIFICATION`
 
 Incident log:
 - Do not assume `${CF_PAGES_PROJECT_NAME}.pages.dev` is the Pages origin. Cloudflare assigns a suffixed subdomain.
@@ -191,6 +195,12 @@ Security:
     - Frontend: `VITE_EARLY_ACCESS_API_BASE_URL=https://api.thebigone.gg/v1/early-access`
     - Backend: `PUBLIC_BASE_URL=https://api.thebigone.gg`, `CORS_ORIGIN=https://thebigone.gg`, `SESSION_COOKIE_SECURE=true`
   - Same-origin proxy: keep frontend base URL as `/v1/early-access` and add a Cloudflare Worker route for `/v1/early-access/*` that proxies to the backend host (avoids CORS).
+
+Selected: Dedicated API host (`https://api.thebigone.gg`).
+Next steps:
+- Deploy backend and database to a hosting provider (Node + Postgres).
+- Create Cloudflare DNS record for `api.thebigone.gg` pointing at the backend origin.
+- Flip frontend build variable `VITE_EARLY_ACCESS_API_MODE` from `mock` -> `http`.
 
 
 ## Session Notes

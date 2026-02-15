@@ -217,10 +217,11 @@ Next steps:
   - `.github/workflows/configure-cloudflare.yml` now accepts `api_target` and can create/update the CNAME for `api`.
 - Flip frontend build variable `VITE_EARLY_ACCESS_API_MODE` from `mock` -> `http` and set:
   - `VITE_EARLY_ACCESS_API_BASE_URL=https://api.thebigone.gg/v1/early-access`
+  - You can do this by updating GitHub repo variables, or by running `.github/workflows/deploy-cloudflare-pages.yml` via `workflow_dispatch` with `api_mode` / `api_base_url` overrides.
 
 Test environment mode (avoid writing to production DB):
 - Use a non-production frontend deployment with `VITE_EARLY_ACCESS_API_MODE=mock` (no backend writes at all), or point to a staging API+DB.
-- Frontend deploy workflow supports manual “test-mode” preview deploys via `workflow_dispatch` inputs:
+- Frontend deploy workflow supports manual "test-mode" preview deploys via `workflow_dispatch` inputs:
   - `pages_branch=test-mode` (creates a preview deployment)
   - `api_mode=mock` (or `http` with staging base URL)
 

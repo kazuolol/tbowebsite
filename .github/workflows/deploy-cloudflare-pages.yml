@@ -32,6 +32,12 @@ jobs:
         run: npm ci
 
       - name: Build
+        env:
+          # Vite build-time configuration (baked into the bundle).
+          # Defaults keep production usable even before the backend API is deployed.
+          VITE_EARLY_ACCESS_API_MODE: ${{ vars.VITE_EARLY_ACCESS_API_MODE || 'mock' }}
+          VITE_EARLY_ACCESS_API_BASE_URL: ${{ vars.VITE_EARLY_ACCESS_API_BASE_URL || '' }}
+          VITE_EARLY_ACCESS_REQUIRE_TELEGRAM_VERIFICATION: ${{ vars.VITE_EARLY_ACCESS_REQUIRE_TELEGRAM_VERIFICATION || 'true' }}
         run: npm run build
 
       - name: Ensure Pages Project Exists

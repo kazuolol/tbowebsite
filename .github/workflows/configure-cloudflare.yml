@@ -482,6 +482,42 @@ jobs:
           already="$(jq -r '.result.rules[]?.ref | select(. == "redirect_www_to_apex")' entrypoint.json)"
           if [ -n "${already}" ]; then
             echo "Redirect rule already present (ref=redirect_www_to_apex)."
+          fi
+
+          # If an existing redirect rule is forcing /claim -> /, it breaks SPA deep links.
+          # Remove only the specific pattern that redirects /claim to the site root.
+          claim_rule_ids="$(jq -r '
+            .result.rules[]?
+            | select(.action == "redirect")
+            | select(.expression | test("/claim"))
+            | select(
+                (.action_parameters.from_value.target_url.value? == "/")
+                or
+                (.action_parameters.from_value.target_url.expression? | test("concat\\(\\\"https?://[^\\\"]+\\\",\\s*\\\"/\\\"\\)"))
+              )
+            | .id
+          ' entrypoint.json | head -n 20)"
+
+          if [ -n "${claim_rule_ids}" ]; then
+            echo "Removing redirect rule(s) that force /claim -> / (to allow SPA deep links)..."
+            echo "${claim_rule_ids}" | while read -r rid; do
+              [ -z "${rid}" ] && continue
+              del_url="${CF_API_BASE}/zones/${CF_ZONE_ID}/rulesets/${ruleset_id}/rules/${rid}"
+              del_resp="$(curl -sS -X DELETE \
+                -H "Authorization: Bearer ${CF_API_TOKEN}" \
+                "${del_url}")"
+
+              ok="$(echo "${del_resp}" | jq -r '.success')"
+              if [ "${ok}" != "true" ]; then
+                echo "${del_resp}" | jq .
+                echo "Failed to delete redirect rule id=${rid}." >&2
+                exit 1
+              fi
+              echo "Deleted redirect rule id=${rid}."
+            done
+          fi
+
+          if [ -n "${already}" ]; then
             exit 0
           fi
 

@@ -204,6 +204,7 @@ Next steps:
     - `Dockerfile`, `.dockerignore`
     - `fly.toml` (app name placeholder currently `tbo-api`)
     - `.github/workflows/deploy-fly.yml` (deploys on push to `master`/`main`)
+  - Current blocker: backend deploy workflow requires GitHub Actions secret `FLY_API_TOKEN` in `tbowebsite-backend`.
   - Important fix: backend migrations now resolve `migrations/` from `process.cwd()` so compiled migrations can run in containers.
   - Required production env (set as host secrets/vars, not committed):
     - `DATABASE_URL`
